@@ -4,3 +4,4 @@ static/app.css
 static/client.js
 .env
 .DS_Store
+.zuke/

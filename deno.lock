@@ -4,6 +4,9 @@
     "jsr:@hono/hono@^4.13.13": "4.13.13",
     "jsr:@std/assert@1": "1.0.19",
     "jsr:@std/internal@^1.0.12": "1.0.14",
+    "jsr:@zuke/core@^1.55.1": "1.73.0",
+    "jsr:@zuke/core@^1.73.0": "1.73.0",
+    "jsr:@zuke/deno@^1.4.2": "1.4.2",
     "npm:@modelcontextprotocol/sdk@^1.32.1": "1.32.1_zod@4.6.7",
     "npm:@preact/signals@^2.11.3": "2.11.3_preact@11.0.1",
     "npm:@tailwindcss/cli@*": "4.3.3",
@@ -23,6 +26,15 @@
     },
     "@std/internal@1.0.14": {
       "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+    },
+    "@zuke/core@1.73.0": {
+      "integrity": "06dfafbbe19025fbb224f29b0d2853ebdabf24e8f799d67b4a3ecb020114b2a3"
+    },
+    "@zuke/deno@1.4.2": {
+      "integrity": "1a7d350397263708027c858a148a4bf081b44a16505a9adcc73b80570472b6dd",
+      "dependencies": [
+        "jsr:@zuke/core@^1.55.1"
+      ]
     }
   },
   "npm": {
@@ -941,6 +953,8 @@
       "jsr:@hono/hono@^4.13.13",
       "jsr:@std/assert@1",
       "jsr:@std/testing@1",
+      "jsr:@zuke/core@^1.73.0",
+      "jsr:@zuke/deno@^1.4.2",
       "npm:@modelcontextprotocol/sdk@^1.32.1",
       "npm:@preact/signals@^2.11.3",
       "npm:preact@^11.0.1",

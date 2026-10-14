@@ -169,6 +169,7 @@ Deno.test("project view groups designs, decisions and epics", async () => {
     };
     await s.createHex({ ...base, kind: "core.design", title: "D", dependsOn: [f.projectId] });
     await s.createHex({ ...base, kind: "core.decision", title: "Dec", dependsOn: [] });
+    await s.createHex({ ...base, kind: "core.question", title: "Why?", dependsOn: [] });
     const done = await s.createHex({ ...base, kind: "core.story", title: "S1", dependsOn: [] });
     const open = await s.createHex({
       ...base,
@@ -185,7 +186,10 @@ Deno.test("project view groups designs, decisions and epics", async () => {
       dependsOn: [done.id, open.id],
     });
     const view = await s.projectView(f.projectId);
-    assertEquals([view.designs.length, view.decisions.length, view.epics.length], [1, 1, 1]);
+    assertEquals(
+      [view.designs.length, view.decisions.length, view.questions.length, view.epics.length],
+      [1, 1, 1, 1],
+    );
     assertEquals(view.epics[0]?.progress, { done: 1, total: 2, pct: 50 });
     assertEquals(view.epics[0]?.stories.map((x) => x.title), ["S2", "S1"]);
   } finally {

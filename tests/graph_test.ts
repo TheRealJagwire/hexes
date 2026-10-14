@@ -118,3 +118,14 @@ Deno.test("status summary", () => {
     "2 done · 1 in progress",
   );
 });
+
+Deno.test("core.question hang off the project in breadcrumbs", () => {
+  const idx = buildIndex([
+    hex("hx-p-001", "core.project", "done"),
+    hex("hx-p-0a9", "core.question", "blocked"),
+  ]);
+  assertEquals(breadcrumbs(idx, idx.byId.get("hx-p-0a9")!).map((h) => h.id), [
+    "hx-p-001",
+    "hx-p-0a9",
+  ]);
+});

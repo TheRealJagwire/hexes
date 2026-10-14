@@ -53,6 +53,7 @@ export interface ProjectView {
   project: Hex;
   designs: HexSummary[];
   decisions: HexSummary[];
+  questions: HexSummary[];
   epics: EpicView[];
 }
 

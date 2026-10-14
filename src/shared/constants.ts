@@ -13,6 +13,7 @@ export const CORE_KINDS = [
   "story",
   "substory",
   "bug",
+  "question",
 ] as const;
 
 export const SELECTED_PROJECT_KIND = "studio.selected_project";

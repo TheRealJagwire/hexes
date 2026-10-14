@@ -5,14 +5,16 @@
     "dev": "deno task css:watch & deno task bundle:watch & deno run -A --watch src/server/main.ts",
     "start": "deno run -A src/server/main.ts",
     "mcp": "deno run --allow-read --allow-write --allow-env --allow-run=git src/mcp/server.ts",
-    "css": "deno run -A npm:@tailwindcss/cli -i src/client/styles/app.css -o static/app.css --minify",
+    "css": "deno run -A zuke.ts css",
     "css:watch": "deno run -A npm:@tailwindcss/cli -i src/client/styles/app.css -o static/app.css --watch",
-    "bundle": "deno bundle --platform=browser --minify -o static/client.js src/client/main.tsx",
-    "check": "deno fmt --check && deno lint && deno check src/server/main.ts src/mcp/server.ts src/client/main.tsx scripts/*.ts tests/*.ts",
-    "test": "deno test -A",
+    "bundle": "deno run -A zuke.ts bundle",
+    "check": "deno run -A zuke.ts check",
+    "test": "deno run -A zuke.ts test",
     "bundle:watch": "deno bundle --platform=browser --watch -o static/client.js src/client/main.tsx",
-    "build": "deno task css && deno task bundle",
-    "seed": "deno run -A scripts/seed.ts"
+    "build": "deno run -A zuke.ts build",
+    "seed": "deno run -A scripts/seed.ts",
+    "ci": "deno run -A zuke.ts ci",
+    "zuke": "deno run -A zuke.ts"
   },
   "imports": {
     "hono": "jsr:@hono/hono@^4.13.13",
@@ -24,7 +26,10 @@
     "@modelcontextprotocol/sdk/": "npm:/@modelcontextprotocol/sdk@^1.32.1/",
     "zod": "npm:zod@^4.6.7",
     "@std/assert": "jsr:@std/assert@^1",
-    "@std/testing/": "jsr:@std/testing@^1/"
+    "@std/testing/": "jsr:@std/testing@^1/",
+    "@zuke/core": "jsr:@zuke/core@^1.73.0",
+    "@zuke/core/shell": "jsr:@zuke/core@^1.73.0/shell",
+    "@zuke/deno": "jsr:@zuke/deno@^1.4.2"
   },
   "compilerOptions": {
     "strict": true,

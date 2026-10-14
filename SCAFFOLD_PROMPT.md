@@ -13,7 +13,8 @@ Paste this, together with the Claude Design bundle, into Claude Code.
   `any`
 - **MCP server**: `@modelcontextprotocol/sdk` + `zod`, stdio transport (`src/mcp/server.ts`,
   registered in `.mcp.json`)
-- **zuke**: not installed. No package by that name was found; see `questions.md` #1. it.
+- **Zuke** (`@zuke/core`, `@zuke/deno`): build pipeline in `zuke.ts`;
+  `deno task build|check|test|ci` run its targets
 
 ## Layout
 

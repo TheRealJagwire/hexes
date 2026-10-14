@@ -181,6 +181,7 @@ export class HexService {
       project,
       designs: own.filter((h) => h.kind === "core.design").map(summarize),
       decisions: own.filter((h) => h.kind === "core.decision").map(summarize),
+      questions: own.filter((h) => h.kind === "core.question").map(summarize),
       epics,
     };
   }

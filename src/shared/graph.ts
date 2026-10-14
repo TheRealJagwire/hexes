@@ -142,6 +142,7 @@ const PARENT_RULES: Record<string, ParentRule> = {
   "core.gate": PROJECT_RULE,
   "core.design": PROJECT_RULE,
   "core.bug": PROJECT_RULE,
+  "core.question": PROJECT_RULE,
   "core.spec": { kind: "core.design", via: "dependencies" },
   "core.decision": { kind: "core.design", via: "dependencies" },
 };

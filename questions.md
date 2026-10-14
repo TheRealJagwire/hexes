@@ -5,9 +5,7 @@ change if I guessed wrong. Roughly ordered by how much it affects the rest of th
 
 ## Blocking-ish
 
-1. **What is "zuke"?** I couldn't find a package by that name on npm or JSR, so it is not installed
-   and nothing uses it. If you meant a specific library (a test runner, a CLI framework, `zod`?),
-   tell me and I'll wire it in. `SCAFFOLD_PROMPT.md` still carries a TODO for it.
+1. **zuke (resolved).** It is `@zuke/core` and `@zuke/deno` on JSR, now integrated: see item 26.
 
 ## Data model
 
@@ -101,6 +99,16 @@ change if I guessed wrong. Roughly ordered by how much it affects the rest of th
     no epics.
 22. Meta: "Add key" on the Hex screen saves immediately (and overwrites an existing key of the same
     name); there is no inline edit of an existing value yet.
+
+## Zuke
+
+26. **How Zuke is used.** `zuke.ts` holds the targets (`clean`, `css`, `bundle`, `build`, `fmt`,
+    `lint`, `typecheck`, `check`, `test`, `ci`) and the `build`, `css`, `bundle`, `check`, `test`
+    and `ci` tasks in `deno.json` now call it. I left the watch tasks and `dev`/`start`/`mcp`/`seed`
+    as plain tasks. I did **not** add `cicd(...)`, which would generate a GitHub Actions workflow on
+    every run; say if you want CI generated.
+27. **`zuke.ts` needs network on first run** to fetch `@zuke/core` / `@zuke/deno` from JSR. I didn't
+    install the `zuke` CLI or its `./zuke` launcher; `deno run -A zuke.ts` does the job.
 
 ## Not verified
 
