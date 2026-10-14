@@ -444,7 +444,7 @@ export class HexService {
     meta?: Record<string, string> | undefined;
   }): Promise<Hex> {
     const taken = new Set(hexes.map((h) => h.id));
-    const { id, createdAtTimeInMs } = await generateId(
+    const id = await generateId(
       o.prefix,
       o.title,
       o.kind,
@@ -456,8 +456,8 @@ export class HexService {
       title: o.title,
       description: o.description,
       kind: o.kind,
-      createdAtTimeInMs,
-      lastUpdatedAtTimeInMs: createdAtTimeInMs,
+      createdAtTimeInMs: o.createdAt,
+      lastUpdatedAtTimeInMs: o.createdAt,
       status: o.status,
     };
     if (o.dependsOn?.length) hex.dependsOn = o.dependsOn;

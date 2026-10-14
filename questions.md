@@ -27,10 +27,12 @@ change if I guessed wrong. Roughly ordered by how much it affects the rest of th
    project by prefix. Specs and decisions use the design they depend on; designs and bugs use the
    project. Anything missing falls back to the project. If a hex has several candidate parents I
    take the earliest created.
-6. **Id collisions** (the design's open question). The hash is 3 hex chars (4,096 per prefix). On a
-   collision I bump `createdAtTimeInMs` by 1 ms and rehash, so the id can always be recomputed from
-   the stored title, kind and createdAt. After 8,192 tries the create fails. Projects with more than
-   a few hundred hexes will start to bump often; a longer hash is the real fix.
+6. **Id collisions** (the design's open question). Ids start with 3 hex chars (4,096 per prefix).
+   When a new id collides with an existing hex, the _new_ hex's hash grows one digit at a time
+   (`hx-foo-d4d` → `hx-foo-d4d1` → …) until it is free; the older hex keeps its id and `createdAt`
+   is never changed. Every id is therefore a prefix of the sha-256 of the stored title, kind and
+   createdAt. The id format is now `hx-<prefix>-<3 or more hex chars>`. Note a longer id always
+   _starts with_ the colliding shorter one.
 7. **Status of the project hex and `studio.selected_project`.** SPEC defaults status to `blocked`,
    but designs depend on the project, so a `blocked` project would keep every design blocked. I
    create both as `done`.

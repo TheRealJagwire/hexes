@@ -19,4 +19,4 @@ export const CORE_KINDS = [
 export const SELECTED_PROJECT_KIND = "studio.selected_project";
 export const SELECTED_PROJECT_PREFIX = "studio";
 
-export const HEX_ID_RE = /^hx-([a-z0-9]+(?:-[a-z0-9]+)*)-([0-9a-f]{3})$/;
+export const HEX_ID_RE = /^hx-([a-z0-9]+(?:-[a-z0-9]+)*)-([0-9a-f]{3,})$/;

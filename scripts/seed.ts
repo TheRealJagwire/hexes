@@ -158,14 +158,14 @@ for (
     const { generateId, derivePrefix } = await import("../src/server/core/ids.ts");
     const prefixes = new Set(hexes.map((h) => h.id.split("-").slice(1, -1).join("-")));
     const prefix = derivePrefix(title, prefixes);
-    const g = await generateId(prefix, title, "core.project", t, new Set(hexes.map((h) => h.id)));
+    const id = await generateId(prefix, title, "core.project", t, new Set(hexes.map((h) => h.id)));
     hexes.push({
-      id: g.id,
+      id,
       title,
       description: statement,
       kind: "core.project",
-      createdAtTimeInMs: g.createdAtTimeInMs,
-      lastUpdatedAtTimeInMs: g.createdAtTimeInMs,
+      createdAtTimeInMs: t,
+      lastUpdatedAtTimeInMs: t,
       status: "done",
     });
   });

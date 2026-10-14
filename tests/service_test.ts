@@ -10,12 +10,15 @@ Deno.test("hash is 3 hex chars and deterministic", async () => {
   assert(/^[0-9a-f]{3}$/.test(a));
 });
 
-Deno.test("id collisions bump createdAt and stay verifiable", async () => {
+Deno.test("a colliding id grows the new hex's hash and leaves createdAt alone", async () => {
   const first = await generateId("foo", "t", "core.story", 100, new Set());
-  const second = await generateId("foo", "t", "core.story", 100, new Set([first.id]));
-  assert(second.id !== first.id);
-  assert(second.createdAtTimeInMs > 100);
-  assertEquals(second.id, `hx-foo-${await hashHex("t", "core.story", second.createdAtTimeInMs)}`);
+  assertEquals(first, `hx-foo-${await hashHex("t", "core.story", 100)}`);
+  const second = await generateId("foo", "t", "core.story", 100, new Set([first]));
+  assertEquals(second, `hx-foo-${await hashHex("t", "core.story", 100, 4)}`);
+  assert(second.startsWith(first), "longer id extends the shorter one");
+  const third = await generateId("foo", "t", "core.story", 100, new Set([first, second]));
+  assertEquals(third.length, first.length + 2);
+  assert(HEX_ID_RE.test(third));
 });
 
 Deno.test("createProject writes the project and selected_project hexes", async () => {
