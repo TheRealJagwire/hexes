@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { statusSummary } from "../../shared/graph.ts";
 import type { Hex } from "../../shared/schemas.ts";
 import type { EpicView, HexSummary } from "../../shared/views.ts";
@@ -211,6 +211,36 @@ export function ProjectHeader(
   );
 }
 
+/** The project statement, cut off after ten lines; the full text lives on the hex's own page. */
+function ClampedDescription({ text, href }: { text: string; href: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [clamped, setClamped] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setClamped(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [text]);
+  return (
+    <div class="flex max-w-[760px] flex-col items-start gap-2">
+      <p
+        ref={ref}
+        class="m-0 line-clamp-10 whitespace-pre-line text-[17px] leading-relaxed text-ink-2"
+      >
+        {text}
+      </p>
+      {clamped && (
+        <Link href={href} class="text-[13px] text-accent underline-offset-2 hover:underline">
+          Read the full description
+        </Link>
+      )}
+    </div>
+  );
+}
+
 export function ProjectScreen({ id }: { id: string }) {
   const res = useResource(() => api.project(id), [id]);
 
@@ -252,9 +282,7 @@ export function ProjectScreen({ id }: { id: string }) {
         </div>
         <h1 class="m-0 text-[40px] font-bold leading-[1.12] tracking-[-0.02em]">{project.title}</h1>
         {project.description && (
-          <p class="m-0 max-w-[760px] whitespace-pre-line text-[17px] leading-relaxed text-ink-2">
-            {project.description}
-          </p>
+          <ClampedDescription text={project.description} href={`/h/${project.id}`} />
         )}
         <div class="flex flex-wrap gap-2.5 font-mono text-xs text-muted">
           {meta.map(([k, v]) => (
