@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
 import { z, ZodError } from "zod";
 import {
   CreateHexRequestSchema,
@@ -11,12 +12,13 @@ import {
 import { DomainError } from "../core/errors.ts";
 import type { HexService } from "../core/service.ts";
 import { pickDirectory } from "../core/picker.ts";
+import type { ChangeWatcher } from "../core/watcher.ts";
 
 const MetaValueSchema = z.object({ value: z.string() });
 const SelectSchema = z.object({ id: HexIdSchema });
 
 /** JSON API consumed by the Preact client. Every handler delegates to HexService. */
-export function apiRoutes(service: HexService): Hono {
+export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
   const api = new Hono();
 
   api.onError((err, c) => {
@@ -32,6 +34,29 @@ export function apiRoutes(service: HexService): Hono {
   });
 
   api.get("/health", (c) => c.json({ ok: true }));
+  /** Server-sent events: `hello` on connect, `change` whenever the hexes on disk change. */
+  api.get("/events", (c) => {
+    if (!changes) return c.json({ error: "live updates are not enabled" }, 404);
+    return streamSSE(c, async (stream) => {
+      const unsubscribe = changes.subscribe((event) => {
+        void stream.writeSSE({
+          event: "change",
+          id: String(event.rev),
+          data: JSON.stringify(event),
+        })
+          .catch(() => {});
+      });
+      const aborted = new Promise<void>((resolve) => stream.onAbort(resolve));
+      await stream.writeSSE({ event: "hello", data: JSON.stringify(await changes.snapshot()) });
+      while (!stream.aborted) {
+        let timer: number | undefined;
+        await Promise.race([aborted, new Promise((r) => timer = setTimeout(r, 20_000))]);
+        clearTimeout(timer);
+        if (!stream.aborted) await stream.writeSSE({ event: "ping", data: "" });
+      }
+      unsubscribe();
+    });
+  });
   api.get("/state", async (c) => c.json(await service.state()));
 
   api.post("/workspace/inspect", async (c) => {

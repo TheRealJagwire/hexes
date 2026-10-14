@@ -1,5 +1,6 @@
 import { useEffect } from "preact/hooks";
 import { api } from "../lib/api.ts";
+import { liveStatus } from "../lib/live.ts";
 import { Link, location, matchPath, navigate } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
 import { ErrorState, LoadingState } from "./Layout.tsx";
@@ -32,7 +33,32 @@ function NotFound() {
   );
 }
 
+/** A small dot in the corner: green while updates stream in, amber while reconnecting. */
+function LiveDot() {
+  const status = liveStatus.value;
+  if (status === "connecting") return null;
+  const live = status === "live";
+  return (
+    <span
+      role="status"
+      title={live ? "Live: changes appear as they happen" : "Reconnecting to Studio…"}
+      class={`fixed bottom-3 right-3 z-50 h-2.5 w-2.5 rounded-full ${
+        live ? "bg-ready" : "animate-pulse bg-blocked"
+      }`}
+    />
+  );
+}
+
 export function App() {
+  return (
+    <>
+      <Routes />
+      <LiveDot />
+    </>
+  );
+}
+
+function Routes() {
   const { path, search } = location.value;
   const query = new URLSearchParams(search);
   let m: Record<string, string> | null;

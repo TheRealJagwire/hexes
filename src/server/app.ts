@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { serveStatic } from "hono/deno";
+import { mcpRoutes } from "../mcp/http.ts";
 import { HexService } from "./core/service.ts";
+import { ChangeWatcher } from "./core/watcher.ts";
 import { Workspace } from "./core/workspace.ts";
 import { localOnly } from "./guard.ts";
 import { apiRoutes } from "./routes/api.ts";
@@ -32,10 +34,14 @@ const INDEX_HTML = `<!doctype html>
 </html>
 `;
 
-export function createApp(service: HexService = new HexService(Workspace.fromEnv())): Hono {
+export function createApp(
+  service: HexService = new HexService(Workspace.fromEnv()),
+  changes: ChangeWatcher = new ChangeWatcher(service.workspace),
+): Hono {
   const app = new Hono();
   app.use("*", localOnly);
-  app.route("/api", apiRoutes(service));
+  app.route("/api", apiRoutes(service, changes));
+  app.route("/mcp", mcpRoutes(service));
   app.use("/static/*", serveStatic({ root: "./" }));
   // Client-side routes: anything else that is not an API or asset path gets the SPA shell.
   app.get("*", (c) => c.html(INDEX_HTML));

@@ -39,7 +39,7 @@ export function resolveDir(input: string): string {
  */
 export class Workspace {
   readonly pinnedDir: string | null;
-  private readonly stateFile: string;
+  readonly stateFile: string;
 
   constructor(opts: WorkspaceOptions = {}) {
     this.pinnedDir = opts.pinnedDir ? resolveDir(opts.pinnedDir) : null;

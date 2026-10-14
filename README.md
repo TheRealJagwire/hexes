@@ -19,8 +19,10 @@ deno task dev     # watch CSS, client and server
 
 ## MCP server
 
-`.mcp.json` registers it for Claude Code (`deno task mcp`, stdio). It works on the folder last
-opened in Studio, or on `HEXES_DIR` if set.
+Studio serves MCP itself over streamable HTTP at `http://localhost:8000/mcp`, sharing one
+service with the UI, and `.mcp.json` points Claude Code at it (start Studio first). It works on
+the folder last opened in Studio, or on `HEXES_DIR` if set. The stdio entry (`deno task mcp`)
+still exists for clients that need a spawned process.
 
 ## Layout
 

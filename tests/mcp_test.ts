@@ -90,3 +90,33 @@ Deno.test("mcp exposes the spec'd tools and they work end to end", async () => {
     await f.cleanup();
   }
 });
+
+Deno.test("mcp is served over HTTP from the Studio app", async () => {
+  const f = await fixture();
+  const { createApp } = await import("../src/server/app.ts");
+  const app = createApp(f.service);
+  const post = (body: unknown) =>
+    app.request("/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        host: "localhost:8000",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify(body),
+    });
+  const init = await post({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: {
+      protocolVersion: "2025-03-26",
+      capabilities: {},
+      clientInfo: { name: "t", version: "0" },
+    },
+  });
+  assertEquals(init.status, 200);
+  const list = await post({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+  const json = await list.json();
+  assert(json.result.tools.some((t: { name: string }) => t.name === "get_workspace"));
+});
