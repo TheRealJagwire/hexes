@@ -1,0 +1,6 @@
+node_modules/
+dist/
+static/app.css
+static/client.js
+.env
+.DS_Store

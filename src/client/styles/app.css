@@ -1,0 +1,153 @@
+@import "tailwindcss";
+
+/* Theme tokens from the design handoff. `.light` on the root switches palettes. */
+.hx-root {
+  --bg: #121418;
+  --backdrop: #0c0d10;
+  --panel: #1a1d22;
+  --panel2: #20242a;
+  --line-soft: #262a31;
+  --line: #2c313a;
+  --line-strong: #3a404b;
+  --line-hover: #4a515d;
+  --ink: #eceae4;
+  --ink-2: #c9cdd3;
+  --muted: #a3a9b3;
+  --placeholder: #7d838d;
+  --accent: #f2b13c;
+  --accent-hover: #ffd07a;
+  --on-accent: #1a1405;
+  --accent-bg: #362a12;
+  --ready: #8ec1ff;
+  --ready-bg: #1c2a3d;
+  --verified: #6fd3c0;
+  --verified-bg: #143330;
+  --blocked: #ff9a7a;
+  --blocked-bg: #3a1f18;
+  --success: #6fd3a8;
+  --danger-line: #5a2a24;
+  --danger: #b3261e;
+  color-scheme: dark;
+}
+.hx-root.light {
+  --bg: #f6f5f2;
+  --backdrop: #e4e2dd;
+  --panel: #ffffff;
+  --panel2: #f0eeea;
+  --line-soft: #eceae5;
+  --line: #e0ddd7;
+  --line-strong: #cfcbc4;
+  --line-hover: #b5b0a8;
+  --ink: #1b1d21;
+  --ink-2: #3d424a;
+  --muted: #5f656e;
+  --placeholder: #8a8f97;
+  --accent: #96620a;
+  --accent-hover: #7a4f06;
+  --on-accent: #ffffff;
+  --accent-bg: #fbefd6;
+  --ready: #1f5fb8;
+  --ready-bg: #e3eefc;
+  --verified: #0f7363;
+  --verified-bg: #ddf3ee;
+  --blocked: #b23a17;
+  --blocked-bg: #fbe5dd;
+  --success: #1e7a4f;
+  --danger-line: #e8b4a8;
+  color-scheme: light;
+}
+
+@theme inline {
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-bg: var(--bg);
+  --color-backdrop: var(--backdrop);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel2);
+  --color-line-soft: var(--line-soft);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-line-hover: var(--line-hover);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-placeholder: var(--placeholder);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-accent-bg: var(--accent-bg);
+  --color-ready: var(--ready);
+  --color-ready-bg: var(--ready-bg);
+  --color-verified: var(--verified);
+  --color-verified-bg: var(--verified-bg);
+  --color-blocked: var(--blocked);
+  --color-blocked-bg: var(--blocked-bg);
+  --color-success: var(--success);
+  --color-danger-line: var(--danger-line);
+  --color-danger: var(--danger);
+}
+
+@layer base {
+  html {
+    background: var(--bg);
+    transition: background-color 0.2s;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  input, textarea, button, select {
+    font: inherit;
+  }
+  input::placeholder, textarea::placeholder {
+    color: var(--placeholder);
+  }
+  :where(a, button, input, textarea, select):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  button:not(:disabled), select, [role="button"] {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+@layer components {
+  /* Form controls shared by every screen. */
+  .field {
+    @apply box-border h-11 w-full min-w-0 rounded-lg border border-line-strong bg-bg px-3.5 text-[15px] text-ink;
+  }
+  .field-mono {
+    @apply font-mono text-sm;
+  }
+  .label {
+    @apply text-[13px] font-medium text-ink-2;
+  }
+  .btn {
+    @apply inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-line-strong px-4 text-[15px] font-medium text-ink no-underline transition-colors;
+  }
+  .btn:hover:not(:disabled) {
+    border-color: var(--line-hover);
+    background: var(--panel2);
+  }
+  .btn-primary {
+    @apply inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-accent bg-accent px-[18px] text-[15px] font-semibold text-on-accent no-underline;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+  }
+  .card {
+    @apply rounded-[14px] border border-line bg-panel;
+  }
+  .mono {
+    @apply font-mono;
+  }
+}

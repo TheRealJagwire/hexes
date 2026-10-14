@@ -1,0 +1,362 @@
+[
+  {
+    "id": "hx-hexes-365",
+    "title": "Hexes Studio",
+    "description": "A project state tracking system built from hexes — atomic tracked things that index any piece of project data: visions, PRD elements, epics, stories, bugs and sessions. Studio is the UI for working with them, and every action is also exposed over MCP.",
+    "kind": "core.project",
+    "createdAtTimeInMs": 1792000359363,
+    "lastUpdatedAtTimeInMs": 1792000359366,
+    "status": "done",
+    "meta": {
+      "git branch": "main",
+      "desired_language": "typescript"
+    }
+  },
+  {
+    "id": "hx-studio-edb",
+    "title": "Selected project",
+    "description": "hx-hexes-365",
+    "kind": "studio.selected_project",
+    "createdAtTimeInMs": 1792000359363,
+    "lastUpdatedAtTimeInMs": 1792000359363,
+    "status": "done"
+  },
+  {
+    "id": "hx-hexes-838",
+    "title": "Studio information architecture",
+    "description": "",
+    "kind": "core.design",
+    "createdAtTimeInMs": 1792000359367,
+    "lastUpdatedAtTimeInMs": 1792000359367,
+    "status": "done",
+    "dependsOn": [
+      "hx-hexes-365"
+    ]
+  },
+  {
+    "id": "hx-hexes-edf",
+    "title": "Hex data model and id hashing",
+    "description": "",
+    "kind": "core.design",
+    "createdAtTimeInMs": 1792000359368,
+    "lastUpdatedAtTimeInMs": 1792000359368,
+    "status": "done",
+    "dependsOn": [
+      "hx-hexes-365"
+    ]
+  },
+  {
+    "id": "hx-hexes-b24",
+    "title": "Store all hexes in a single .hx/data.json",
+    "description": "",
+    "kind": "core.decision",
+    "createdAtTimeInMs": 1792000359368,
+    "lastUpdatedAtTimeInMs": 1792000359368,
+    "status": "done",
+    "dependsOn": [
+      "hx-hexes-838"
+    ]
+  },
+  {
+    "id": "hx-hexes-228",
+    "title": "Id hash = title + kind + createdAtTimeInMs",
+    "description": "",
+    "kind": "core.decision",
+    "createdAtTimeInMs": 1792000359369,
+    "lastUpdatedAtTimeInMs": 1792000359369,
+    "status": "done",
+    "dependsOn": [
+      "hx-hexes-edf"
+    ]
+  },
+  {
+    "id": "hx-hexes-390",
+    "title": "Every Studio action is also an MCP tool",
+    "description": "",
+    "kind": "core.decision",
+    "createdAtTimeInMs": 1792000359369,
+    "lastUpdatedAtTimeInMs": 1792000359369,
+    "status": "in_progress",
+    "dependsOn": [
+      "hx-hexes-838"
+    ]
+  },
+  {
+    "id": "hx-hexes-a88",
+    "title": "Ring progress spec",
+    "description": "",
+    "kind": "core.spec",
+    "createdAtTimeInMs": 1792000359370,
+    "lastUpdatedAtTimeInMs": 1792000359370,
+    "status": "done",
+    "dependsOn": [
+      "hx-hexes-edf"
+    ]
+  },
+  {
+    "id": "hx-hexes-9f2",
+    "title": "ProgressRing component",
+    "description": "",
+    "kind": "core.substory",
+    "createdAtTimeInMs": 1792000359370,
+    "lastUpdatedAtTimeInMs": 1792000359370,
+    "status": "done",
+    "dependsOn": [
+      "hx-hexes-a88"
+    ]
+  },
+  {
+    "id": "hx-hexes-2fd",
+    "title": "Project hero with title, statement and id",
+    "description": "Hero card for the core.project hex.",
+    "kind": "core.story",
+    "createdAtTimeInMs": 1792000359371,
+    "lastUpdatedAtTimeInMs": 1792000359371,
+    "status": "done",
+    "meta": {
+      "files_to_touch": "src/client/screens/Project.tsx"
+    }
+  },
+  {
+    "id": "hx-hexes-084",
+    "title": "Epic accordion with circular progress",
+    "description": "Each epic is a top-level accordion showing its id, title, and the share of stories it depends on that are done, as a ring, a percentage and a fraction.",
+    "kind": "core.story",
+    "createdAtTimeInMs": 1792000359371,
+    "lastUpdatedAtTimeInMs": 1792000359371,
+    "status": "in_progress",
+    "dependsOn": [
+      "hx-hexes-9f2"
+    ],
+    "meta": {
+      "git branch": "feat/epic-accordion",
+      "git worktree": "../hexes-epic-accordion",
+      "desired_language": "typescript",
+      "desired_spec": "hx-hexes-edf",
+      "files_to_touch": "src/client/screens/Project.tsx, src/client/components/Bits.tsx"
+    }
+  },
+  {
+    "id": "hx-hexes-4c8",
+    "title": "Sort done stories to the bottom",
+    "description": "Inside an expanded epic, stories in done status sink below all others.",
+    "kind": "core.story",
+    "createdAtTimeInMs": 1792000359372,
+    "lastUpdatedAtTimeInMs": 1792000359372,
+    "status": "ready"
+  },
+  {
+    "id": "hx-hexes-36d",
+    "title": "Collapsed design and decision accordions",
+    "description": "Two collapsed groups under the hero.",
+    "kind": "core.story",
+    "createdAtTimeInMs": 1792000359372,
+    "lastUpdatedAtTimeInMs": 1792000359372,
+    "status": "done"
+  },
+  {
+    "id": "hx-hexes-0e5",
+    "title": "Create Hex button and form",
+    "description": "Waiting on the kind registry so the form can list core.* and studio.* kinds.",
+    "kind": "core.story",
+    "createdAtTimeInMs": 1792000359373,
+    "lastUpdatedAtTimeInMs": 1792000359373,
+    "status": "blocked",
+    "emergedFrom": "hx-hexes-084",
+    "meta": {
+      "desired_language": "typescript"
+    }
+  },
+  {
+    "id": "hx-hexes-4c0",
+    "title": "Project screen",
+    "description": "",
+    "kind": "core.epic",
+    "createdAtTimeInMs": 1792000359382,
+    "lastUpdatedAtTimeInMs": 1792000359382,
+    "status": "in_progress",
+    "dependsOn": [
+      "hx-hexes-084",
+      "hx-hexes-2fd",
+      "hx-hexes-36d",
+      "hx-hexes-4c8",
+      "hx-hexes-0e5",
+      "hx-hexes-a88"
+    ]
+  },
+  {
+    "id": "hx-hexes-6ac",
+    "title": "Open existing .hx directory",
+    "description": "",
+    "kind": "core.story",
+    "createdAtTimeInMs": 1792000359382,
+    "lastUpdatedAtTimeInMs": 1792000359382,
+    "status": "done"
+  },
+  {
+    "id": "hx-hexes-d48",
+    "title": "Create project, git init, project hex",
+    "description": "",
+    "kind": "core.story",
+    "createdAtTimeInMs": 1792000359383,
+    "lastUpdatedAtTimeInMs": 1792000359383,
+    "status": "done"
+  },
+  {
+    "id": "hx-hexes-813",
+    "title": "Restore studio.selected_project",
+    "description": "",
+    "kind": "core.story",
+    "createdAtTimeInMs": 1792000359383,
+    "lastUpdatedAtTimeInMs": 1792000359383,
+    "status": "done"
+  },
+  {
+    "id": "hx-hexes-41b",
+    "title": "Project list from data.json",
+    "description": "",
+    "kind": "core.story",
+    "createdAtTimeInMs": 1792000359384,
+    "lastUpdatedAtTimeInMs": 1792000359384,
+    "status": "done"
+  },
+  {
+    "id": "hx-hexes-5d8",
+    "title": "First run and project list",
+    "description": "",
+    "kind": "core.epic",
+    "createdAtTimeInMs": 1792000359384,
+    "lastUpdatedAtTimeInMs": 1792000359384,
+    "status": "done",
+    "dependsOn": [
+      "hx-hexes-6ac",
+      "hx-hexes-d48",
+      "hx-hexes-813",
+      "hx-hexes-41b"
+    ]
+  },
+  {
+    "id": "hx-hexes-4c7",
+    "title": "get_hex_by_id",
+    "description": "",
+    "kind": "core.story",
+    "createdAtTimeInMs": 1792000359385,
+    "lastUpdatedAtTimeInMs": 1792000359385,
+    "status": "done"
+  },
+  {
+    "id": "hx-hexes-90c",
+    "title": "get_ready_hexes / get_ready_hexes_for_project",
+    "description": "",
+    "kind": "core.story",
+    "createdAtTimeInMs": 1792000359386,
+    "lastUpdatedAtTimeInMs": 1792000359386,
+    "status": "ready"
+  },
+  {
+    "id": "hx-hexes-5d7",
+    "title": "Dependency traversal tools",
+    "description": "",
+    "kind": "core.story",
+    "createdAtTimeInMs": 1792000359386,
+    "lastUpdatedAtTimeInMs": 1792000359386,
+    "status": "ready"
+  },
+  {
+    "id": "hx-hexes-820",
+    "title": "add / update meta state tools",
+    "description": "",
+    "kind": "core.story",
+    "createdAtTimeInMs": 1792000359387,
+    "lastUpdatedAtTimeInMs": 1792000359387,
+    "status": "blocked"
+  },
+  {
+    "id": "hx-hexes-ff3",
+    "title": "Mirror Studio create / update / delete",
+    "description": "",
+    "kind": "core.story",
+    "createdAtTimeInMs": 1792000359387,
+    "lastUpdatedAtTimeInMs": 1792000359387,
+    "status": "blocked"
+  },
+  {
+    "id": "hx-hexes-306",
+    "title": "Tool schema docs",
+    "description": "",
+    "kind": "core.story",
+    "createdAtTimeInMs": 1792000359387,
+    "lastUpdatedAtTimeInMs": 1792000359387,
+    "status": "blocked"
+  },
+  {
+    "id": "hx-hexes-fa3",
+    "title": "MCP server",
+    "description": "",
+    "kind": "core.epic",
+    "createdAtTimeInMs": 1792000359388,
+    "lastUpdatedAtTimeInMs": 1792000359388,
+    "status": "blocked",
+    "dependsOn": [
+      "hx-hexes-4c7",
+      "hx-hexes-90c",
+      "hx-hexes-5d7",
+      "hx-hexes-820",
+      "hx-hexes-ff3",
+      "hx-hexes-306"
+    ]
+  },
+  {
+    "id": "hx-hexes-34c",
+    "title": "Alpha",
+    "description": "",
+    "kind": "core.gate",
+    "createdAtTimeInMs": 1792000359388,
+    "lastUpdatedAtTimeInMs": 1792000359388,
+    "status": "blocked",
+    "dependsOn": [
+      "hx-hexes-4c0",
+      "hx-hexes-5d8"
+    ]
+  },
+  {
+    "id": "hx-hexes-a63",
+    "title": "Beta",
+    "description": "",
+    "kind": "core.gate",
+    "createdAtTimeInMs": 1792000359389,
+    "lastUpdatedAtTimeInMs": 1792000359389,
+    "status": "blocked",
+    "dependsOn": [
+      "hx-hexes-fa3"
+    ]
+  },
+  {
+    "id": "hx-hexes-de9",
+    "title": "Meta table overflows on narrow screens",
+    "description": "",
+    "kind": "core.bug",
+    "createdAtTimeInMs": 1792000359389,
+    "lastUpdatedAtTimeInMs": 1792000359389,
+    "status": "ready",
+    "emergedFrom": "hx-hexes-0e5"
+  },
+  {
+    "id": "hx-docs-b64",
+    "title": "Docs site",
+    "description": "Public documentation for the hex data model and conventions.",
+    "kind": "core.project",
+    "createdAtTimeInMs": 1792000359420,
+    "lastUpdatedAtTimeInMs": 1792000359420,
+    "status": "done"
+  },
+  {
+    "id": "hx-markdown-4a4",
+    "title": "Markdown importer",
+    "description": "Convert existing PRDs and issue lists into hexes.",
+    "kind": "core.project",
+    "createdAtTimeInMs": 1792000359422,
+    "lastUpdatedAtTimeInMs": 1792000359422,
+    "status": "done"
+  }
+]

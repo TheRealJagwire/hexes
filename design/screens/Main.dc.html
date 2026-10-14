@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hexes Studio — Welcome</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:var(--accent)}a:hover{color:var(--accent-hover)}
+input,textarea,button{font:inherit}
+input:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hx-root{--bg:#121418;--backdrop:#0C0D10;--panel:#1A1D22;--panel2:#20242A;--line-soft:#262A31;--line:#2C313A;--line-strong:#3A404B;--line-hover:#4A515D;--text:#ECEAE4;--text-2:#C9CDD3;--muted:#A3A9B3;--placeholder:#7D838D;--accent:#F2B13C;--accent-hover:#FFD07A;--on-accent:#1A1405;--accent-bg:#362A12;--ready:#8EC1FF;--ready-bg:#1C2A3D;--verified:#6FD3C0;--verified-bg:#143330;--blocked:#FF9A7A;--blocked-bg:#3A1F18;--success:#6FD3A8;--danger-line:#5A2A24;color-scheme:dark;transition:background-color .2s,color .2s}
+.hx-root.light{--bg:#F6F5F2;--backdrop:#E4E2DD;--panel:#FFFFFF;--panel2:#F0EEEA;--line-soft:#ECEAE5;--line:#E0DDD7;--line-strong:#CFCBC4;--line-hover:#B5B0A8;--text:#1B1D21;--text-2:#3D424A;--muted:#5F656E;--placeholder:#8A8F97;--accent:#96620A;--accent-hover:#7A4F06;--on-accent:#FFFFFF;--accent-bg:#FBEFD6;--ready:#1F5FB8;--ready-bg:#E3EEFC;--verified:#0F7363;--verified-bg:#DDF3EE;--blocked:#B23A17;--blocked-bg:#FBE5DD;--success:#1E7A4F;--danger-line:#E8B4A8;color-scheme:light}
+</style>
+</helmet>
+<div class="hx-root {{themeClass}}" style="min-height: 100vh; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', system-ui, sans-serif; display: flex; flex-direction: column">
+  <header style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 32px; border-bottom: 1px solid var(--line); flex-wrap: wrap">
+    <div style="display: flex; align-items: center; gap: 12px">
+      <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><path d="M14 2 L24.4 8 L24.4 20 L14 26 L3.6 20 L3.6 8 Z" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round"></path><path d="M14 9 L18.3 11.5 L18.3 16.5 L14 19 L9.7 16.5 L9.7 11.5 Z" fill="var(--accent)"></path></svg>
+      <span style="font-weight: 700; font-size: 18px; letter-spacing: -0.01em">Hexes Studio</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px">
+      <button type="button" onClick="{{toggleTheme}}" aria-label="{{themeLabel}}" title="{{themeLabel}}" style="width: 44px; height: 44px; flex: none; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--text-2); cursor: pointer">
+        <sc-if value="{{isDark}}" hint-placeholder-val="{{true}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg></sc-if>
+        <sc-if value="{{isLight}}" hint-placeholder-val="{{false}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg></sc-if>
+      </button>
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--muted)">no project open</span>
+    </div>
+  </header>
+
+  <main style="flex: 1; width: 100%; max-width: 1080px; margin: 0 auto; padding: 72px 32px 64px; box-sizing: border-box; display: flex; flex-direction: column; gap: 48px">
+    <div style="display: flex; flex-direction: column; gap: 14px; max-width: 680px">
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--accent); letter-spacing: 0.04em">FIRST RUN</span>
+      <h1 style="margin: 0; font-size: 44px; line-height: 1.1; letter-spacing: -0.02em; font-weight: 700">Track every piece of a project as a hex.</h1>
+      <p style="margin: 0; font-size: 17px; line-height: 1.6; color: var(--muted)">Open a folder that already has a <code style="font-family: 'JetBrains Mono', monospace; color: var(--text)">.hx/data.json</code>, or start a new project and Studio will set up the folder and git repo for you.</p>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: stretch">
+      <section aria-labelledby="open-h" style="flex: 1 1 380px; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 32px; display: flex; flex-direction: column; gap: 20px">
+        <div style="display: flex; align-items: center; gap: 12px">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+          <h2 id="open-h" style="margin: 0; font-size: 20px; font-weight: 600">Open existing</h2>
+        </div>
+        <p style="margin: 0; font-size: 15px; line-height: 1.55; color: var(--muted)">Pick a directory containing a <code style="font-family: 'JetBrains Mono', monospace; color: var(--text)">.hx</code> folder. Studio reads every hex from its data.json.</p>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <label for="open-dir" style="font-size: 13px; font-weight: 500; color: var(--text-2)">Directory</label>
+          <div style="display: flex; gap: 8px">
+            <input id="open-dir" type="text" value="~/code/hexes" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; padding: 0 14px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 14px">
+            <button type="button" style="height: 44px; padding: 0 16px; background: var(--panel2); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); cursor: pointer">Browse…</button>
+          </div>
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--success)">✓ found .hx/data.json · 42 hexes · 2 projects</span>
+        </div>
+        <a href="Projects.dc.html" style="margin-top: auto; display: inline-flex; align-items: center; justify-content: center; height: 48px; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-weight: 600; text-decoration: none; font-size: 15px">Open project folder</a>
+      </section>
+
+      <section aria-labelledby="new-h" style="flex: 1 1 380px; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 32px; display: flex; flex-direction: column; gap: 20px">
+        <div style="display: flex; align-items: center; gap: 12px">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z"></path><path d="M12 8.5v7M8.5 12h7"></path></svg>
+          <h2 id="new-h" style="margin: 0; font-size: 20px; font-weight: 600">Create new project</h2>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <label for="new-dir" style="font-size: 13px; font-weight: 500; color: var(--text-2)">Location</label>
+          <div style="display: flex; gap: 8px">
+            <input id="new-dir" type="text" placeholder="~/code/my-project" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; padding: 0 14px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 14px">
+            <button type="button" style="height: 44px; padding: 0 16px; background: var(--panel2); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); cursor: pointer">Browse…</button>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <label for="new-title" style="font-size: 13px; font-weight: 500; color: var(--text-2)">Project title</label>
+          <input id="new-title" type="text" placeholder="What are you building?" style="height: 44px; box-sizing: border-box; padding: 0 14px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); font-size: 15px">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <label for="new-desc" style="font-size: 13px; font-weight: 500; color: var(--text-2)">Project statement</label>
+          <textarea id="new-desc" rows="4" placeholder="Describe the vision. This becomes the description of your core.project hex." style="box-sizing: border-box; padding: 12px 14px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); font-size: 15px; line-height: 1.5; resize: vertical"></textarea>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted)">
+          <input id="git-init" type="checkbox" checked style="width: 18px; height: 18px; accent-color: var(--accent)">
+          <label for="git-init">Initialize a git repo and create <code style="font-family: 'JetBrains Mono', monospace; color: var(--text)">.hx/data.json</code></label>
+        </div>
+        <a href="Project.dc.html" style="margin-top: auto; display: inline-flex; align-items: center; justify-content: center; height: 48px; border-radius: 10px; background: transparent; border: 1.5px solid var(--accent); color: var(--accent); font-weight: 600; text-decoration: none; font-size: 15px">Create project</a>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1280,"height":820}}'>
+class Component extends DCLogic {
+  themeVals() {
+    var self = this;
+    var t = this.state && this.state.theme;
+    if (!t) { try { t = window.localStorage.getItem('hexes-theme'); } catch (e) {} }
+    if (!t) { t = this.props.theme || 'dark'; }
+    var light = t === 'light';
+    return {
+      themeClass: light ? 'light' : '',
+      isLight: light,
+      isDark: !light,
+      themeLabel: light ? 'Switch to dark mode' : 'Switch to light mode',
+      toggleTheme: function () {
+        var next = light ? 'dark' : 'light';
+        try { window.localStorage.setItem('hexes-theme', next); } catch (e) {}
+        self.setState({ theme: next });
+      }
+    };
+  }
+  renderVals() {
+    return Object.assign(this.baseVals(), this.themeVals());
+  }
+  baseVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

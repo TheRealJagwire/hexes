@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hexes Studio — Hex</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:var(--accent)}a:hover{color:var(--accent-hover)}
+input,textarea,button,select{font:inherit}
+a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.crumb:hover{color:var(--text)}
+.rel:hover{border-color:var(--line-hover)}
+.hx-root{--bg:#121418;--backdrop:#0C0D10;--panel:#1A1D22;--panel2:#20242A;--line-soft:#262A31;--line:#2C313A;--line-strong:#3A404B;--line-hover:#4A515D;--text:#ECEAE4;--text-2:#C9CDD3;--muted:#A3A9B3;--placeholder:#7D838D;--accent:#F2B13C;--accent-hover:#FFD07A;--on-accent:#1A1405;--accent-bg:#362A12;--ready:#8EC1FF;--ready-bg:#1C2A3D;--verified:#6FD3C0;--verified-bg:#143330;--blocked:#FF9A7A;--blocked-bg:#3A1F18;--success:#6FD3A8;--danger-line:#5A2A24;color-scheme:dark;transition:background-color .2s,color .2s}
+.hx-root.light{--bg:#F6F5F2;--backdrop:#E4E2DD;--panel:#FFFFFF;--panel2:#F0EEEA;--line-soft:#ECEAE5;--line:#E0DDD7;--line-strong:#CFCBC4;--line-hover:#B5B0A8;--text:#1B1D21;--text-2:#3D424A;--muted:#5F656E;--placeholder:#8A8F97;--accent:#96620A;--accent-hover:#7A4F06;--on-accent:#FFFFFF;--accent-bg:#FBEFD6;--ready:#1F5FB8;--ready-bg:#E3EEFC;--verified:#0F7363;--verified-bg:#DDF3EE;--blocked:#B23A17;--blocked-bg:#FBE5DD;--success:#1E7A4F;--danger-line:#E8B4A8;color-scheme:light}
+</style>
+</helmet>
+<div class="hx-root {{themeClass}}" style="min-height: 100vh; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', system-ui, sans-serif; display: flex; flex-direction: column">
+  <header style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 32px; border-bottom: 1px solid var(--line); flex-wrap: wrap">
+    <a href="Projects.dc.html" aria-label="All projects" style="display: flex; align-items: center; gap: 12px; color: var(--text); text-decoration: none; min-height: 44px">
+      <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><path d="M14 2 L24.4 8 L24.4 20 L14 26 L3.6 20 L3.6 8 Z" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round"></path><path d="M14 9 L18.3 11.5 L18.3 16.5 L14 19 L9.7 16.5 L9.7 11.5 Z" fill="var(--accent)"></path></svg>
+      <span style="font-weight: 700; font-size: 18px; letter-spacing: -0.01em">Hexes Studio</span>
+    </a>
+    <div style="display: flex; align-items: center; gap: 10px">
+      <button type="button" onClick="{{toggleTheme}}" aria-label="{{themeLabel}}" title="{{themeLabel}}" style="width: 44px; height: 44px; flex: none; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--text-2); cursor: pointer">
+        <sc-if value="{{isDark}}" hint-placeholder-val="{{true}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg></sc-if>
+        <sc-if value="{{isLight}}" hint-placeholder-val="{{false}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg></sc-if>
+      </button>
+      <a href="CreateHex.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-weight: 600; text-decoration: none; font-size: 15px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+      Create hex
+    </a>
+    </div>
+  </header>
+
+  <main style="flex: 1; width: 100%; max-width: 1040px; margin: 0 auto; padding: 28px 32px 72px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px">
+    <nav aria-label="Dependency trail">
+      <ol style="list-style: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 14px">
+        <li style="display: flex; align-items: center; gap: 4px"><a class="crumb" href="Project.dc.html" style="display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; color: var(--muted); text-decoration: none; border-radius: 6px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent)">project</span>Hexes Studio</a><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--line-hover)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></li>
+        <li style="display: flex; align-items: center; gap: 4px"><a class="crumb" href="Hex.dc.html" style="display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; color: var(--muted); text-decoration: none; border-radius: 6px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent)">gate</span>Alpha</a><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--line-hover)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></li>
+        <li style="display: flex; align-items: center; gap: 4px"><a class="crumb" href="Hex.dc.html" style="display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; color: var(--muted); text-decoration: none; border-radius: 6px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent)">epic</span>Project screen</a><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--line-hover)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></li>
+        <li><span aria-current="page" style="display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; color: var(--text)"><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent)">story</span>Epic accordion with circular progress</span></li>
+      </ol>
+    </nav>
+
+    <section style="display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); background: var(--accent-bg); padding: 4px 10px; border-radius: 999px">core.story</span>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 15px; color: var(--text-2)">hx-studio-4a1</span>
+        <button type="button" aria-label="Copy hex id" style="width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--muted); cursor: pointer">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+        </button>
+      </div>
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap">
+        <h1 style="flex: 1 1 480px; margin: 0; font-size: 34px; line-height: 1.15; letter-spacing: -0.02em; font-weight: 700">Epic accordion with circular progress</h1>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <label for="hex-status" style="font-size: 12px; font-weight: 500; color: var(--muted)">Status</label>
+          <div style="position: relative">
+            <select id="hex-status" onChange="{{onStatus}}" style="appearance: none; height: 44px; min-width: 190px; padding: 0 40px 0 14px; border-radius: 10px; border: 1px solid var(--line-strong); font-family: 'JetBrains Mono', monospace; font-size: 14px; cursor: pointer; {{statusStyle}}">
+              <sc-for list="{{statuses}}" as="o" hint-placeholder-count="5">
+                <option value="{{o.v}}" selected="{{o.sel}}">{{o.v}}</option>
+              </sc-for>
+            </select>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="position: absolute; right: 14px; top: 15px; pointer-events: none"><path d="M6 9l6 6 6-6"></path></svg>
+          </div>
+        </div>
+      </div>
+      <p style="margin: 0; font-size: 16px; line-height: 1.65; color: var(--text-2); max-width: 760px">Each epic is a top-level accordion showing its id, title, and the share of stories it depends on that are done, as a ring, a percentage and a fraction.</p>
+    </section>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+      <div style="flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+        <section aria-labelledby="fields-h" style="background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 24px 28px; display: flex; flex-direction: column; gap: 16px">
+          <h2 id="fields-h" style="margin: 0; font-size: 15px; font-weight: 600; color: var(--muted); letter-spacing: 0.02em">Fields</h2>
+          <dl style="margin: 0; display: grid; grid-template-columns: minmax(160px, max-content) minmax(0, 1fr); gap: 12px 24px; font-size: 14px">
+            <dt style="color: var(--muted)">kind</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">core.story</dd>
+            <dt style="color: var(--muted)">createdAtTimeInMs</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">1791820800000 <span style="color: var(--muted)">· Oct 12, 2026 09:00</span></dd>
+            <dt style="color: var(--muted)">lastUpdatedAtTimeInMs</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">1791990120000 <span style="color: var(--muted)">· Oct 14, 2026 08:02</span></dd>
+            <dt style="color: var(--muted)">emergedFrom</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace; color: var(--muted)">—</dd>
+          </dl>
+        </section>
+
+        <section aria-labelledby="meta-h" style="background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 24px 28px; display: flex; flex-direction: column; gap: 16px">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+            <h2 id="meta-h" style="margin: 0; font-size: 15px; font-weight: 600; color: var(--muted); letter-spacing: 0.02em">Meta</h2>
+            <button type="button" style="display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; background: transparent; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); cursor: pointer; font-size: 13px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Add key
+            </button>
+          </div>
+          <div style="overflow-x: auto">
+            <table style="width: 100%; border-collapse: collapse; font-family: 'JetBrains Mono', monospace; font-size: 13px">
+              <thead><tr><th scope="col" style="text-align: left; font-weight: 500; color: var(--muted); padding: 0 12px 10px 0; border-bottom: 1px solid var(--line)">key</th><th scope="col" style="text-align: left; font-weight: 500; color: var(--muted); padding: 0 0 10px; border-bottom: 1px solid var(--line)">value</th></tr></thead>
+              <tbody>
+                <sc-for list="{{meta}}" as="m" hint-placeholder-count="5">
+                  <tr><td style="padding: 10px 12px 10px 0; color: var(--text-2); border-bottom: 1px solid var(--line-soft); white-space: nowrap; vertical-align: top">{{m.k}}</td><td style="padding: 10px 0; border-bottom: 1px solid var(--line-soft); overflow-wrap: anywhere">{{m.v}}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <aside style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+        <section aria-labelledby="dep-h" style="background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: flex; flex-direction: column; gap: 12px">
+          <h2 id="dep-h" style="margin: 0; font-size: 14px; font-weight: 600; color: var(--muted)">Depends on</h2>
+          <a class="rel" href="Hex.dc.html" style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--line-soft); border-radius: 8px; color: var(--text); text-decoration: none">
+            <span style="display: flex; justify-content: space-between; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 12px"><span style="color: var(--muted)">hx-studio-c2f · substory</span><span style="color: var(--muted)">done</span></span>
+            <span style="font-size: 14px">ProgressRing component</span>
+          </a>
+          <a class="rel" href="Hex.dc.html" style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--line-soft); border-radius: 8px; color: var(--text); text-decoration: none">
+            <span style="display: flex; justify-content: space-between; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 12px"><span style="color: var(--muted)">hx-studio-7d0 · spec</span><span style="color: var(--verified)">verified</span></span>
+            <span style="font-size: 14px">Hex data model and id hashing</span>
+          </a>
+        </section>
+        <section aria-labelledby="req-h" style="background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: flex; flex-direction: column; gap: 12px">
+          <h2 id="req-h" style="margin: 0; font-size: 14px; font-weight: 600; color: var(--muted)">Depended on by</h2>
+          <a class="rel" href="Project.dc.html" style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--line-soft); border-radius: 8px; color: var(--text); text-decoration: none">
+            <span style="display: flex; justify-content: space-between; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 12px"><span style="color: var(--muted)">hx-studio-3c7 · epic</span><span style="color: var(--ready)">ready</span></span>
+            <span style="font-size: 14px">Project screen</span>
+          </a>
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--muted)">emerged from here: hx-studio-f19</span>
+        </section>
+
+        <section aria-labelledby="danger-h" style="border: 1px solid var(--danger-line); border-radius: 14px; padding: 22px; display: flex; flex-direction: column; gap: 12px">
+          <h2 id="danger-h" style="margin: 0; font-size: 14px; font-weight: 600; color: var(--blocked)">Delete hex</h2>
+          <sc-if value="{{step0}}" hint-placeholder-val="{{true}}">
+            <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted)">Removes this hex from data.json. You'll be asked twice.</p>
+            <button type="button" onClick="{{askDelete}}" style="height: 44px; border-radius: 10px; background: transparent; border: 1px solid var(--blocked); color: var(--blocked); font-weight: 600; cursor: pointer">Delete…</button>
+          </sc-if>
+          <sc-if value="{{step1}}" hint-placeholder-val="{{false}}">
+            <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--text)">1 hex depends on this one and 1 emerged from it. Their references will be removed.</p>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
+              <button type="button" onClick="{{cancelDelete}}" style="flex: 1; height: 44px; border-radius: 10px; background: var(--panel2); border: 1px solid var(--line-strong); color: var(--text); cursor: pointer">Cancel</button>
+              <button type="button" onClick="{{confirmOnce}}" style="flex: 1; height: 44px; border-radius: 10px; background: transparent; border: 1px solid var(--blocked); color: var(--blocked); font-weight: 600; cursor: pointer">Continue</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{step2}}" hint-placeholder-val="{{false}}">
+            <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--text)">Last check: permanently delete <code style="font-family: 'JetBrains Mono', monospace; color: var(--blocked)">hx-studio-4a1</code>?</p>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
+              <button type="button" onClick="{{cancelDelete}}" style="flex: 1; height: 44px; border-radius: 10px; background: var(--panel2); border: 1px solid var(--line-strong); color: var(--text); cursor: pointer">Keep it</button>
+              <a href="Project.dc.html" style="flex: 1; display: inline-flex; align-items: center; justify-content: center; height: 44px; border-radius: 10px; background: #B3261E; color: #FFFFFF; font-weight: 600; text-decoration: none; font-size: 15px">Delete forever</a>
+            </div>
+          </sc-if>
+        </section>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1280,"height":1180}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { status: 'in_progress', del: 0 };
+  }
+  themeVals() {
+    var self = this;
+    var t = this.state && this.state.theme;
+    if (!t) { try { t = window.localStorage.getItem('hexes-theme'); } catch (e) {} }
+    if (!t) { t = this.props.theme || 'dark'; }
+    var light = t === 'light';
+    return {
+      themeClass: light ? 'light' : '',
+      isLight: light,
+      isDark: !light,
+      themeLabel: light ? 'Switch to dark mode' : 'Switch to light mode',
+      toggleTheme: function () {
+        var next = light ? 'dark' : 'light';
+        try { window.localStorage.setItem('hexes-theme', next); } catch (e) {}
+        self.setState({ theme: next });
+      }
+    };
+  }
+  renderVals() {
+    return Object.assign(this.baseVals(), this.themeVals());
+  }
+  baseVals() {
+    var self = this;
+    var s = this.state.status;
+    var styles = {
+      ready: 'color: var(--ready); background: var(--ready-bg)',
+      in_progress: 'color: var(--accent); background: var(--accent-bg)',
+      verified: 'color: var(--verified); background: var(--verified-bg)',
+      blocked: 'color: var(--blocked); background: var(--blocked-bg)',
+      done: 'color: var(--text-2); background: var(--line-soft)'
+    };
+    return {
+      statusStyle: styles[s],
+      statuses: ['ready', 'in_progress', 'verified', 'blocked', 'done'].map(function (v) { return { v: v, sel: v === s }; }),
+      onStatus: function (ev) { self.setState({ status: ev.target.value }); },
+      meta: [
+        { k: 'git branch', v: 'feat/epic-accordion' },
+        { k: 'git worktree', v: '../hexes-epic-accordion' },
+        { k: 'desired_language', v: 'typescript' },
+        { k: 'desired_spec', v: 'hx-studio-7d0' },
+        { k: 'files_to_touch', v: 'src/ui/EpicAccordion.tsx, src/ui/ProgressRing.tsx' }
+      ],
+      step0: this.state.del === 0,
+      step1: this.state.del === 1,
+      step2: this.state.del === 2,
+      askDelete: function () { self.setState({ del: 1 }); },
+      confirmOnce: function () { self.setState({ del: 2 }); },
+      cancelDelete: function () { self.setState({ del: 0 }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "hexes": { "command": "deno", "args": ["task", "mcp"] }
+  }
+}

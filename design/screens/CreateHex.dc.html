@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hexes Studio — Create hex</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:var(--accent)}a:hover{color:var(--accent-hover)}
+input,textarea,button,select{font:inherit}
+a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+::placeholder{color:var(--placeholder)}
+.hx-root{--bg:#121418;--backdrop:#0C0D10;--panel:#1A1D22;--panel2:#20242A;--line-soft:#262A31;--line:#2C313A;--line-strong:#3A404B;--line-hover:#4A515D;--text:#ECEAE4;--text-2:#C9CDD3;--muted:#A3A9B3;--placeholder:#7D838D;--accent:#F2B13C;--accent-hover:#FFD07A;--on-accent:#1A1405;--accent-bg:#362A12;--ready:#8EC1FF;--ready-bg:#1C2A3D;--verified:#6FD3C0;--verified-bg:#143330;--blocked:#FF9A7A;--blocked-bg:#3A1F18;--success:#6FD3A8;--danger-line:#5A2A24;color-scheme:dark;transition:background-color .2s,color .2s}
+.hx-root.light{--bg:#F6F5F2;--backdrop:#E4E2DD;--panel:#FFFFFF;--panel2:#F0EEEA;--line-soft:#ECEAE5;--line:#E0DDD7;--line-strong:#CFCBC4;--line-hover:#B5B0A8;--text:#1B1D21;--text-2:#3D424A;--muted:#5F656E;--placeholder:#8A8F97;--accent:#96620A;--accent-hover:#7A4F06;--on-accent:#FFFFFF;--accent-bg:#FBEFD6;--ready:#1F5FB8;--ready-bg:#E3EEFC;--verified:#0F7363;--verified-bg:#DDF3EE;--blocked:#B23A17;--blocked-bg:#FBE5DD;--success:#1E7A4F;--danger-line:#E8B4A8;color-scheme:light}
+</style>
+</helmet>
+<div class="hx-root {{themeClass}}" style="min-height: 100vh; background: var(--backdrop); color: var(--text); font-family: 'IBM Plex Sans', system-ui, sans-serif; display: flex; justify-content: center; padding: 48px 20px; box-sizing: border-box">
+  <div role="dialog" aria-modal="true" aria-labelledby="create-h" style="width: 100%; max-width: 760px; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; display: flex; flex-direction: column; align-self: flex-start">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 22px 28px; border-bottom: 1px solid var(--line)">
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <h1 id="create-h" style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.01em">Create hex</h1>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--muted)">in Hexes Studio · hx-studio-a1f</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px">
+      <button type="button" onClick="{{toggleTheme}}" aria-label="{{themeLabel}}" title="{{themeLabel}}" style="width: 44px; height: 44px; flex: none; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--text-2); cursor: pointer">
+        <sc-if value="{{isDark}}" hint-placeholder-val="{{true}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg></sc-if>
+        <sc-if value="{{isLight}}" hint-placeholder-val="{{false}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg></sc-if>
+      </button>
+      <a href="Project.dc.html" aria-label="Close" style="width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; color: var(--muted)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+      </a>
+      </div>
+    </div>
+
+    <form style="padding: 24px 28px; display: flex; flex-direction: column; gap: 22px">
+      <fieldset style="border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px">
+        <legend style="padding: 0 0 10px; font-size: 13px; font-weight: 500; color: var(--text-2)">Kind</legend>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <sc-for list="{{kinds}}" as="k" hint-placeholder-count="9">
+            <button type="button" aria-pressed="{{k.pressed}}" onClick="{{k.pick}}" style="height: 40px; padding: 0 14px; border-radius: 999px; font-family: 'JetBrains Mono', monospace; font-size: 13px; cursor: pointer; {{k.style}}">{{k.label}}</button>
+          </sc-for>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted)">
+          <label for="custom-kind">or a custom kind</label>
+          <input id="custom-kind" type="text" placeholder="studio.selected_project" style="flex: 1; min-width: 0; height: 36px; box-sizing: border-box; padding: 0 12px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px">
+        </div>
+      </fieldset>
+
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <label for="hx-title" style="font-size: 13px; font-weight: 500; color: var(--text-2)">Title</label>
+        <input id="hx-title" type="text" value="Keyboard shortcuts for status changes" style="height: 46px; box-sizing: border-box; padding: 0 14px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); font-size: 16px">
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <label for="hx-desc" style="font-size: 13px; font-weight: 500; color: var(--text-2)">Description / value</label>
+        <textarea id="hx-desc" rows="4" placeholder="Detail on how to do the thing, a value being tracked, or other stored state." style="box-sizing: border-box; padding: 12px 14px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); font-size: 15px; line-height: 1.5; resize: vertical"></textarea>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <label for="hx-status" style="font-size: 13px; font-weight: 500; color: var(--text-2)">Status</label>
+          <select id="hx-status" style="height: 44px; padding: 0 12px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 14px">
+            <option>blocked</option><option>ready</option><option>in_progress</option><option>verified</option><option>done</option>
+          </select>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <label for="hx-emerged" style="font-size: 13px; font-weight: 500; color: var(--text-2)">Emerged from <span style="color: var(--muted); font-weight: 400">optional</span></label>
+          <select id="hx-emerged" style="height: 44px; padding: 0 12px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 14px">
+            <option>—</option><option selected>hx-studio-4a1 · Epic accordion…</option><option>hx-studio-b82 · Sort done stories…</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <label for="hx-req" style="font-size: 13px; font-weight: 500; color: var(--text-2)">Required by <span style="color: var(--muted); font-weight: 400">· these hexes will depend on this one</span></label>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 46px; box-sizing: border-box; padding: 6px 8px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px">
+          <span style="display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 4px 0 10px; background: var(--panel2); border: 1px solid var(--line-strong); border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 12px">epic · hx-studio-3c7 Project screen
+            <button type="button" aria-label="Remove hx-studio-3c7" style="width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: none; color: var(--muted); cursor: pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          </span>
+          <input id="hx-req" type="text" placeholder="Search hexes" style="flex: 1; min-width: 120px; height: 30px; background: transparent; border: none; color: var(--text); font-size: 14px; outline: none">
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <label for="hx-dep" style="font-size: 13px; font-weight: 500; color: var(--text-2)">Depends on <span style="color: var(--muted); font-weight: 400">· must be done before this is ready</span></label>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 46px; box-sizing: border-box; padding: 6px 8px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px">
+          <input id="hx-dep" type="text" placeholder="Search substories, specs…" style="flex: 1; min-width: 120px; height: 30px; background: transparent; border: none; color: var(--text); font-size: 14px; outline: none">
+        </div>
+      </div>
+
+      <fieldset style="border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px">
+        <legend style="padding: 0 0 8px; font-size: 13px; font-weight: 500; color: var(--text-2)">Meta</legend>
+        <div style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) 44px; gap: 8px">
+          <label for="mk1" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Meta key 1</label>
+          <input id="mk1" type="text" value="desired_language" style="height: 40px; min-width: 0; box-sizing: border-box; padding: 0 12px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px">
+          <label for="mv1" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Meta value 1</label>
+          <input id="mv1" type="text" value="typescript" style="height: 40px; min-width: 0; box-sizing: border-box; padding: 0 12px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px">
+          <button type="button" aria-label="Remove meta row" style="height: 40px; background: transparent; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--muted); cursor: pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg></button>
+        </div>
+        <button type="button" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; background: transparent; border: 1px dashed var(--line-hover); border-radius: 8px; color: var(--text-2); cursor: pointer; font-size: 13px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Add meta
+        </button>
+      </fieldset>
+    </form>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 28px; border-top: 1px solid var(--line); flex-wrap: wrap">
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--muted)">id is hashed on save from title · kind · createdAt → hx-studio-<span style="color: var(--text)">???</span></span>
+      <div style="display: flex; gap: 10px">
+        <a href="Project.dc.html" style="display: inline-flex; align-items: center; height: 44px; padding: 0 18px; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--text); text-decoration: none; font-size: 15px">Cancel</a>
+        <a href="Hex.dc.html" style="display: inline-flex; align-items: center; height: 44px; padding: 0 20px; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-weight: 600; text-decoration: none; font-size: 15px">Create {{kindShort}}</a>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1280,"height":1100}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { kind: 'core.story' };
+  }
+  themeVals() {
+    var self = this;
+    var t = this.state && this.state.theme;
+    if (!t) { try { t = window.localStorage.getItem('hexes-theme'); } catch (e) {} }
+    if (!t) { t = this.props.theme || 'dark'; }
+    var light = t === 'light';
+    return {
+      themeClass: light ? 'light' : '',
+      isLight: light,
+      isDark: !light,
+      themeLabel: light ? 'Switch to dark mode' : 'Switch to light mode',
+      toggleTheme: function () {
+        var next = light ? 'dark' : 'light';
+        try { window.localStorage.setItem('hexes-theme', next); } catch (e) {}
+        self.setState({ theme: next });
+      }
+    };
+  }
+  renderVals() {
+    return Object.assign(this.baseVals(), this.themeVals());
+  }
+  baseVals() {
+    var self = this;
+    var cur = this.state.kind;
+    var list = ['project', 'design', 'spec', 'decision', 'gate', 'epic', 'story', 'substory', 'bug'];
+    return {
+      kindShort: cur.split('.')[1],
+      kinds: list.map(function (q) {
+        var k = 'core.' + q;
+        var on = k === cur;
+        return {
+          label: k,
+          pressed: on ? 'true' : 'false',
+          style: on ? 'background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); font-weight: 600' : 'background: var(--bg); color: var(--text-2); border: 1px solid var(--line-strong)',
+          pick: function () { self.setState({ kind: k }); }
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

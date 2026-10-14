@@ -1,0 +1,70 @@
+import type {
+  CreateHexRequest,
+  CreateProjectRequest,
+  Hex,
+  UpdateHexRequest,
+} from "../../shared/schemas.ts";
+import type {
+  ApiError,
+  CreateProjectResult,
+  HexSummary,
+  HexView,
+  InspectResult,
+  ProjectSummary,
+  ProjectView,
+  WorkspaceState,
+} from "../../shared/views.ts";
+
+export class ApiFailure extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`/api${path}`, {
+    method,
+    ...(body === undefined
+      ? {}
+      : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+  });
+  const json: unknown = await res.json().catch(() => null);
+  if (!res.ok) {
+    const message = (json as ApiError | null)?.error ?? `Request failed (${res.status})`;
+    throw new ApiFailure(message, res.status);
+  }
+  return json as T;
+}
+
+type CreateHexInput =
+  & Omit<CreateHexRequest, "description" | "status" | "requiredBy" | "dependsOn" | "meta">
+  & {
+    description: string;
+    status: CreateHexRequest["status"];
+    requiredBy: string[];
+    dependsOn: string[];
+    meta: Record<string, string>;
+  };
+
+export const api = {
+  state: () => request<WorkspaceState>("GET", "/state"),
+  inspect: (dir: string) => request<InspectResult>("POST", "/workspace/inspect", { dir }),
+  openWorkspace: (dir: string) => request<WorkspaceState>("POST", "/workspace/open", { dir }),
+  createProject: (req: CreateProjectRequest) =>
+    request<CreateProjectResult>("POST", "/workspace/create", req),
+  pickDirectory: () => request<{ dir: string | null }>("POST", "/workspace/pick", {}),
+  projects: () => request<ProjectSummary[]>("GET", "/projects"),
+  project: (id: string) => request<ProjectView>("GET", `/projects/${id}`),
+  selectProject: (id: string) => request<{ ok: true }>("POST", "/selected-project", { id }),
+  hex: (id: string) => request<HexView>("GET", `/hexes/${id}`),
+  /** Every searchable hex in a project (up to 1,000), for client-side pickers. */
+  projectHexes: (projectId: string) =>
+    request<HexSummary[]>("GET", `/hexes?project=${encodeURIComponent(projectId)}&limit=1000`),
+  createHex: (req: CreateHexInput) => request<Hex>("POST", "/hexes", req),
+  updateHex: (id: string, patch: UpdateHexRequest) => request<Hex>("PATCH", `/hexes/${id}`, patch),
+  deleteHex: (id: string) => request<{ deleted: string[] }>("DELETE", `/hexes/${id}`),
+  setMeta: (id: string, key: string, value: string) =>
+    request<Hex>("PUT", `/hexes/${id}/meta/${encodeURIComponent(key)}`, { value }),
+  removeMeta: (id: string, key: string) =>
+    request<Hex>("DELETE", `/hexes/${id}/meta/${encodeURIComponent(key)}`),
+};
