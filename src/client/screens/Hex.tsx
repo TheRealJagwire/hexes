@@ -8,6 +8,7 @@ import { Link, navigate } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
 import { ChevronDown, ChevronRight, Close, Plus } from "../components/Icons.tsx";
 import { CopyButton, KindBadge } from "../components/Bits.tsx";
+import { Markdown } from "../components/Markdown.tsx";
 import {
   Brand,
   ErrorState,
@@ -433,9 +434,14 @@ export function HexScreen({ id }: { id: string }) {
           )
           : (
             <div class="flex flex-col items-start gap-2">
-              <p class="m-0 max-w-[760px] whitespace-pre-line text-base leading-relaxed text-ink-2">
-                {hex.description || <span class="text-muted">No description.</span>}
-              </p>
+              {hex.description
+                ? (
+                  <Markdown
+                    text={hex.description}
+                    class="max-w-[760px] text-base leading-relaxed text-ink-2"
+                  />
+                )
+                : <p class="m-0 text-base text-muted">No description.</p>}
               <button
                 type="button"
                 onClick={() => setEditing(true)}

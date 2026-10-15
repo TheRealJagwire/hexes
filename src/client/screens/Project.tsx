@@ -9,6 +9,7 @@ import { Link } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
 import { ArrowUpRight, ChevronDown, ChevronRight, Plus } from "../components/Icons.tsx";
 import { CopyButton, KindBadge, ProgressRing, StatusPill } from "../components/Bits.tsx";
+import { Markdown } from "../components/Markdown.tsx";
 import { ErrorState, Header, LoadingState, Page, ThemeToggle } from "../components/Layout.tsx";
 import { Logo } from "../components/Icons.tsx";
 
@@ -88,9 +89,9 @@ function StoryRow({ story, open, onToggle }: { story: Hex; open: boolean; onTogg
       </button>
       {open && (
         <div class="flex flex-col gap-4 pb-5 pl-11 pr-5 pt-1">
-          <p class="m-0 whitespace-pre-line text-[15px] leading-relaxed text-ink-2">
-            {story.description || "No description yet."}
-          </p>
+          {story.description
+            ? <Markdown text={story.description} class="text-[15px] leading-relaxed text-ink-2" />
+            : <p class="m-0 text-[15px] leading-relaxed text-ink-2">No description yet.</p>}
           {meta.length > 0 && (
             <dl class="m-0 grid grid-cols-[minmax(140px,max-content)_minmax(0,1fr)] gap-x-5 gap-y-2 font-mono text-[13px]">
               {meta.map(([k, v]) => (
@@ -211,9 +212,9 @@ export function ProjectHeader(
   );
 }
 
-/** The project statement, cut off after ten lines; the full text lives on the hex's own page. */
+/** The project statement, cut off after about ten lines; the full text lives on the hex's own page. */
 function ClampedDescription({ text, href }: { text: string; href: string }) {
-  const ref = useRef<HTMLParagraphElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const [clamped, setClamped] = useState(false);
   useLayoutEffect(() => {
     const el = ref.current;
@@ -226,12 +227,15 @@ function ClampedDescription({ text, href }: { text: string; href: string }) {
   }, [text]);
   return (
     <div class="flex max-w-[760px] flex-col items-start gap-2">
-      <p
+      <div
         ref={ref}
-        class="m-0 line-clamp-10 whitespace-pre-line text-[17px] leading-relaxed text-ink-2"
+        class={`w-full overflow-hidden text-[17px] leading-relaxed text-ink-2 ${
+          clamped ? "[mask-image:linear-gradient(to_bottom,#000_75%,transparent)]" : ""
+        }`}
+        style={{ maxHeight: "16.25em" }}
       >
-        {text}
-      </p>
+        <Markdown text={text} />
+      </div>
       {clamped && (
         <Link href={href} class="text-[13px] text-accent underline-offset-2 hover:underline">
           Read the full description

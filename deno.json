@@ -17,8 +17,10 @@
     "zuke": "deno run -A zuke.ts"
   },
   "imports": {
+    "dompurify": "npm:dompurify@^3.4.17",
     "hono": "jsr:@hono/hono@^4.13.13",
     "hono/deno": "jsr:@hono/hono@^4.13.13/deno",
+    "marked": "npm:marked@^18.1.1",
     "preact": "npm:preact@^11.0.1",
     "preact/hooks": "npm:preact@^11.0.1/hooks",
     "@preact/signals": "npm:@preact/signals@^2.11.3",
