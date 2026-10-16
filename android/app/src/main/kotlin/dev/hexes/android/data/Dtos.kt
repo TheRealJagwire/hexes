@@ -1,0 +1,106 @@
+package dev.hexes.android.data
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+/** Wire types of Studio's JSON API. They mirror src/shared/{schemas,views}.ts. */
+
+@Serializable
+enum class Status {
+    @SerialName("blocked") Blocked,
+    @SerialName("ready") Ready,
+    @SerialName("in_progress") InProgress,
+    @SerialName("verified") Verified,
+    @SerialName("done") Done,
+}
+
+@Serializable
+data class Hex(
+    val id: String,
+    val title: String,
+    val description: String,
+    val kind: String,
+    val createdAtTimeInMs: Long,
+    val lastUpdatedAtTimeInMs: Long,
+    val status: Status,
+    val dependsOn: List<String> = emptyList(),
+    val emergedFrom: String? = null,
+    val meta: Map<String, String> = emptyMap(),
+)
+
+/** Compact hex reference used in lists, breadcrumbs and relationship panels. */
+@Serializable
+data class HexSummary(
+    val id: String,
+    val title: String,
+    val kind: String,
+    val status: Status,
+)
+
+@Serializable
+data class Progress(val done: Int, val total: Int, val pct: Int)
+
+@Serializable
+data class WorkspaceState(
+    val dir: String?,
+    val pinned: Boolean,
+    val lastDir: String?,
+    val selectedProjectId: String?,
+)
+
+@Serializable
+data class RecentWorkspace(
+    val id: String,
+    val label: String,
+    val dir: String,
+    val found: Boolean,
+)
+
+@Serializable
+data class ProjectSummary(
+    val id: String,
+    val title: String,
+    val blurb: String,
+    val initial: String,
+    val epics: Int,
+    val stories: Int,
+)
+
+@Serializable
+data class EpicView(
+    val hex: Hex,
+    val gate: HexSummary?,
+    val progress: Progress,
+    val stories: List<Hex>,
+)
+
+@Serializable
+data class ProjectView(
+    val project: Hex,
+    val designs: List<HexSummary>,
+    val decisions: List<HexSummary>,
+    val questions: List<HexSummary>,
+    val epics: List<EpicView>,
+)
+
+@Serializable
+data class DeleteImpact(
+    val dependents: Int,
+    val emerged: Int,
+    val projectHexes: Int?,
+)
+
+@Serializable
+data class HexView(
+    val hex: Hex,
+    val breadcrumbs: List<HexSummary>,
+    val projectId: String?,
+    val dependsOn: List<HexSummary>,
+    val dependedOnBy: List<HexSummary>,
+    val emergedFromHex: HexSummary?,
+    val emergedHere: List<HexSummary>,
+    val deleteImpact: DeleteImpact,
+)
+
+@Serializable
+data class ApiError(val error: String)

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Studio is usually reached over plain HTTP on a private network (Tailscale, adb reverse, the
+  emulator's host alias), so cleartext is allowed. The app only ever talks to the one server
+  the user configures, and every remote request carries the bearer token.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

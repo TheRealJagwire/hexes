@@ -13,6 +13,27 @@ async function tsFiles(dir: string): Promise<string[]> {
   return files.sort();
 }
 
+/** Runs the Gradle wrapper in android/, finding a JDK 17+ and the SDK where Homebrew puts them. */
+async function gradle(...args: string[]): Promise<void> {
+  const env: Record<string, string> = {};
+  const studioJdk = "/Applications/Android Studio.app/Contents/jbr/Contents/Home";
+  if (!Deno.env.get("JAVA_HOME") && await Deno.stat(studioJdk).then(() => true, () => false)) {
+    env.JAVA_HOME = studioJdk;
+  }
+  const brewSdk = "/opt/homebrew/share/android-commandlinetools";
+  if (!Deno.env.get("ANDROID_HOME") && await Deno.stat(brewSdk).then(() => true, () => false)) {
+    env.ANDROID_HOME = brewSdk;
+  }
+  const out = await new Deno.Command("./gradlew", {
+    args,
+    cwd: "android",
+    env,
+    stdout: "inherit",
+    stderr: "inherit",
+  }).output();
+  if (!out.success) throw new Error(`gradlew ${args.join(" ")} failed`);
+}
+
 class HexesBuild extends Build {
   clean = target()
     .description("Delete generated assets in static/")
@@ -78,6 +99,15 @@ class HexesBuild extends Build {
     .description("Everything CI should gate on: check, test and build")
     .dependsOn(this.check, this.test, this.build)
     .executes(() => {});
+
+  androidTest = target()
+    .description("Run the Android app's unit tests (needs the Android SDK; not part of ci)")
+    .executes(() => gradle(":app:testDebugUnitTest"));
+
+  androidBuild = target()
+    .description("Assemble the Android debug APK (needs the Android SDK; not part of ci)")
+    .dependsOn(this.androidTest)
+    .executes(() => gradle(":app:assembleDebug"));
 
   default = target()
     .description("Same as build")
