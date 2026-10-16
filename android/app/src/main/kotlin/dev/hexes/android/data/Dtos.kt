@@ -20,6 +20,22 @@ data class SelectProjectRequest(val id: String)
 @Serializable
 data class DirRequest(val dir: String)
 
+/** `PATCH /api/hexes/:id`: only the fields that are set are sent. */
+@Serializable
+data class UpdateHexRequest(
+    val title: String? = null,
+    val description: String? = null,
+    val status: Status? = null,
+    /** The `lastUpdatedAtTimeInMs` the user saw; the server answers 409 if the hex has moved on. */
+    val expectedUpdatedAtTimeInMs: Long? = null,
+)
+
+@Serializable
+data class MetaValueRequest(val value: String)
+
+@Serializable
+data class DeleteResult(val deleted: List<String>)
+
 @Serializable
 data class Hex(
     val id: String,

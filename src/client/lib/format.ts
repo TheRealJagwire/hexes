@@ -43,5 +43,6 @@ export function dateTime(ms: number): string {
 
 export function plural(n: number, word: string): string {
   if (n === 1) return `1 ${word}`;
-  return `${n} ${word.endsWith("y") ? word.slice(0, -1) + "ies" : word + "s"}`;
+  if (word.endsWith("y")) return `${n} ${word.slice(0, -1)}ies`;
+  return `${n} ${/[xs]$/.test(word) ? word + "es" : word + "s"}`;
 }

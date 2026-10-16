@@ -70,3 +70,28 @@ Deno.test("api: state, project, create, status, delete", async () => {
     await f.cleanup();
   }
 });
+
+Deno.test("bodiless DELETEs pass the guard over a real connection", async () => {
+  const f = await fixture();
+  const app = createApp(f.service);
+  const server = Deno.serve({ hostname: "127.0.0.1", port: 0, onListen() {} }, app.fetch);
+  const base = `http://127.0.0.1:${server.addr.port}/api`;
+  try {
+    await f.service.setMeta(f.projectId, "git_branch", "feat/x", "set");
+    // No body, no content-type: exactly what a browser or the phone sends.
+    const res = await fetch(`${base}/hexes/${f.projectId}/meta/git_branch`, { method: "DELETE" });
+    assertEquals(res.status, 200);
+    assertEquals((await res.json()).meta ?? {}, {});
+    // A real body with the wrong type is still refused.
+    const bad = await fetch(`${base}/selected-project`, {
+      method: "POST",
+      headers: { "content-type": "text/plain" },
+      body: "{}",
+    });
+    assertEquals(bad.status, 415);
+    await bad.body?.cancel();
+  } finally {
+    await server.shutdown();
+    await f.cleanup();
+  }
+});

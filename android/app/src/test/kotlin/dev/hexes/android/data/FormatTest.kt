@@ -23,6 +23,28 @@ class FormatTest {
         assertEquals("0 epics", plural(0, "epic"))
         assertEquals("3 stories", plural(3, "story"))
         assertEquals("1 story", plural(1, "story"))
+        assertEquals("2 hexes", plural(2, "hex"))
+        assertEquals("1 hex", plural(1, "hex"))
+    }
+
+    @Test
+    fun deleteImpactIsWorded() {
+        assertEquals(
+            "Nothing else references this hex.",
+            deleteImpactText(DeleteImpact(dependents = 0, emerged = 0, projectHexes = null)),
+        )
+        assertEquals(
+            "1 hex depends on this one and 0 emerged from it. Their references will be removed.",
+            deleteImpactText(DeleteImpact(1, 0, null)),
+        )
+        assertEquals(
+            "3 hexes depend on this one and 2 emerged from it. Their references will be removed.",
+            deleteImpactText(DeleteImpact(3, 2, null)),
+        )
+        assertEquals(
+            "This deletes the project and all 12 hexes in it.",
+            deleteImpactText(DeleteImpact(0, 0, 12)),
+        )
     }
 
     @Test

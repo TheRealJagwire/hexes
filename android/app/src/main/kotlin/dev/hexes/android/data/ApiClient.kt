@@ -95,6 +95,24 @@ class ApiClient(
         return decode(send("POST", "/api/workspace/open", body), WorkspaceState.serializer())
     }
 
+    suspend fun updateHex(id: String, patch: UpdateHexRequest): Hex {
+        val body = apiJson.encodeToString(UpdateHexRequest.serializer(), patch)
+        return decode(send("PATCH", "/api/hexes/${encode(id)}", body), Hex.serializer())
+    }
+
+    /** Sets a meta key, adding it or replacing its value. */
+    suspend fun setMeta(id: String, key: String, value: String): Hex {
+        val body = apiJson.encodeToString(MetaValueRequest.serializer(), MetaValueRequest(value))
+        return decode(send("PUT", "/api/hexes/${encode(id)}/meta/${encode(key)}", body), Hex.serializer())
+    }
+
+    suspend fun removeMeta(id: String, key: String): Hex =
+        decode(send("DELETE", "/api/hexes/${encode(id)}/meta/${encode(key)}", null), Hex.serializer())
+
+    /** Deletes a hex (a whole project when it is one). Returns every id that was removed. */
+    suspend fun deleteHex(id: String): List<String> =
+        decode(send("DELETE", "/api/hexes/${encode(id)}", null), DeleteResult.serializer()).deleted
+
     /** The request used for the live event stream; the caller owns the connection. */
     fun eventsRequest(): Request =
         request("/api/events").newBuilder().header("Accept", "text/event-stream").build()
@@ -108,6 +126,7 @@ class ApiClient(
     private suspend fun send(method: String, path: String, json: String?): String {
         val builder = request(path).newBuilder()
         if (json != null) builder.method(method, json.toRequestBody(JSON))
+        else if (method != "GET") builder.method(method, null)
         val response = execute(builder.build())
         response.use {
             checkStatus(it)

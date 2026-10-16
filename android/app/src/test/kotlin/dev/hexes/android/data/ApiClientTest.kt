@@ -132,6 +132,63 @@ class ApiClientTest {
     }
 
     @Test
+    fun updatingAHexPatchesOnlyTheFieldsSet() = runBlocking {
+        server.enqueue(ok("""{"id":"hx-a-123","title":"T","description":"","kind":"core.story","createdAtTimeInMs":1,"lastUpdatedAtTimeInMs":2,"status":"ready"}"""))
+        val hex = client().updateHex("hx-a-123", UpdateHexRequest(status = Status.InProgress))
+        assertEquals("hx-a-123", hex.id)
+        val request = server.takeRequest()
+        assertEquals("PATCH", request.method)
+        assertEquals("/api/hexes/hx-a-123", request.url.encodedPath)
+        assertEquals("""{"status":"in_progress"}""", request.body!!.utf8())
+    }
+
+    @Test
+    fun aTextEditCarriesTheVersionItWasOpenedOn() = runBlocking {
+        server.enqueue(ok("""{"id":"hx-a-123","title":"T","description":"","kind":"core.story","createdAtTimeInMs":1,"lastUpdatedAtTimeInMs":2,"status":"ready"}"""))
+        client().updateHex("hx-a-123", UpdateHexRequest(title = "New", description = "Body", expectedUpdatedAtTimeInMs = 42))
+        assertEquals(
+            """{"title":"New","description":"Body","expectedUpdatedAtTimeInMs":42}""",
+            server.takeRequest().body!!.utf8(),
+        )
+    }
+
+    @Test
+    fun aStaleEditIsAConflict() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(409).body("""{"error":"This hex was changed elsewhere. Reload it and try again."}""").build())
+        try {
+            client().updateHex("hx-a-123", UpdateHexRequest(title = "x", expectedUpdatedAtTimeInMs = 1))
+            fail("expected a conflict")
+        } catch (e: ApiException.Http) {
+            assertEquals(409, e.status)
+            assertTrue(e.message!!.contains("changed elsewhere"))
+        }
+    }
+
+    @Test
+    fun metaKeysAreSetAndRemovedByPath() = runBlocking {
+        server.enqueue(ok("""{"id":"hx-a-123","title":"T","description":"","kind":"core.story","createdAtTimeInMs":1,"lastUpdatedAtTimeInMs":2,"status":"ready"}"""))
+        server.enqueue(ok("""{"id":"hx-a-123","title":"T","description":"","kind":"core.story","createdAtTimeInMs":1,"lastUpdatedAtTimeInMs":2,"status":"ready"}"""))
+        client().setMeta("hx-a-123", "git branch", "feat/x")
+        client().removeMeta("hx-a-123", "git branch")
+        val put = server.takeRequest()
+        assertEquals("PUT", put.method)
+        assertEquals("/api/hexes/hx-a-123/meta/git%20branch", put.url.encodedPath)
+        assertEquals("""{"value":"feat/x"}""", put.body!!.utf8())
+        val delete = server.takeRequest()
+        assertEquals("DELETE", delete.method)
+        assertEquals("/api/hexes/hx-a-123/meta/git%20branch", delete.url.encodedPath)
+    }
+
+    @Test
+    fun deletingReturnsEveryRemovedId() = runBlocking {
+        server.enqueue(ok("""{"deleted":["hx-a-123","hx-a-456"]}"""))
+        assertEquals(listOf("hx-a-123", "hx-a-456"), client().deleteHex("hx-a-123"))
+        val request = server.takeRequest()
+        assertEquals("DELETE", request.method)
+        assertEquals("/api/hexes/hx-a-123", request.url.encodedPath)
+    }
+
+    @Test
     fun garbageIsABadResponse() = runBlocking {
         server.enqueue(ok("<html>not json</html>"))
         try {

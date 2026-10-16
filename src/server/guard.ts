@@ -82,7 +82,13 @@ export function createGuard(options: GuardOptions = {}): MiddlewareHandler {
         return c.json({ error: "cross-origin request refused" }, 403);
       }
       const type = c.req.header("content-type") ?? "";
-      const hasBody = c.req.raw.body !== null;
+      // Deno gives bodiless DELETEs an empty stream, so `body !== null` is not enough: go by
+      // the framing headers (a real body always declares a length or is chunked).
+      const declared = c.req.header("content-length");
+      const hasBody = declared !== undefined
+        ? Number(declared) > 0
+        : c.req.header("transfer-encoding") !== undefined ||
+          (type !== "" && c.req.raw.body !== null);
       if (hasBody && !type.startsWith("application/json")) {
         return c.json({ error: "content-type must be application/json" }, 415);
       }

@@ -28,6 +28,7 @@ fun dateTime(ms: Long): String =
 fun plural(n: Int, word: String): String = when {
     n == 1 -> "1 $word"
     word.endsWith("y") -> "$n ${word.dropLast(1)}ies"
+    word.endsWith("x") || word.endsWith("s") -> "$n ${word}es"
     else -> "$n ${word}s"
 }
 
@@ -38,4 +39,12 @@ fun statusSummary(statuses: List<Status>): String {
         val n = statuses.count { it == status }
         if (n > 0) "$n ${status.wire.replace('_', ' ')}" else null
     }.joinToString(" · ")
+}
+
+/** What deleting a hex will touch, in words, for the confirmation step. */
+fun deleteImpactText(impact: DeleteImpact): String = when {
+    impact.projectHexes != null -> "This deletes the project and all ${impact.projectHexes} hexes in it."
+    impact.dependents + impact.emerged == 0 -> "Nothing else references this hex."
+    else -> "${plural(impact.dependents, "hex")} ${if (impact.dependents == 1) "depends" else "depend"} " +
+        "on this one and ${impact.emerged} emerged from it. Their references will be removed."
 }

@@ -116,6 +116,15 @@ fun HexesNavHost() {
                     onBack = { nav.popBackStack() },
                     onOpenHex = { hexId -> nav.navigate(Routes.hex(hexId)) },
                     onOpenProject = { projectId -> nav.navigate(Routes.project(projectId)) },
+                    onDeleted = { projectId, wasProject ->
+                        if (wasProject || projectId == null) {
+                            nav.goHome()
+                        } else {
+                            nav.navigate(Routes.project(projectId)) {
+                                popUpTo(Routes.HexPattern) { inclusive = true }
+                            }
+                        }
+                    },
                 )
             }
             composable(Routes.Settings) {
