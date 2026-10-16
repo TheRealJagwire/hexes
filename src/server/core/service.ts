@@ -526,8 +526,20 @@ function assertAcyclic(hexes: readonly Hex[]): void {
   }
 }
 
-function blurb(text: string): string {
-  const first = text.trim().split(/(?<=[.!?])\s/)[0] ?? "";
+/** The first sentence of a description as plain text: markdown is stripped, headings skipped. */
+export function blurb(text: string): string {
+  const paragraphs = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  const body = paragraphs.find((p) => !/^#{1,6}\s/.test(p)) ?? paragraphs[0] ?? "";
+  const plain = body
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*>\s?/gm, "")
+    .replace(/^\s*(?:[-+*]|\d+\.)\s+/gm, "")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/[*`]+|~~/g, "")
+    .replace(/\b_+([^_]+)_+\b/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+  const first = plain.split(/(?<=[.!?])\s/)[0] ?? "";
   return first.length > 140 ? first.slice(0, 137).trimEnd() + "…" : first;
 }
 

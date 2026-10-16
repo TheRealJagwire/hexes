@@ -36,10 +36,9 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     init {
         viewModelScope.launch {
+            // Saved values first, then any pairing link, so the link is never overwritten.
             val (url, token) = container.settings.rawFields.first()
             _state.update { it.copy(url = url, token = token, theme = container.settings.theme.first()) }
-        }
-        viewModelScope.launch {
             container.pendingPairing.collect { link ->
                 if (link != null) {
                     apply(link)

@@ -102,6 +102,36 @@ class ApiClientTest {
     }
 
     @Test
+    fun hexIdsAreEscapedInThePath() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(404).body("""{"error":"No hex with id a/b c"}""").build())
+        try {
+            client().hex("a/b c")
+            fail("expected 404")
+        } catch (e: ApiException.Http) {
+            assertEquals(404, e.status)
+        }
+        assertEquals("/api/hexes/a%2Fb%20c", server.takeRequest().url.encodedPath)
+    }
+
+    @Test
+    fun selectingAProjectPostsJson() = runBlocking {
+        server.enqueue(ok("""{"ok":true}"""))
+        client().selectProject("hx-a-123")
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/selected-project", request.url.encodedPath)
+        assertTrue(request.headers["Content-Type"]!!.startsWith("application/json"))
+        assertEquals("""{"id":"hx-a-123"}""", request.body!!.utf8())
+    }
+
+    @Test
+    fun openingAWorkspaceReturnsTheNewState() = runBlocking {
+        server.enqueue(ok("""{"dir":"/p","pinned":false,"lastDir":"/p","selectedProjectId":null}"""))
+        assertEquals("/p", client().openWorkspace("~/p").dir)
+        assertEquals("""{"dir":"~/p"}""", server.takeRequest().body!!.utf8())
+    }
+
+    @Test
     fun garbageIsABadResponse() = runBlocking {
         server.enqueue(ok("<html>not json</html>"))
         try {

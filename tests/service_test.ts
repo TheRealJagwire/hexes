@@ -1,3 +1,4 @@
+import { blurb } from "../src/server/core/service.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { generateId, hashHex } from "../src/server/core/ids.ts";
 import { DomainError } from "../src/server/core/errors.ts";
@@ -198,4 +199,16 @@ Deno.test("project view groups designs, decisions and epics", async () => {
   } finally {
     await f.cleanup();
   }
+});
+
+Deno.test("blurb is a plain-text first sentence, without markdown", () => {
+  assertEquals(blurb("A vision."), "A vision.");
+  assertEquals(
+    blurb("# Title\n\nA **third-person** game with `code` and a [link](http://x.y). More text."),
+    "A third-person game with code and a link.",
+  );
+  assertEquals(blurb("# Only a heading"), "Only a heading");
+  assertEquals(blurb("- first item. second"), "first item.");
+  assertEquals(blurb("keeps snake_case_names intact."), "keeps snake_case_names intact.");
+  assertEquals(blurb(""), "");
 });

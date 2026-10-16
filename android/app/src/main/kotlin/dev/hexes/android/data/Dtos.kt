@@ -6,13 +6,19 @@ import kotlinx.serialization.Serializable
 /** Wire types of Studio's JSON API. They mirror src/shared/{schemas,views}.ts. */
 
 @Serializable
-enum class Status {
-    @SerialName("blocked") Blocked,
-    @SerialName("ready") Ready,
-    @SerialName("in_progress") InProgress,
-    @SerialName("verified") Verified,
-    @SerialName("done") Done,
+enum class Status(val wire: String) {
+    @SerialName("blocked") Blocked("blocked"),
+    @SerialName("ready") Ready("ready"),
+    @SerialName("in_progress") InProgress("in_progress"),
+    @SerialName("verified") Verified("verified"),
+    @SerialName("done") Done("done"),
 }
+
+@Serializable
+data class SelectProjectRequest(val id: String)
+
+@Serializable
+data class DirRequest(val dir: String)
 
 @Serializable
 data class Hex(

@@ -9,6 +9,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.graphics.Color
 import dev.hexes.android.data.PairingLink
@@ -22,6 +26,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         handle(intent)
         val settings = container.settings
+        // Follow the server's change stream only while the app is on screen.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) { container.live.run() }
+        }
         setContent {
             val theme by settings.theme.collectAsStateWithLifecycle(initialValue = ThemeChoice.Dark)
             // The app picks its own light/dark, so the bar icons must follow it, not the system.

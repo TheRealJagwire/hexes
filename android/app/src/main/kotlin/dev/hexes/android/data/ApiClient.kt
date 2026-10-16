@@ -7,7 +7,9 @@ import kotlinx.serialization.json.Json
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -19,7 +21,10 @@ const val SUPPORTED_API_VERSION = 1
 
 sealed class ApiException(message: String, cause: Throwable? = null) : Exception(message, cause) {
     /** The server could not be reached at all. */
-    class Unreachable(cause: Throwable) : ApiException(cause.message ?: "Could not reach the server", cause)
+    class Unreachable(cause: Throwable, val address: String? = null) : ApiException(
+        "Can't reach Studio" + (address?.let { " at $it" } ?: "") + ". Is it running, and is the address right?",
+        cause,
+    )
 
     /** 401: missing or wrong token. */
     class Unauthorized(message: String) : ApiException(message)
@@ -32,6 +37,9 @@ sealed class ApiException(message: String, cause: Throwable? = null) : Exception
         "This server uses API version ${server ?: "unknown"}, but the app expects $SUPPORTED_API_VERSION. " +
             "Update the app or Studio.",
     )
+
+    /** No server address has been saved yet. */
+    class NotConfigured : ApiException("No server is set up yet. Open Settings to connect.")
 
     /** The response was not the JSON the app expects. */
     class BadResponse(cause: Throwable) : ApiException("Unexpected response from the server", cause)
@@ -46,6 +54,8 @@ fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
     .connectTimeout(8, TimeUnit.SECONDS)
     .readTimeout(20, TimeUnit.SECONDS)
     .build()
+
+private val JSON = "application/json".toMediaType()
 
 /** Talks to one Studio server. Read endpoints for now; writes arrive with the editing screens. */
 class ApiClient(
@@ -71,18 +81,46 @@ class ApiClient(
     suspend fun recentWorkspaces(): List<RecentWorkspace> =
         get("/api/workspace/recent", ListSerializer(RecentWorkspace.serializer()))
 
-    private suspend fun <T> get(path: String, serializer: DeserializationStrategy<T>): T {
-        val response = execute(request(path))
+    suspend fun project(id: String): ProjectView =
+        get("/api/projects/${encode(id)}", ProjectView.serializer())
+
+    suspend fun hex(id: String): HexView = get("/api/hexes/${encode(id)}", HexView.serializer())
+
+    suspend fun selectProject(id: String) {
+        send("POST", "/api/selected-project", apiJson.encodeToString(SelectProjectRequest.serializer(), SelectProjectRequest(id)))
+    }
+
+    suspend fun openWorkspace(dir: String): WorkspaceState {
+        val body = apiJson.encodeToString(DirRequest.serializer(), DirRequest(dir))
+        return decode(send("POST", "/api/workspace/open", body), WorkspaceState.serializer())
+    }
+
+    /** The request used for the live event stream; the caller owns the connection. */
+    fun eventsRequest(): Request =
+        request("/api/events").newBuilder().header("Accept", "text/event-stream").build()
+
+    private fun encode(segment: String): String = java.net.URLEncoder.encode(segment, "UTF-8").replace("+", "%20")
+
+    private suspend fun <T> get(path: String, serializer: DeserializationStrategy<T>): T =
+        decode(send("GET", path, null), serializer)
+
+    /** Sends a request and returns the response body text for a successful status. */
+    private suspend fun send(method: String, path: String, json: String?): String {
+        val builder = request(path).newBuilder()
+        if (json != null) builder.method(method, json.toRequestBody(JSON))
+        val response = execute(builder.build())
         response.use {
             checkStatus(it)
-            val body = it.body.string()
-            try {
-                return apiJson.decodeFromString(serializer, body)
-            } catch (e: Exception) {
-                throw ApiException.BadResponse(e)
-            }
+            return it.body.string()
         }
     }
+
+    private fun <T> decode(body: String, serializer: DeserializationStrategy<T>): T =
+        try {
+            apiJson.decodeFromString(serializer, body)
+        } catch (e: Exception) {
+            throw ApiException.BadResponse(e)
+        }
 
     private fun request(path: String): Request {
         val url = connection.baseUrl.newBuilder().encodedPath(path).build()
@@ -107,7 +145,7 @@ class ApiClient(
             continuation.invokeOnCancellation { call.cancel() }
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    continuation.resumeWithException(ApiException.Unreachable(e))
+                    continuation.resumeWithException(ApiException.Unreachable(e, "${request.url.host}:${request.url.port}"))
                 }
 
                 override fun onResponse(call: Call, response: Response) {
