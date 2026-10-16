@@ -13,6 +13,7 @@
     "npm:dompurify@^3.4.17": "3.4.17",
     "npm:marked@^18.1.1": "18.1.1",
     "npm:preact@^11.0.1": "11.0.1",
+    "npm:qrcode-terminal@0.12": "0.12.0",
     "npm:tailwindcss@^4.3.3": "4.3.3",
     "npm:zod@^4.6.7": "4.6.7"
   },
@@ -800,6 +801,10 @@
         "ipaddr.js"
       ]
     },
+    "qrcode-terminal@0.12.0": {
+      "integrity": "sha512-EXtzRZmC+YGmGlDFbXKxQiMZNwCLEO6BANKXG4iCtSIM0yqc/pappSx3RIKr4r0uh5JsBckOXeKrB3Iz7mdQpQ==",
+      "bin": true
+    },
     "qs@6.16.0": {
       "integrity": "sha512-h6fhOIaRrID2CbEY2fqs+7t+UXZo+MLAnU5gRIq85uFtdiUPCdsApMlHhXogKVM4HM2DVbIjGNTTYH2OcmP1vA==",
       "dependencies": [
@@ -975,6 +980,7 @@
       "npm:dompurify@^3.4.17",
       "npm:marked@^18.1.1",
       "npm:preact@^11.0.1",
+      "npm:qrcode-terminal@0.12",
       "npm:tailwindcss@^4.3.3",
       "npm:zod@^4.6.7"
     ]

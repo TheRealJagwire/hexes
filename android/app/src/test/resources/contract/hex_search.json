@@ -1,0 +1,35 @@
+{
+  "status": 200,
+  "body": [
+    {
+      "id": "hx-contract-16d",
+      "title": "Contract Demo",
+      "kind": "core.project",
+      "status": "done"
+    },
+    {
+      "id": "hx-contract-d35",
+      "title": "Board layout",
+      "kind": "core.design",
+      "status": "done"
+    },
+    {
+      "id": "hx-contract-122",
+      "title": "Draw the grid",
+      "kind": "core.story",
+      "status": "ready"
+    },
+    {
+      "id": "hx-contract-c0a",
+      "title": "Board",
+      "kind": "core.epic",
+      "status": "blocked"
+    },
+    {
+      "id": "hx-contract-6a3",
+      "title": "Wrap edges?",
+      "kind": "core.question",
+      "status": "blocked"
+    }
+  ]
+}

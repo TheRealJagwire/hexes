@@ -4,7 +4,7 @@ import { mcpRoutes } from "../mcp/http.ts";
 import { HexService } from "./core/service.ts";
 import { ChangeWatcher } from "./core/watcher.ts";
 import { Workspace } from "./core/workspace.ts";
-import { localOnly } from "./guard.ts";
+import { createGuard, type GuardOptions, guardOptionsFromEnv } from "./guard.ts";
 import { apiRoutes } from "./routes/api.ts";
 
 const INDEX_HTML = `<!doctype html>
@@ -37,9 +37,10 @@ const INDEX_HTML = `<!doctype html>
 export function createApp(
   service: HexService = new HexService(Workspace.fromEnv()),
   changes: ChangeWatcher = new ChangeWatcher(service.workspace),
+  security: GuardOptions = guardOptionsFromEnv(),
 ): Hono {
   const app = new Hono();
-  app.use("*", localOnly);
+  app.use("*", createGuard(security));
   app.route("/api", apiRoutes(service, changes));
   app.route("/mcp", mcpRoutes(service));
   app.use("/static/*", serveStatic({ root: "./" }));

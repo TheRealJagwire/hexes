@@ -24,6 +24,15 @@ export interface WorkspaceState {
   selectedProjectId: string | null;
 }
 
+/** A workspace the server has opened before. Clients treat `id` as opaque; `dir` is detail. */
+export interface RecentWorkspace {
+  id: string;
+  label: string;
+  dir: string;
+  /** False when the directory no longer has a readable data file. */
+  found: boolean;
+}
+
 export interface InspectResult {
   dir: string;
   found: boolean;

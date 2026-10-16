@@ -1,0 +1,6 @@
+{
+  "status": 409,
+  "body": {
+    "error": "This hex was changed elsewhere. Reload it and try again."
+  }
+}

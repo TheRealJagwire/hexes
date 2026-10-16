@@ -1,0 +1,24 @@
+# Machine-specific: the SDK path written for this computer
+local.properties
+
+# Gradle and build output
+.gradle/
+build/
+.kotlin/
+.cxx/
+.externalNativeBuild/
+captures/
+
+# IDE
+.idea/
+*.iml
+
+# Release signing: never commit keys or their passwords
+*.jks
+*.keystore
+keystore.properties
+
+# Test and device artifacts
+*.apk
+*.aab
+*.hprof

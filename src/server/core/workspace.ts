@@ -10,6 +10,8 @@ export interface WorkspaceOptions {
   stateFile?: string | undefined;
 }
 
+const RECENT_LIMIT = 10;
+
 function homeDir(): string {
   return Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? "/";
 }
@@ -77,10 +79,25 @@ export class Workspace {
     return new HexFile(dir);
   }
 
+  /** Directories opened before, most recent first (at most RECENT_LIMIT). */
+  async recent(): Promise<string[]> {
+    try {
+      const json: unknown = JSON.parse(await Deno.readTextFile(this.stateFile));
+      const list = (json as { recent?: unknown } | null)?.recent;
+      return Array.isArray(list) ? list.filter((d): d is string => typeof d === "string") : [];
+    } catch {
+      return [];
+    }
+  }
+
   async remember(dir: string): Promise<void> {
     if (this.pinnedDir) return;
+    const recent = [dir, ...(await this.recent()).filter((d) => d !== dir)].slice(0, RECENT_LIMIT);
     await Deno.mkdir(this.stateFile.replace(/\/[^/]*$/, ""), { recursive: true });
-    await Deno.writeTextFile(this.stateFile, JSON.stringify({ lastDir: dir }, null, 2) + "\n");
+    await Deno.writeTextFile(
+      this.stateFile,
+      JSON.stringify({ lastDir: dir, recent }, null, 2) + "\n",
+    );
   }
 
   async inspect(input: string): Promise<InspectResult> {

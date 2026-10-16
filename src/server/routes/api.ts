@@ -14,6 +14,8 @@ import type { HexService } from "../core/service.ts";
 import { pickDirectory } from "../core/picker.ts";
 import type { ChangeWatcher } from "../core/watcher.ts";
 
+export const API_VERSION = 1;
+
 const MetaValueSchema = z.object({ value: z.string() });
 const SelectSchema = z.object({ id: HexIdSchema });
 
@@ -31,6 +33,12 @@ export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
     if (err instanceof SyntaxError) return c.json({ error: "request body is not valid JSON" }, 400);
     console.error(err);
     return c.json({ error: "internal error" }, 500);
+  });
+
+  // Lets a client notice it is talking to a server with a different contract.
+  api.use("*", async (c, next) => {
+    c.header("x-hexes-api", String(API_VERSION));
+    await next();
   });
 
   api.get("/health", (c) => c.json({ ok: true }));
@@ -59,6 +67,7 @@ export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
   });
   api.get("/state", async (c) => c.json(await service.state()));
 
+  api.get("/workspace/recent", async (c) => c.json(await service.recentWorkspaces()));
   api.post("/workspace/inspect", async (c) => {
     const { dir } = DirRequestSchema.parse(await c.req.json());
     return c.json(await service.inspect(dir));

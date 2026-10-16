@@ -1,0 +1,71 @@
+{
+  "status": 200,
+  "body": {
+    "project": {
+      "id": "hx-contract-16d",
+      "title": "Contract Demo",
+      "description": "A vision.",
+      "kind": "core.project",
+      "createdAtTimeInMs": 1700000001000,
+      "lastUpdatedAtTimeInMs": 1700000001000,
+      "status": "done"
+    },
+    "designs": [
+      {
+        "id": "hx-contract-d35",
+        "title": "Board layout",
+        "kind": "core.design",
+        "status": "done"
+      }
+    ],
+    "decisions": [],
+    "questions": [
+      {
+        "id": "hx-contract-6a3",
+        "title": "Wrap edges?",
+        "kind": "core.question",
+        "status": "blocked"
+      }
+    ],
+    "epics": [
+      {
+        "hex": {
+          "id": "hx-contract-c0a",
+          "title": "Board",
+          "description": "",
+          "kind": "core.epic",
+          "createdAtTimeInMs": 1700000005000,
+          "lastUpdatedAtTimeInMs": 1700000005000,
+          "status": "blocked",
+          "dependsOn": [
+            "hx-contract-d35",
+            "hx-contract-122"
+          ]
+        },
+        "gate": null,
+        "progress": {
+          "done": 0,
+          "total": 1,
+          "pct": 0
+        },
+        "stories": [
+          {
+            "id": "hx-contract-122",
+            "title": "Draw the grid",
+            "description": "",
+            "kind": "core.story",
+            "createdAtTimeInMs": 1700000004000,
+            "lastUpdatedAtTimeInMs": 1700000007000,
+            "status": "ready",
+            "dependsOn": [
+              "hx-contract-d35"
+            ],
+            "meta": {
+              "git_branch": "feat/grid"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

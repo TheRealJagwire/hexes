@@ -34,6 +34,7 @@ import type {
   InspectResult,
   ProjectSummary,
   ProjectView,
+  RecentWorkspace,
   WorkspaceState,
 } from "../../shared/views.ts";
 import { DomainError } from "./errors.ts";
@@ -74,6 +75,20 @@ export class HexService {
 
   inspect(dir: string): Promise<InspectResult> {
     return this.workspace.inspect(dir);
+  }
+
+  async recentWorkspaces(): Promise<RecentWorkspace[]> {
+    const out: RecentWorkspace[] = [];
+    for (const dir of await this.workspace.recent()) {
+      const info = await this.workspace.inspect(dir);
+      out.push({
+        id: dir,
+        label: dir.split("/").filter(Boolean).pop() ?? dir,
+        dir,
+        found: info.found,
+      });
+    }
+    return out;
   }
 
   async openWorkspace(dir: string): Promise<WorkspaceState> {
@@ -316,6 +331,12 @@ export class HexService {
   updateHex(id: string, patch: UpdateHexRequest): Promise<Hex> {
     return this.mutate((hexes) => {
       const hex = this.require(buildIndex(hexes), id);
+      if (
+        patch.expectedUpdatedAtTimeInMs !== undefined &&
+        patch.expectedUpdatedAtTimeInMs !== hex.lastUpdatedAtTimeInMs
+      ) {
+        throw new DomainError("This hex was changed elsewhere. Reload it and try again.", 409);
+      }
       const t = this.now();
       if (patch.title !== undefined) hex.title = patch.title;
       if (patch.description !== undefined) hex.description = patch.description;

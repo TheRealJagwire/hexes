@@ -20,6 +20,7 @@
     "dompurify": "npm:dompurify@^3.4.17",
     "hono": "jsr:@hono/hono@^4.13.13",
     "hono/deno": "jsr:@hono/hono@^4.13.13/deno",
+    "qrcode-terminal": "npm:qrcode-terminal@^0.12.0",
     "marked": "npm:marked@^18.1.1",
     "preact": "npm:preact@^11.0.1",
     "preact/hooks": "npm:preact@^11.0.1/hooks",

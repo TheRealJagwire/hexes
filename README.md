@@ -19,10 +19,29 @@ deno task dev     # watch CSS, client and server
 
 ## MCP server
 
-Studio serves MCP itself over streamable HTTP at `http://localhost:8000/mcp`, sharing one
-service with the UI, and `.mcp.json` points Claude Code at it (start Studio first). It works on
-the folder last opened in Studio, or on `HEXES_DIR` if set. The stdio entry (`deno task mcp`)
-still exists for clients that need a spawned process.
+Studio serves MCP itself over streamable HTTP at `http://localhost:8000/mcp`, sharing one service
+with the UI, and `.mcp.json` points Claude Code at it (start Studio first). It works on the folder
+last opened in Studio, or on `HEXES_DIR` if set. The stdio entry (`deno task mcp`) still exists for
+clients that need a spawned process.
+
+## Remote access (phone)
+
+By default Studio listens on `127.0.0.1` only. To reach it from the Android app, bind a wider
+address and set a token (16+ characters); Studio refuses to start otherwise:
+
+```
+HOST=0.0.0.0 HEXES_TOKEN=<secret> HEXES_PUBLIC_URL=http://<tailscale-name>:8000 deno task start
+```
+
+It prints a QR code and URL for pairing. Remote clients (anything not on loopback) must send
+`Authorization: Bearer <token>` to `/api` and `/mcp`; the local browser still needs none.
+`HEXES_ALLOWED_HOSTS` optionally restricts the Host header. Use a private network such as Tailscale:
+the connection is plain HTTP unless you terminate TLS in front of it.
+
+API contract: responses carry `X-Hexes-Api: 1`, and golden responses in
+`android/app/src/test/resources/contract/` are checked by `tests/contract_test.ts` (refresh with
+`UPDATE_CONTRACT=1`). `PATCH /api/hexes/:id` accepts `expectedUpdatedAtTimeInMs` and answers 409
+when the hex changed since the client last read it.
 
 ## Layout
 

@@ -1,0 +1,9 @@
+{
+  "status": 200,
+  "body": {
+    "dir": "/home/user/demo",
+    "pinned": false,
+    "lastDir": "/home/user/demo",
+    "selectedProjectId": "hx-contract-16d"
+  }
+}
