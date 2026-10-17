@@ -109,6 +109,11 @@ class HexesBuild extends Build {
     .dependsOn(this.androidTest)
     .executes(() => gradle(":app:assembleDebug"));
 
+  androidRelease = target()
+    .description("Assemble the signed release APK (needs android/keystore.properties)")
+    .dependsOn(this.androidTest)
+    .executes(() => gradle(":app:assembleRelease"));
+
   default = target()
     .description("Same as build")
     .dependsOn(this.build)

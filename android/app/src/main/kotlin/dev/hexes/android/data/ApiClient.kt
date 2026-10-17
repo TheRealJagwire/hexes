@@ -1,6 +1,8 @@
 package dev.hexes.android.data
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -65,11 +67,14 @@ class ApiClient(
     /** Reaches the server, checks the token and the API version. Returns the version it saw. */
     suspend fun health(): Int {
         val response = execute(request("/api/health"))
-        response.use {
-            checkStatus(it)
-            val version = it.header("X-Hexes-Api")?.toIntOrNull()
-            if (version != SUPPORTED_API_VERSION) throw ApiException.VersionMismatch(version)
-            return version
+        // The coroutine resumes on the caller's dispatcher (often Main); reading or closing a body is I/O.
+        return withContext(Dispatchers.IO) {
+            response.use {
+                checkStatus(it)
+                val version = it.header("X-Hexes-Api")?.toIntOrNull()
+                if (version != SUPPORTED_API_VERSION) throw ApiException.VersionMismatch(version)
+                version
+            }
         }
     }
 
@@ -141,9 +146,11 @@ class ApiClient(
         if (json != null) builder.method(method, json.toRequestBody(JSON))
         else if (method != "GET") builder.method(method, null)
         val response = execute(builder.build())
-        response.use {
-            checkStatus(it)
-            return it.body.string()
+        return withContext(Dispatchers.IO) {
+            response.use {
+                checkStatus(it)
+                it.body.string()
+            }
         }
     }
 

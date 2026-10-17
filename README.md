@@ -43,6 +43,22 @@ API contract: responses carry `X-Hexes-Api: 1`, and golden responses in
 `UPDATE_CONTRACT=1`). `PATCH /api/hexes/:id` accepts `expectedUpdatedAtTimeInMs` and answers 409
 when the hex changed since the client last read it.
 
+## Android app
+
+`android/` holds a thin client of the API above (Kotlin, Compose). Build and test with
+`deno task zuke androidTest` and `deno run -A zuke.ts androidBuild` (debug APK); both find Android
+Studio's JDK and the SDK. Pair with the `hexes://pair?url=…&token=…` link Studio prints, or type the
+address; for an emulator or USB phone run `adb reverse tcp:8000 tcp:8000` and use `localhost:8000`.
+
+`deno run -A zuke.ts androidRelease` builds a signed, minified APK at
+`android/app/build/outputs/apk/release/app-release.apk` to sideload. Signing reads
+`android/keystore.properties` (gitignored: `storeFile`, `storePassword`, `keyAlias`, `keyPassword`);
+without it the release APK is unsigned. Create a key once with
+`keytool
+-genkeypair -keystore ~/.hexes/hexes-release.jks -alias hexes -keyalg RSA -keysize 4096
+-validity 10000`,
+and back it up: an update must be signed with the same key to install over the old one.
+
 ## Layout
 
 ```

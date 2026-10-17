@@ -1,5 +1,6 @@
 package dev.hexes.android.data
 
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -52,6 +53,7 @@ class ResourceLoader<T>(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    Log.w("Hexes", "Load failed", e)
                     val hadData = _state.value is Resource.Ready
                     val missing = e is ApiException.Http && e.status == 404
                     if (hadData && !missing && attempt < retries) {
