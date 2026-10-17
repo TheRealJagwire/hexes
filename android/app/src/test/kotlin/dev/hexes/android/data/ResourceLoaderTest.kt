@@ -104,7 +104,7 @@ class ResourceLoaderTest {
         advanceUntilIdle()
         live.value = 1
         advanceUntilIdle()
-        assertEquals(Resource.Failed("No hex with id x"), r.state.value)
+        assertEquals(Resource.Failed("No hex with id x", missing = true), r.state.value)
         assertEquals(2, calls)
     }
 

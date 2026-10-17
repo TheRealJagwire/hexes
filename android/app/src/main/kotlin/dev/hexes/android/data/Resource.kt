@@ -13,7 +13,7 @@ import kotlin.coroutines.cancellation.CancellationException
 
 sealed interface Resource<out T> {
     data object Loading : Resource<Nothing>
-    data class Failed(val message: String) : Resource<Nothing>
+    data class Failed(val message: String, val missing: Boolean = false) : Resource<Nothing>
     data class Ready<T>(val data: T) : Resource<T>
 }
 
@@ -58,7 +58,7 @@ class ResourceLoader<T>(
                         attempt++
                         delay(retryDelayMs)
                     } else {
-                        _state.value = Resource.Failed(e.message ?: "Something went wrong.")
+                        _state.value = Resource.Failed(e.message ?: "Something went wrong.", missing)
                         return@launch
                     }
                 }

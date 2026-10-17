@@ -1,5 +1,8 @@
 package dev.hexes.android.ui.hex
 
+import dev.hexes.android.ui.components.readable
+import dev.hexes.android.ui.components.tappable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
@@ -173,7 +176,7 @@ fun HexScreen(
         Box(Modifier.fillMaxSize()) {
             when (val r = res) {
                 Resource.Loading -> LoadingState()
-                is Resource.Failed -> ErrorState(r.message, vm.hex::refresh) { SecondaryButton("Back", onBack) }
+                is Resource.Failed -> ErrorState(r.message, vm.hex::refresh, missing = r.missing) { SecondaryButton("Back", onBack) }
                 is Resource.Ready -> HexContent(r.data, vm, onBack, onOpenHex, onOpenProject, onCreateFrom, onDeleted)
             }
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(12.dp))
@@ -199,7 +202,7 @@ private fun HexContent(
     var editedFrom by rememberSaveable(hex.id) { mutableLongStateOf(0L) }
 
     LazyColumn(
-        Modifier.fillMaxSize().safeDrawingPadding().imePadding().padding(horizontal = 20.dp),
+        Modifier.readable().imePadding().padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
@@ -257,7 +260,7 @@ private fun StatusMenu(status: Status, enabled: Boolean, onPick: (Status) -> Uni
     var open by remember { mutableStateOf(false) }
     Box {
         Row(
-            Modifier.clickable(enabled = enabled) { open = true },
+            Modifier.tappable("Change status", enabled) { open = true },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -338,10 +341,10 @@ private fun Breadcrumbs(trail: List<HexSummary>, onOpenHex: (String) -> Unit, on
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Row(
                     Modifier
-                        .clickable(enabled = !last) {
+                        .tappable(enabled = !last) {
                             if (h.kind == "core.project") onOpenProject(h.id) else onOpenHex(h.id)
                         }
-                        .padding(horizontal = 6.dp, vertical = 10.dp),
+                        .padding(horizontal = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -373,7 +376,7 @@ private fun FieldsPanel(view: HexView, onOpenHex: (String) -> Unit) {
                         color = c.ink2,
                         fontFamily = Mono,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.clickable { onOpenHex(from.id) }.padding(vertical = 4.dp),
+                        modifier = Modifier.tappable { onOpenHex(from.id) },
                     )
                 }
             } else {
@@ -439,8 +442,8 @@ private fun MetaPanel(meta: Map<String, String>, busy: Boolean, vm: HexViewModel
                         Text(v, fontFamily = Mono, style = MaterialTheme.typography.bodySmall)
                     }
                     Box(
-                        Modifier.size(40.dp).clip(RoundedCornerShape(8.dp))
-                            .clickable(enabled = !busy) { vm.removeMeta(k) }
+                        Modifier.size(48.dp).clip(RoundedCornerShape(8.dp))
+                            .clickable(enabled = !busy, role = Role.Button) { vm.removeMeta(k) }
                             .semantics { contentDescription = "Remove $k" },
                         contentAlignment = Alignment.Center,
                     ) { Text("✕", color = c.muted) }
@@ -511,7 +514,7 @@ private fun RelatedPanel(
                         color = c.ink2,
                         fontFamily = Mono,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.clickable { onOpenHexFooter(h.id) }.padding(vertical = 4.dp),
+                        modifier = Modifier.tappable { onOpenHexFooter(h.id) },
                     )
                 }
             }

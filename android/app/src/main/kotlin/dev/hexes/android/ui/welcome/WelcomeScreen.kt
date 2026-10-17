@@ -1,5 +1,6 @@
 package dev.hexes.android.ui.welcome
 
+import dev.hexes.android.ui.components.readable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -114,7 +115,7 @@ fun WelcomeScreen(onBack: (() -> Unit)?, onOpened: () -> Unit, onCreated: (Strin
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
-            Modifier.safeDrawingPadding().imePadding().verticalScroll(rememberScrollState())
+            Modifier.readable().imePadding().verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {

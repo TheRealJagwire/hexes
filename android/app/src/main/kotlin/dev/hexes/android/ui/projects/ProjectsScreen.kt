@@ -1,5 +1,6 @@
 package dev.hexes.android.ui.projects
 
+import dev.hexes.android.ui.components.readable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -64,7 +65,7 @@ fun ProjectsScreen(
     val c = Hexes.colors
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(Modifier.safeDrawingPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
+        Column(Modifier.readable().padding(horizontal = 20.dp, vertical = 12.dp)) {
             TopBar("Projects", onBack = null) {
                 TextButton(onClick = onSwitchFolder) { Text("+ New") }
                 TextButton(onClick = onSettings) { Text("Settings") }

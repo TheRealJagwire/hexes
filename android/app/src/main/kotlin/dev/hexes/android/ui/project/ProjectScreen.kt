@@ -1,5 +1,7 @@
 package dev.hexes.android.ui.project
 
+import dev.hexes.android.ui.components.readable
+import dev.hexes.android.ui.components.toggleRow
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -74,7 +76,7 @@ fun ProjectScreen(
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         when (val r = res) {
             Resource.Loading -> LoadingState()
-            is Resource.Failed -> ErrorState(r.message, vm.project::refresh) {
+            is Resource.Failed -> ErrorState(r.message, vm.project::refresh, missing = r.missing) {
                 SecondaryButton("All projects", onBack)
             }
             is Resource.Ready -> ProjectContent(r.data, onBack, onOpenHex, onSettings, onCreateHex)
@@ -87,7 +89,7 @@ private fun ProjectContent(view: ProjectView, onBack: () -> Unit, onOpenHex: (St
     val c = Hexes.colors
     val project = view.project
     LazyColumn(
-        Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 20.dp),
+        Modifier.readable().padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
@@ -100,8 +102,9 @@ private fun ProjectContent(view: ProjectView, onBack: () -> Unit, onOpenHex: (St
         item { HexGroup("Designs", view.designs, onOpenHex) }
         item { HexGroup("Decisions", view.decisions, onOpenHex) }
         item { HexGroup("Questions", view.questions, onOpenHex) }
-        if (view.epics.isNotEmpty()) {
-            item { Text("Epics", style = MaterialTheme.typography.titleMedium, color = c.ink2) }
+        item { Text("Epics", style = MaterialTheme.typography.titleMedium, color = c.ink2) }
+        if (view.epics.isEmpty()) {
+            item { Text("No epics yet. Use \"+ Hex\" and pick core.epic.", color = c.muted) }
         }
         items(view.epics, key = { it.hex.id }) { epic ->
             EpicAccordion(epic, defaultOpen = epic.hex.id == view.epics.first().hex.id, onOpenHex)
@@ -162,7 +165,7 @@ private fun HexGroup(label: String, items: List<HexSummary>, onOpenHex: (String)
     Panel(Modifier.fillMaxWidth()) {
         Column {
             Row(
-                Modifier.fillMaxWidth().clickable { open = !open }.padding(horizontal = 18.dp, vertical = 16.dp),
+                Modifier.fillMaxWidth().toggleRow(open) { open = !open }.padding(horizontal = 18.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -209,7 +212,7 @@ private fun EpicAccordion(epic: EpicView, defaultOpen: Boolean, onOpenHex: (Stri
     Panel(Modifier.fillMaxWidth(), strong = open) {
         Column {
             Row(
-                Modifier.fillMaxWidth().clickable { open = !open }.padding(horizontal = 18.dp, vertical = 14.dp),
+                Modifier.fillMaxWidth().toggleRow(open) { open = !open }.padding(horizontal = 18.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -251,7 +254,7 @@ private fun StoryRow(story: Hex, open: Boolean, onToggle: () -> Unit, onOpenHex:
         Panel(Modifier.fillMaxWidth()) {
             Column {
                 Row(
-                    Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(14.dp),
+                    Modifier.fillMaxWidth().toggleRow(open, onToggle).padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {

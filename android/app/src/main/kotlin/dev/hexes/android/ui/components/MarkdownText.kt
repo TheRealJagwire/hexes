@@ -126,7 +126,7 @@ fun ClampedMarkdown(
                 "Read the full description",
                 color = Hexes.colors.accent,
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.clickable(onClick = onReadMore).padding(vertical = 8.dp),
+                modifier = Modifier.tappable(onClick = onReadMore),
             )
         }
     }

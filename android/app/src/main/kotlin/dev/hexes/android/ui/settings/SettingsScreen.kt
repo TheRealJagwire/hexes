@@ -1,5 +1,6 @@
 package dev.hexes.android.ui.settings
 
+import dev.hexes.android.ui.components.readable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -55,7 +56,7 @@ fun SettingsScreen(canGoBack: Boolean, onBack: () -> Unit, onConnected: () -> Un
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             Modifier
-                .safeDrawingPadding()
+                .readable()
                 .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 16.dp),

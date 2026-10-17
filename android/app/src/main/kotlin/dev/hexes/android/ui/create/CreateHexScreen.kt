@@ -1,5 +1,7 @@
 package dev.hexes.android.ui.create
 
+import dev.hexes.android.ui.components.readable
+import dev.hexes.android.ui.components.tappable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -154,7 +156,7 @@ private fun CreateHexContent(
     val error by vm.error.collectAsStateWithLifecycle()
 
     Column(
-        Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState())
+        Modifier.readable().imePadding().verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
@@ -260,7 +262,7 @@ private fun StatusField(status: Status, onChange: (Status) -> Unit) {
         Text("Status", style = MaterialTheme.typography.titleSmall, color = c.ink2)
         Box {
             Row(
-                Modifier.clickable { open = true },
+                Modifier.tappable("Change status") { open = true },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {

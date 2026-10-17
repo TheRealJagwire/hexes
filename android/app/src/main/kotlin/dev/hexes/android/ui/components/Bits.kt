@@ -6,11 +6,20 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -104,7 +113,7 @@ fun Panel(
         .clip(shape)
         .background(c.panel)
         .border(BorderStroke(1.dp, if (strong) c.lineStrong else c.line), shape)
-    Box(if (onClick != null) base.clickable(onClick = onClick) else base) { content() }
+    Box(if (onClick != null) base.clickable(role = Role.Button, onClick = onClick) else base) { content() }
 }
 
 @Composable
@@ -115,11 +124,10 @@ fun CopyButton(text: String, modifier: Modifier = Modifier) {
     val c = Hexes.colors
     Box(
         modifier
-            .size(36.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .border(BorderStroke(1.dp, c.lineStrong), RoundedCornerShape(8.dp))
+            .size(48.dp)
+            .clip(CircleShape)
             .semantics { contentDescription = if (copied) "Copied" else "Copy hex id" }
-            .clickable {
+            .clickable(role = Role.Button) {
                 scope.launch {
                     clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("hex id", text)))
                     copied = true
@@ -129,7 +137,10 @@ fun CopyButton(text: String, modifier: Modifier = Modifier) {
             },
         contentAlignment = Alignment.Center,
     ) {
-        Text(if (copied) "✓" else "⧉", color = c.muted, fontSize = 16.sp)
+        Box(
+            Modifier.size(36.dp).border(BorderStroke(1.dp, c.lineStrong), RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center,
+        ) { Text(if (copied) "✓" else "⧉", color = c.muted, fontSize = 16.sp) }
     }
 }
 
@@ -178,19 +189,33 @@ fun ProgressRing(progress: Progress, modifier: Modifier = Modifier) {
 
 @Composable
 fun LoadingState(modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(Modifier.semantics { contentDescription = "Loading" })
+    }
 }
 
 @Composable
-fun ErrorState(message: String, onRetry: (() -> Unit)?, modifier: Modifier = Modifier, extra: @Composable () -> Unit = {}) {
+fun ErrorState(
+    message: String,
+    onRetry: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    missing: Boolean = false,
+    extra: @Composable () -> Unit = {},
+) {
     Column(
         modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(message, color = MaterialTheme.colorScheme.error)
+        // Gone for good (deleted elsewhere): retrying cannot help, so say so and offer a way out.
+        if (missing) Text("This is gone", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 8.dp))
+        Text(
+            message,
+            color = if (missing) Hexes.colors.muted else MaterialTheme.colorScheme.error,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
         Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (onRetry != null) Button(onClick = onRetry) { Text("Retry") }
+            if (onRetry != null && !missing) Button(onClick = onRetry) { Text("Retry") }
             extra()
         }
     }
@@ -216,7 +241,7 @@ fun TopBar(
     ) {
         if (onBack != null) {
             Box(
-                Modifier.size(44.dp).clip(CircleShape).clickable(onClick = onBack)
+                Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onBack)
                     .semantics { contentDescription = "Back" },
                 contentAlignment = Alignment.Center,
             ) { Text("‹", fontSize = 28.sp, color = Hexes.colors.ink2) }
@@ -230,3 +255,19 @@ fun TopBar(
         actions()
     }
 }
+
+/** The full-height content column, capped at a readable width and centred on tablets and in landscape. */
+fun Modifier.readable(): Modifier = fillMaxSize()
+    .safeDrawingPadding()
+    .wrapContentWidth(Alignment.CenterHorizontally)
+    .widthIn(max = 720.dp)
+    .fillMaxWidth()
+
+/** A touch target of at least 48dp that TalkBack announces as a button. */
+fun Modifier.tappable(label: String? = null, enabled: Boolean = true, onClick: () -> Unit): Modifier =
+    heightIn(min = 48.dp).clickable(enabled = enabled, onClickLabel = label, role = Role.Button, onClick = onClick)
+
+/** A row that expands and collapses, announced with its state. */
+fun Modifier.toggleRow(open: Boolean, onToggle: () -> Unit): Modifier =
+    semantics { stateDescription = if (open) "Expanded" else "Collapsed" }
+        .tappable(if (open) "Collapse" else "Expand", onClick = onToggle)
