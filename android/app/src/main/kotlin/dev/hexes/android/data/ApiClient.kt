@@ -113,6 +113,19 @@ class ApiClient(
     suspend fun deleteHex(id: String): List<String> =
         decode(send("DELETE", "/api/hexes/${encode(id)}", null), DeleteResult.serializer()).deleted
 
+    /** Every hex of a project (up to 1,000), for the pickers on the create screen. */
+    suspend fun projectHexes(projectId: String): List<HexSummary> =
+        get("/api/hexes?project=${encode(projectId)}&limit=1000", ListSerializer(HexSummary.serializer()))
+
+    suspend fun createHex(req: CreateHexRequest): Hex =
+        decode(send("POST", "/api/hexes", apiJson.encodeToString(CreateHexRequest.serializer(), req)), Hex.serializer())
+
+    suspend fun createProject(req: CreateProjectRequest): CreateProjectResult =
+        decode(
+            send("POST", "/api/workspace/create", apiJson.encodeToString(CreateProjectRequest.serializer(), req)),
+            CreateProjectResult.serializer(),
+        )
+
     /** The request used for the live event stream; the caller owns the connection. */
     fun eventsRequest(): Request =
         request("/api/events").newBuilder().header("Accept", "text/event-stream").build()
@@ -142,7 +155,8 @@ class ApiClient(
         }
 
     private fun request(path: String): Request {
-        val url = connection.baseUrl.newBuilder().encodedPath(path).build()
+        // `resolve` keeps a query string; callers percent-encode the path segments themselves.
+        val url = checkNotNull(connection.baseUrl.resolve(path)) { "bad path $path" }
         val builder = Request.Builder().url(url).header("Accept", "application/json")
         if (connection.token.isNotEmpty()) builder.header("Authorization", "Bearer ${connection.token}")
         return builder.build()

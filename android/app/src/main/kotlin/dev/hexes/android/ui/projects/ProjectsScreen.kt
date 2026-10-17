@@ -66,6 +66,7 @@ fun ProjectsScreen(
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.safeDrawingPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
             TopBar("Projects", onBack = null) {
+                TextButton(onClick = onSwitchFolder) { Text("+ New") }
                 TextButton(onClick = onSettings) { Text("Settings") }
             }
             (workspace as? Resource.Ready<String?>)?.data?.let {

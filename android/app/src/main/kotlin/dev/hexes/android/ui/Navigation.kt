@@ -31,6 +31,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import dev.hexes.android.container
 import dev.hexes.android.data.LiveStatus
+import dev.hexes.android.ui.create.CreateHexScreen
 import dev.hexes.android.ui.hex.HexScreen
 import dev.hexes.android.ui.project.ProjectScreen
 import dev.hexes.android.ui.projects.ProjectsScreen
@@ -51,6 +52,9 @@ object Routes {
     const val HexPattern = "hex/{id}"
     fun project(id: String) = "project/$id"
     fun hex(id: String) = "hex/$id"
+    const val CreatePattern = "project/{id}/new?emergedFrom={emergedFrom}"
+    fun create(projectId: String, emergedFrom: String? = null) =
+        "project/$projectId/new" + (emergedFrom?.let { "?emergedFrom=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: "")
 }
 
 /** Starts on Start (which routes by server state) when a server is saved, else on Settings. */
@@ -91,6 +95,7 @@ fun HexesNavHost() {
                 WelcomeScreen(
                     onBack = if (nav.previousBackStackEntry != null) ({ nav.popBackStack() }) else null,
                     onOpened = { nav.goHome() },
+                    onCreated = { projectId -> nav.navigate(Routes.project(projectId)) { popUpTo(0) { inclusive = true } } },
                 )
             }
             composable(Routes.Projects) {
@@ -107,6 +112,24 @@ fun HexesNavHost() {
                     onBack = { nav.navigate(Routes.Projects) { popUpTo(Routes.Projects) { inclusive = true } } },
                     onOpenHex = { hexId -> nav.navigate(Routes.hex(hexId)) },
                     onSettings = { nav.navigate(Routes.Settings) },
+                    onCreateHex = { nav.navigate(Routes.create(id)) },
+                )
+            }
+            composable(
+                Routes.CreatePattern,
+                arguments = listOf(
+                    navArgument("id") { type = NavType.StringType },
+                    navArgument("emergedFrom") { type = NavType.StringType; nullable = true; defaultValue = null },
+                ),
+            ) {
+                val id = it.arguments?.getString("id").orEmpty()
+                CreateHexScreen(
+                    projectId = id,
+                    emergedFrom = it.arguments?.getString("emergedFrom"),
+                    onClose = { nav.popBackStack() },
+                    onCreated = { hex ->
+                        nav.navigate(Routes.hex(hex.id)) { popUpTo(Routes.CreatePattern) { inclusive = true } }
+                    },
                 )
             }
             composable(Routes.HexPattern, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
@@ -116,6 +139,7 @@ fun HexesNavHost() {
                     onBack = { nav.popBackStack() },
                     onOpenHex = { hexId -> nav.navigate(Routes.hex(hexId)) },
                     onOpenProject = { projectId -> nav.navigate(Routes.project(projectId)) },
+                    onCreateFrom = { projectId, hexId -> nav.navigate(Routes.create(projectId, hexId)) },
                     onDeleted = { projectId, wasProject ->
                         if (wasProject || projectId == null) {
                             nav.goHome()

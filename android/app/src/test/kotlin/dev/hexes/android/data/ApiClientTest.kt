@@ -189,6 +189,58 @@ class ApiClientTest {
     }
 
     @Test
+    fun createHexPostsEveryField() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(201).addHeader("X-Hexes-Api", "1").body("""{"id":"hx-a-123","title":"T","description":"","kind":"core.story","createdAtTimeInMs":1,"lastUpdatedAtTimeInMs":2,"status":"blocked"}""").build())
+        val created = client().createHex(
+            CreateHexRequest(
+                projectId = "hx-a-000", kind = "core.story", title = "T", description = "", status = Status.Blocked,
+                emergedFrom = null, requiredBy = emptyList(), dependsOn = listOf("hx-a-001"), meta = mapOf("k" to "v"),
+            ),
+        )
+        assertEquals("hx-a-123", created.id)
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/hexes", request.url.encodedPath)
+        assertEquals(
+            """{"projectId":"hx-a-000","kind":"core.story","title":"T","description":"","status":"blocked","requiredBy":[],"dependsOn":["hx-a-001"],"meta":{"k":"v"}}""",
+            request.body!!.utf8(),
+        )
+    }
+
+    @Test
+    fun projectHexesKeepsTheQueryString() = runBlocking {
+        server.enqueue(ok("""[{"id":"hx-a-1","title":"A","kind":"core.story","status":"ready"}]"""))
+        assertEquals("A", client().projectHexes("hx-a-000").single().title)
+        val url = server.takeRequest().url
+        assertEquals("/api/hexes", url.encodedPath)
+        assertEquals("hx-a-000", url.queryParameter("project"))
+        assertEquals("1000", url.queryParameter("limit"))
+    }
+
+    @Test
+    fun createProjectReturnsItsWarnings() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(201).addHeader("X-Hexes-Api", "1").body("""{"projectId":"hx-p-abc","warnings":["git init failed"]}""").build())
+        val res = client().createProject(CreateProjectRequest("~/p", "P", "Statement", gitInit = true))
+        assertEquals("hx-p-abc", res.projectId)
+        assertEquals(listOf("git init failed"), res.warnings)
+        val request = server.takeRequest()
+        assertEquals("/api/workspace/create", request.url.encodedPath)
+        assertEquals("""{"dir":"~/p","title":"P","description":"Statement","gitInit":true}""", request.body!!.utf8())
+    }
+
+    @Test
+    fun aValidationErrorIsShownAsTheServerSaidIt() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(400).body("""{"error":"kind: expected <category>.<qualifier>, e.g. core.story"}""").build())
+        try {
+            client().createHex(CreateHexRequest("p", "bad", "T", "", Status.Blocked, null, emptyList(), emptyList(), emptyMap()))
+            fail("expected a 400")
+        } catch (e: ApiException.Http) {
+            assertEquals(400, e.status)
+            assertTrue(e.message!!.startsWith("kind:"))
+        }
+    }
+
+    @Test
     fun garbageIsABadResponse() = runBlocking {
         server.enqueue(ok("<html>not json</html>"))
         try {

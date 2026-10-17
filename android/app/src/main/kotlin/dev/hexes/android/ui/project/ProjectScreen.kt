@@ -66,6 +66,7 @@ fun ProjectScreen(
     onBack: () -> Unit,
     onOpenHex: (String) -> Unit,
     onSettings: () -> Unit,
+    onCreateHex: () -> Unit,
 ) {
     val vm = containerViewModel(key = "project-$id") { ProjectViewModel(it, id) }
     val res by vm.project.state.collectAsStateWithLifecycle()
@@ -76,13 +77,13 @@ fun ProjectScreen(
             is Resource.Failed -> ErrorState(r.message, vm.project::refresh) {
                 SecondaryButton("All projects", onBack)
             }
-            is Resource.Ready -> ProjectContent(r.data, onBack, onOpenHex, onSettings)
+            is Resource.Ready -> ProjectContent(r.data, onBack, onOpenHex, onSettings, onCreateHex)
         }
     }
 }
 
 @Composable
-private fun ProjectContent(view: ProjectView, onBack: () -> Unit, onOpenHex: (String) -> Unit, onSettings: () -> Unit) {
+private fun ProjectContent(view: ProjectView, onBack: () -> Unit, onOpenHex: (String) -> Unit, onSettings: () -> Unit, onCreateHex: () -> Unit) {
     val c = Hexes.colors
     val project = view.project
     LazyColumn(
@@ -90,7 +91,10 @@ private fun ProjectContent(view: ProjectView, onBack: () -> Unit, onOpenHex: (St
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            TopBar(project.title, onBack) { TextButton(onClick = onSettings) { Text("Settings") } }
+            TopBar(project.title, onBack) {
+                TextButton(onClick = onCreateHex) { Text("+ Hex") }
+                TextButton(onClick = onSettings) { Text("Settings") }
+            }
         }
         item { Statement(project, onOpenHex) }
         item { HexGroup("Designs", view.designs, onOpenHex) }

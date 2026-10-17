@@ -161,6 +161,7 @@ fun HexScreen(
     onBack: () -> Unit,
     onOpenHex: (String) -> Unit,
     onOpenProject: (String) -> Unit,
+    onCreateFrom: (projectId: String, hexId: String) -> Unit,
     onDeleted: (projectId: String?, wasProject: Boolean) -> Unit,
 ) {
     val vm = containerViewModel(key = "hex-$id") { HexViewModel(it, id) }
@@ -173,7 +174,7 @@ fun HexScreen(
             when (val r = res) {
                 Resource.Loading -> LoadingState()
                 is Resource.Failed -> ErrorState(r.message, vm.hex::refresh) { SecondaryButton("Back", onBack) }
-                is Resource.Ready -> HexContent(r.data, vm, onBack, onOpenHex, onOpenProject, onDeleted)
+                is Resource.Ready -> HexContent(r.data, vm, onBack, onOpenHex, onOpenProject, onCreateFrom, onDeleted)
             }
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(12.dp))
         }
@@ -187,6 +188,7 @@ private fun HexContent(
     onBack: () -> Unit,
     onOpenHex: (String) -> Unit,
     onOpenProject: (String) -> Unit,
+    onCreateFrom: (projectId: String, hexId: String) -> Unit,
     onDeleted: (projectId: String?, wasProject: Boolean) -> Unit,
 ) {
     val c = Hexes.colors
@@ -200,7 +202,11 @@ private fun HexContent(
         Modifier.fillMaxSize().safeDrawingPadding().imePadding().padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item { TopBar(kindQualifier(hex.kind), onBack) }
+        item {
+            TopBar(kindQualifier(hex.kind), onBack) {
+                view.projectId?.let { pid -> TextButton(onClick = { onCreateFrom(pid, hex.id) }) { Text("+ Hex from this") } }
+            }
+        }
         item { Breadcrumbs(view.breadcrumbs, onOpenHex, onOpenProject) }
         item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

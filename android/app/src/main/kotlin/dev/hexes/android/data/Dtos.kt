@@ -126,3 +126,28 @@ data class HexView(
 
 @Serializable
 data class ApiError(val error: String)
+
+/** `POST /api/hexes`. No defaults on purpose: every field is always sent. */
+@Serializable
+data class CreateHexRequest(
+    val projectId: String,
+    val kind: String,
+    val title: String,
+    val description: String,
+    val status: Status,
+    val emergedFrom: String? = null,
+    val requiredBy: List<String>,
+    val dependsOn: List<String>,
+    val meta: Map<String, String>,
+)
+
+@Serializable
+data class CreateProjectRequest(
+    val dir: String,
+    val title: String,
+    val description: String,
+    val gitInit: Boolean,
+)
+
+@Serializable
+data class CreateProjectResult(val projectId: String, val warnings: List<String>)
