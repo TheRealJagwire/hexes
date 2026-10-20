@@ -1,0 +1,15 @@
+{
+  "status": 200,
+  "body": [
+    {
+      "dir": "/home/user/demo",
+      "projectId": "hx-contract-16d",
+      "title": "Contract Demo",
+      "folder": "proj",
+      "openedAt": 1700000003000,
+      "found": true,
+      "current": true,
+      "switchable": true
+    }
+  ]
+}

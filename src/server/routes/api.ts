@@ -29,6 +29,7 @@ const OpenPullRequestSchema = z.object({
   description: z.string().optional(),
 });
 const SelectSchema = z.object({ id: HexIdSchema });
+const RecentProjectSchema = z.object({ dir: z.string().trim().min(1), projectId: HexIdSchema });
 
 /** JSON API consumed by the Preact client. Every handler delegates to HexService. */
 export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
@@ -103,6 +104,17 @@ export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
   api.post("/workspace/pick", async (c) => c.json({ dir: await pickDirectory() }));
 
   api.get("/projects", async (c) => c.json(await service.listProjects()));
+  // Before /projects/:id, so "recent" and "open" are not taken for ids.
+  api.get("/projects/recent", async (c) => c.json(await service.recentProjects()));
+  api.post("/projects/open", async (c) => {
+    const { dir, projectId } = RecentProjectSchema.parse(await c.req.json());
+    return c.json(await service.openRecentProject(dir, projectId));
+  });
+  api.post("/projects/recent/forget", async (c) => {
+    const { dir, projectId } = RecentProjectSchema.parse(await c.req.json());
+    await service.forgetRecentProject(dir, projectId);
+    return c.json({ ok: true });
+  });
   api.get("/projects/:id", async (c) => c.json(await service.projectView(c.req.param("id"))));
   api.post("/selected-project", async (c) => {
     const { id } = SelectSchema.parse(await c.req.json());

@@ -1,4 +1,8 @@
 import { assertEquals, assertRejects } from "@std/assert";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { buildServer } from "../src/mcp/build.ts";
+import { createApp } from "../src/server/app.ts";
 import { DomainError } from "../src/server/core/errors.ts";
 import { HexService } from "../src/server/core/service.ts";
 import { Workspace } from "../src/server/core/workspace.ts";
@@ -145,6 +149,52 @@ Deno.test("while pinned, other folders' recent projects cannot be switched to", 
       f.projectId,
     );
   } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("recent projects over REST and MCP", async () => {
+  const f = await fixture("Alpha");
+  const [clientT, serverT] = InMemoryTransport.createLinkedPair();
+  await buildServer(f.service).connect(serverT);
+  const client = new Client({ name: "test", version: "0" });
+  await client.connect(clientT);
+  try {
+    const betaDir = f.dir.replace(/\/proj$/, "/beta");
+    const { projectId: beta } = await f.service.createProject({
+      dir: betaDir,
+      title: "Beta",
+      description: "",
+      gitInit: false,
+    });
+    const app = createApp(f.service);
+    const call = async (method: string, path: string, body?: unknown) => {
+      const res = await app.request(`/api${path}`, {
+        method,
+        headers: { host: "localhost:8000", "content-type": "application/json" },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      return { status: res.status, json: await res.json() };
+    };
+    const list = await call("GET", "/projects/recent");
+    assertEquals(list.json.map((r: { title: string }) => r.title), ["Beta", "Alpha"]);
+    const opened = await call("POST", "/projects/open", { dir: f.dir, projectId: f.projectId });
+    assertEquals([opened.status, opened.json.selectedProjectId], [200, f.projectId]);
+    assertEquals((await call("POST", "/projects/open", { dir: f.dir })).status, 400);
+    const forgot = await call("POST", "/projects/recent/forget", { dir: betaDir, projectId: beta });
+    assertEquals(forgot.json, { ok: true });
+
+    const tool = async (name: string, args: Record<string, unknown>) => {
+      const res = await client.callTool({ name, arguments: args });
+      return JSON.parse((res.content as { text: string }[])[0]?.text ?? "null");
+    };
+    assertEquals((await tool("list_recent_projects", {})).map((r: { title: string }) => r.title), [
+      "Alpha",
+    ]);
+    const state = await tool("open_recent_project", { dir: f.dir, project_id: f.projectId });
+    assertEquals(state.selectedProjectId, f.projectId);
+  } finally {
+    await client.close();
     await f.cleanup();
   }
 });

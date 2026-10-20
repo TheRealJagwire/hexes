@@ -72,6 +72,24 @@ export function buildTools(s: HexService) {
       run: () => s.listProjects(),
     }),
     defineTool({
+      name: "list_recent_projects",
+      description:
+        "Projects opened recently, across every folder, newest first: dir, project_id, title, " +
+        "whether each is still found, the current one, and whether it can be switched to.",
+      kind: "read",
+      input: z.object({}),
+      run: () => s.recentProjects(),
+    }),
+    defineTool({
+      name: "open_recent_project",
+      description:
+        "Switch to a recent project in one step: opens its folder (if it is not the open one) " +
+        "and selects it. Take dir and project_id from list_recent_projects.",
+      kind: "write",
+      input: z.object({ dir: z.string().min(1), project_id: id }),
+      run: ({ dir, project_id }) => s.openRecentProject(dir, project_id),
+    }),
+    defineTool({
       name: "get_selected_project",
       description: "Get the project stored in the studio.selected_project hex, or null.",
       kind: "read",
