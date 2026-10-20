@@ -1,5 +1,5 @@
-import { useState } from "preact/hooks";
-import type { Status } from "../../shared/schemas.ts";
+import { useEffect, useRef, useState } from "preact/hooks";
+import { REQUIRES_RESPONSE, type Status } from "../../shared/constants.ts";
 import { kindQualifier } from "../../shared/graph.ts";
 import type { HexSummary, HexView } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
@@ -329,8 +329,98 @@ function DeletePanel({ view }: { view: HexView }) {
   );
 }
 
+/** Asks for the response that answering a question needs, then sets status and response together. */
+function AnswerDialog(
+  { view, status, onClose, onAnswered }: {
+    view: HexView;
+    status: Status;
+    onClose: () => void;
+    onAnswered: () => void;
+  },
+) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [response, setResponse] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => ref.current?.showModal(), []);
+
+  return (
+    <dialog
+      ref={ref}
+      aria-labelledby="answer-h"
+      // Escape fires `cancel`, then `close`; both just dismiss.
+      onClose={onClose}
+      class="m-auto box-border w-[min(560px,calc(100vw-32px))] rounded-[14px] border border-line bg-panel p-0 text-ink backdrop:bg-backdrop/80"
+    >
+      <form
+        class="flex flex-col gap-4 p-6"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setError(null);
+          try {
+            await api.updateHex(view.hex.id, { status, response });
+            onAnswered();
+            ref.current?.close();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+            setBusy(false);
+          }
+        }}
+      >
+        <h2 id="answer-h" class="m-0 text-lg font-semibold">Answer “{view.hex.title}”</h2>
+        <p class="m-0 text-[13px] leading-normal text-muted">
+          The answer is saved on the question and recorded as a new decision hex.
+        </p>
+        <label for="answer-text" class="label">Response (markdown)</label>
+        <textarea
+          id="answer-text"
+          rows={6}
+          required
+          value={response}
+          onInput={(e) => setResponse(e.currentTarget.value)}
+          class="box-border resize-y rounded-lg border border-line-strong bg-bg px-3.5 py-3 text-[15px] leading-normal text-ink"
+        />
+        {error && <span role="alert" class="text-[13px] text-blocked">{error}</span>}
+        <div class="flex flex-wrap justify-end gap-2">
+          <button type="button" class="btn" onClick={() => ref.current?.close()}>Cancel</button>
+          <button type="submit" disabled={busy || !response.trim()} class="btn-primary">
+            {busy ? "Saving…" : "Answer"}
+          </button>
+        </div>
+      </form>
+    </dialog>
+  );
+}
+
+/** An answered question's response, and the decision it became. */
+function AnswerPanel({ meta }: { meta: Record<string, string> }) {
+  const at = meta.answered_at ? Date.parse(meta.answered_at) : NaN;
+  return (
+    <section
+      aria-labelledby="answer-panel-h"
+      class="card flex max-w-[760px] flex-col gap-3 px-7 py-6"
+    >
+      <h2 id="answer-panel-h" class="m-0 text-[15px] font-semibold tracking-[0.02em] text-muted">
+        Answer
+      </h2>
+      <Markdown text={meta.answer ?? ""} class="text-base leading-relaxed text-ink-2" />
+      <span class="font-mono text-xs text-muted">
+        {!Number.isNaN(at) && <>answered {dateTime(at)}</>}
+        {meta.decision && (
+          <>
+            {!Number.isNaN(at) && " · "}recorded as{" "}
+            <Link href={`/h/${meta.decision}`} class="text-ink-2">{meta.decision}</Link>
+          </>
+        )}
+      </span>
+    </section>
+  );
+}
+
 function StatusSelect({ view, onChange }: { view: HexView; onChange: () => void }) {
   const [error, setError] = useState<string | null>(null);
+  const [answering, setAnswering] = useState<Status | null>(null);
   const status = view.hex.status;
   return (
     <div class="flex flex-col gap-1.5">
@@ -341,8 +431,15 @@ function StatusSelect({ view, onChange }: { view: HexView; onChange: () => void 
           value={status}
           onChange={async (e) => {
             setError(null);
+            const next = e.currentTarget.value as Status;
+            if (REQUIRES_RESPONSE.includes(next)) {
+              // Nothing changes until the dialog is submitted, so the select shows the old status.
+              e.currentTarget.value = status;
+              setAnswering(next);
+              return;
+            }
             try {
-              await api.updateHex(view.hex.id, { status: e.currentTarget.value as Status });
+              await api.updateHex(view.hex.id, { status: next });
             } catch (err) {
               setError(err instanceof Error ? err.message : String(err));
             }
@@ -359,6 +456,14 @@ function StatusSelect({ view, onChange }: { view: HexView; onChange: () => void 
         </span>
       </div>
       {error && <span role="alert" class="max-w-[260px] text-xs text-blocked">{error}</span>}
+      {answering && (
+        <AnswerDialog
+          view={view}
+          status={answering}
+          onClose={() => setAnswering(null)}
+          onAnswered={onChange}
+        />
+      )}
     </div>
   );
 }
@@ -444,6 +549,7 @@ export function HexScreen({ id }: { id: string }) {
                   />
                 )
                 : <p class="m-0 text-base text-muted">No description.</p>}
+              {hex.meta?.answer !== undefined && <AnswerPanel meta={hex.meta} />}
               <button
                 type="button"
                 onClick={() => setEditing(true)}
