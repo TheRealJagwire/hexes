@@ -1,3 +1,4 @@
+import { buildIndex, dependentsOf, reconcileReadiness } from "../../shared/graph.ts";
 import type { Hex, Status } from "../../shared/schemas.ts";
 import type { HexFile } from "./store.ts";
 
@@ -10,7 +11,11 @@ const RENAMED: Readonly<Record<string, Partial<Record<Status, Status>>>> = {
   "core.question": { done: "answered" },
 };
 
-/** Rewrites renamed statuses in place. Returns the ids it changed; a second run changes none. */
+/**
+ * Rewrites renamed statuses in place, then re-checks the hexes that depend on them, as a status
+ * change would: a `ready` design becoming `blessed` now satisfies its specs and decisions.
+ * Returns the ids it renamed; a second run changes nothing.
+ */
 export function migrateStatuses(hexes: Hex[], now: number): string[] {
   const changed: string[] = [];
   for (const hex of hexes) {
@@ -19,6 +24,10 @@ export function migrateStatuses(hexes: Hex[], now: number): string[] {
     hex.status = next;
     hex.lastUpdatedAtTimeInMs = now;
     changed.push(hex.id);
+  }
+  if (changed.length) {
+    const idx = buildIndex(hexes);
+    reconcileReadiness(hexes, changed.flatMap((id) => dependentsOf(idx, id).map((d) => d.id)), now);
   }
   return changed;
 }
