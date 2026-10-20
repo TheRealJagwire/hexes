@@ -247,3 +247,25 @@ Deno.test("the diff parser handles renames, deletions and binary files", async (
     await Deno.remove(dir, { recursive: true });
   }
 });
+
+Deno.test("merging refuses uncommitted changes, and a huge diff lists files only", async () => {
+  const f = await repoFixture();
+  try {
+    const s = f.service;
+    await s.startWork(f.storyId);
+    await commitFile(f.dir, "big.txt", ("x".repeat(99) + "\n").repeat(11_000));
+    const pr = await s.openPullRequest(f.storyId);
+
+    const diff = await s.pullRequestDiff(pr.id);
+    assertEquals(diff.truncated, true);
+    assertEquals(diff.files.map((x) => [x.path, x.additions, x.hunks.length]), [
+      ["big.txt", 11_000, 0],
+    ]);
+
+    await Deno.writeTextFile(`${f.dir}/README.md`, "uncommitted\n");
+    await assertRejects(() => s.mergePullRequest(pr.id), DomainError, "README.md");
+    assertEquals((await s.getHex(pr.id)).status, "pull_requested");
+  } finally {
+    await f.cleanup();
+  }
+});
