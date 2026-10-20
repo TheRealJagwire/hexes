@@ -91,6 +91,20 @@ class ApiClient(
     suspend fun projects(): List<ProjectSummary> =
         get("/api/projects", ListSerializer(ProjectSummary.serializer()))
 
+    suspend fun recentProjects(): List<RecentProject> =
+        get("/api/projects/recent", ListSerializer(RecentProject.serializer()))
+
+    /** Opens the project's folder when needed and selects it, in one step. */
+    suspend fun openRecentProject(dir: String, projectId: String): WorkspaceState {
+        val body = apiJson.encodeToString(RecentProjectRequest.serializer(), RecentProjectRequest(dir, projectId))
+        return decode(send("POST", "/api/projects/open", body), WorkspaceState.serializer())
+    }
+
+    suspend fun forgetRecentProject(dir: String, projectId: String) {
+        val body = apiJson.encodeToString(RecentProjectRequest.serializer(), RecentProjectRequest(dir, projectId))
+        send("POST", "/api/projects/recent/forget", body)
+    }
+
     suspend fun recentWorkspaces(): List<RecentWorkspace> =
         get("/api/workspace/recent", ListSerializer(RecentWorkspace.serializer()))
 

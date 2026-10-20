@@ -42,6 +42,8 @@ import dev.hexes.android.ui.components.LoadingState
 import dev.hexes.android.ui.components.Mono
 import dev.hexes.android.ui.components.Panel
 import dev.hexes.android.ui.components.TopBar
+import dev.hexes.android.ui.projects.RecentProjectsController
+import dev.hexes.android.ui.projects.RecentProjectsSection
 import dev.hexes.android.ui.theme.Hexes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,6 +52,7 @@ import kotlinx.coroutines.launch
 
 class WelcomeViewModel(private val container: AppContainer) : ViewModel() {
     val recent = ResourceLoader(viewModelScope, container.live.version) { container.api().recentWorkspaces() }
+    val recentProjects = RecentProjectsController(container, viewModelScope)
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
     private val _opening = MutableStateFlow(false)
@@ -99,7 +102,7 @@ class WelcomeViewModel(private val container: AppContainer) : ViewModel() {
 
 /** Picks which folder on the computer Studio works on (the phone cannot browse it, so: recent or typed). */
 @Composable
-fun WelcomeScreen(onBack: (() -> Unit)?, onOpened: () -> Unit, onCreated: (String) -> Unit) {
+fun WelcomeScreen(onBack: (() -> Unit)?, onOpened: () -> Unit, onCreated: (String) -> Unit, onOpenProject: (String) -> Unit) {
     val vm = containerViewModel { WelcomeViewModel(it) }
     val recent by vm.recent.state.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
@@ -125,11 +128,12 @@ fun WelcomeScreen(onBack: (() -> Unit)?, onOpened: () -> Unit, onCreated: (Strin
                     "Pick one you opened before, or type its path.",
                 color = c.ink2,
             )
+            RecentProjectsSection(vm.recentProjects, onOpenProject)
             when (val r = recent) {
                 Resource.Loading -> LoadingState(Modifier.padding(vertical = 24.dp))
                 is Resource.Failed -> Text(r.message, color = MaterialTheme.colorScheme.error)
                 is Resource.Ready -> {
-                    if (r.data.isNotEmpty()) Text("Recent", style = MaterialTheme.typography.titleMedium)
+                    if (r.data.isNotEmpty()) Text("Recent folders", style = MaterialTheme.typography.titleMedium)
                     r.data.forEach { ws -> RecentRow(ws, enabled = !opening) { vm.open(ws.dir, onOpened) } }
                 }
             }
