@@ -62,9 +62,9 @@ class ContractParsingTest {
         // Every status the server names is one this build knows.
         table.statuses.keys.forEach { assertTrue("unknown status $it", Status.fromWire(it) != Status.Unknown) }
         assertEquals(StatusTable.LEGACY.default, table.default)
-        // A design still marked ready keeps showing it; answering has its own dialog, not the menu.
+        // A design still marked ready keeps showing it.
         assertEquals(listOf(Status.Ready, Status.Blocked, Status.InProgress, Status.Blessed, Status.Done), table.options("core.design", Status.Ready))
-        assertEquals(listOf(Status.Blocked, Status.Ready, Status.InProgress), table.options("core.question", Status.Ready))
+        assertEquals(listOf(Status.Blocked, Status.Ready, Status.InProgress, Status.Answered), table.options("core.question", Status.Ready))
     }
 
     @Test
@@ -73,6 +73,14 @@ class ContractParsingTest {
         assertEquals(Status.Answered, hex.status)
         assertEquals("Yes, always.", hex.meta["answer"])
         assertNotNull(hex.meta["decision"])
+    }
+
+    @Test
+    fun anAnswerSendsItsResponseAndPlainUpdatesLeaveItOut() {
+        val answer = apiJson.encodeToString(UpdateHexRequest.serializer(), UpdateHexRequest(status = Status.Answered, response = "Yes."))
+        assertEquals("""{"status":"answered","response":"Yes."}""", answer)
+        val plain = apiJson.encodeToString(UpdateHexRequest.serializer(), UpdateHexRequest(status = Status.Done))
+        assertEquals("""{"status":"done"}""", plain)
     }
 
     @Test

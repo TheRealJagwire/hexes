@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -134,6 +135,24 @@ class HexViewModel(private val container: AppContainer, private val id: String) 
     fun setStatus(status: Status) =
         launchWrite(::say, { it.updateHex(id, UpdateHexRequest(status = status)) })
 
+    /** Why the last answer was refused, shown in the answer dialog. */
+    private val _answerError = MutableStateFlow<String?>(null)
+    val answerError: StateFlow<String?> = _answerError.asStateFlow()
+
+    /** Sets a status that needs a response (answering a question), sending both together. */
+    fun answer(status: Status, response: String, onDone: () -> Unit) {
+        _answerError.value = null
+        launchWrite(
+            onFailure = { e -> _answerError.value = e.message ?: "Could not save the answer." },
+            block = { it.updateHex(id, UpdateHexRequest(status = status, response = response.trim())) },
+            onSuccess = onDone,
+        )
+    }
+
+    fun clearAnswerError() {
+        _answerError.value = null
+    }
+
     /**
      * Saves the title and description. `expected` is the version the editor was opened on, so an
      * edit made while someone else changed the hex is refused (unless `force`).
@@ -207,6 +226,8 @@ private fun HexContent(
     val hex = view.hex
     val busy by vm.busy.collectAsStateWithLifecycle()
     val statuses by vm.statuses.collectAsStateWithLifecycle()
+    // The status being set through the answer dialog, by its wire name so it survives rotation.
+    var answering by rememberSaveable(hex.id) { mutableStateOf<String?>(null) }
     var editing by rememberSaveable(hex.id) { mutableStateOf(false) }
     // The version the editor was opened on: a change made meanwhile is detected on save.
     var editedFrom by rememberSaveable(hex.id) { mutableLongStateOf(0L) }
@@ -241,11 +262,19 @@ private fun HexContent(
             item { Text(hex.title, style = MaterialTheme.typography.headlineMedium) }
             item {
                 val options = statuses?.options(hex.kind, hex.status) ?: listOf(hex.status)
-                StatusMenu(hex.status, options, enabled = !busy && statuses != null, onPick = vm::setStatus)
+                StatusMenu(hex.status, options, enabled = !busy && statuses != null) { picked ->
+                    if (statuses?.requiresResponse?.contains(picked) == true) {
+                        vm.clearAnswerError()
+                        answering = picked.wire
+                    } else {
+                        vm.setStatus(picked)
+                    }
+                }
             }
             item {
                 if (hex.description.isBlank()) Text("No description.", color = c.muted) else MarkdownText(hex.description)
             }
+            hex.meta["answer"]?.let { answer -> item { AnswerPanel(answer, hex.meta, onOpenHex) } }
             item {
                 TextButton(onClick = {
                     vm.clearEditError()
@@ -264,6 +293,68 @@ private fun HexContent(
             }
         }
         item { Column(Modifier.padding(bottom = 24.dp)) {} }
+    }
+
+    answering?.let { wire ->
+        AnswerDialog(
+            title = hex.title,
+            busy = busy,
+            vm = vm,
+            onDismiss = { answering = null },
+            onSubmit = { response -> vm.answer(Status.fromWire(wire), response) { answering = null } },
+        )
+    }
+}
+
+/** Asks for the response that answering a question needs; the answer is not saved without one. */
+@Composable
+private fun AnswerDialog(title: String, busy: Boolean, vm: HexViewModel, onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
+    var response by rememberSaveable { mutableStateOf("") }
+    val error by vm.answerError.collectAsStateWithLifecycle()
+    AlertDialog(
+        onDismissRequest = { if (!busy) onDismiss() },
+        title = { Text("Answer “$title”") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "The answer is saved on the question and recorded as a new decision hex.",
+                    color = Hexes.colors.muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = response,
+                    onValueChange = { response = it },
+                    label = { Text("Response (markdown)") },
+                    minLines = 4,
+                    isError = error != null,
+                    supportingText = error?.let { { Text(it) } },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSubmit(response) }, enabled = response.isNotBlank() && !busy) {
+                Text(if (busy) "Saving…" else "Answer")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") } },
+    )
+}
+
+/** An answered question's response, when it was given, and the decision it was recorded as. */
+@Composable
+private fun AnswerPanel(answer: String, meta: Map<String, String>, onOpenHex: (String) -> Unit) {
+    val c = Hexes.colors
+    val at = meta["answered_at"]?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() }
+    Panel(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Answer", style = MaterialTheme.typography.titleSmall, color = c.muted)
+            MarkdownText(answer)
+            at?.let { Text("answered ${dateTime(it)}", color = c.muted, fontFamily = Mono, style = MaterialTheme.typography.bodySmall) }
+            meta["decision"]?.let { id ->
+                TextButton(onClick = { onOpenHex(id) }) { Text("Recorded as decision $id") }
+            }
+        }
     }
 }
 

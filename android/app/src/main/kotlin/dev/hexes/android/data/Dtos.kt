@@ -54,13 +54,13 @@ data class StatusTable(
     fun allowed(kind: String): List<Status> = (kinds[kind] ?: default).statuses.filter { it != Status.Unknown }
 
     /**
-     * What the status menu offers a hex of `kind` that is now `current`. Statuses that need a
-     * response are left out (they get their own dialog), and a status the kind no longer allows
-     * stays listed so the menu can show it.
+     * What the status menu offers a hex of `kind` that is now `current`. A status the kind no
+     * longer allows stays listed so the menu can show it. Picking one in [requiresResponse] asks
+     * for the response first.
      */
     fun options(kind: String, current: Status): List<Status> {
-        val pickable = allowed(kind).filter { it !in requiresResponse }
-        return if (current in pickable || current == Status.Unknown) pickable else listOf(current) + pickable
+        val allowed = allowed(kind)
+        return if (current in allowed || current == Status.Unknown) allowed else listOf(current) + allowed
     }
 
     companion object {
