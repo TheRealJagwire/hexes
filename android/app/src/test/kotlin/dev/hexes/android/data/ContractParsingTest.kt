@@ -3,6 +3,7 @@ package dev.hexes.android.data
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -51,6 +52,14 @@ class ContractParsingTest {
         assertEquals(Status.Ready, v.epics.single().stories.single().status)
         assertEquals(2, v.questions.size)
         assertTrue(v.designs.single().status == Status.Done)
+        assertEquals(emptyList<HexSummary>(), v.specs)
+    }
+
+    @Test
+    fun projectViewFromAnOlderServerHasNoSpecs() {
+        val body = strict.parseToJsonElement(fixture("project_view").second).jsonObject
+        val older = JsonObject(body - "specs").toString()
+        assertEquals(emptyList<HexSummary>(), strict.decodeFromString(ProjectView.serializer(), older).specs)
     }
 
     @Test

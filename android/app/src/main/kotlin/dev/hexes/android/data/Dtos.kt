@@ -165,6 +165,8 @@ data class EpicView(
 data class ProjectView(
     val project: Hex,
     val designs: List<HexSummary>,
+    /** Absent from servers older than the Specs list. */
+    val specs: List<HexSummary> = emptyList(),
     val decisions: List<HexSummary>,
     val questions: List<HexSummary>,
     val epics: List<EpicView>,
