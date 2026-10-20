@@ -53,6 +53,8 @@ Deno.test("a workspace's data file is migrated on disk the first time it is used
         hex("hx-old-001", "core.project", "done"),
         hex("hx-old-0d1", "core.design", "ready"),
         hex("hx-old-0e1", "core.question", "done"),
+        // Waited on the design, which only counts as finished once it is blessed.
+        { ...hex("hx-old-0f1", "core.spec", "blocked"), dependsOn: ["hx-old-0d1"] },
       ]),
     );
     const workspace = new Workspace({ pinnedDir: dir, stateFile: `${root}/state.json` });
@@ -60,7 +62,7 @@ Deno.test("a workspace's data file is migrated on disk the first time it is used
 
     assertEquals((await service.getHex("hx-old-0d1")).status, "blessed");
     const onDisk: Hex[] = JSON.parse(await Deno.readTextFile(path));
-    assertEquals(onDisk.map((h) => h.status), ["done", "blessed", "answered"]);
+    assertEquals(onDisk.map((h) => h.status), ["done", "blessed", "answered", "ready"]);
     assertEquals(onDisk.filter((h) => h.kind === "core.decision").length, 0, "no decisions");
 
     const before = await Deno.stat(path);
