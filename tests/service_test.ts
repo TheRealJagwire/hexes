@@ -165,7 +165,7 @@ Deno.test("deleting a hex scrubs references; deleting a project cascades", async
   }
 });
 
-Deno.test("project view groups designs, decisions and epics", async () => {
+Deno.test("project view groups designs, specs, decisions, questions and epics", async () => {
   const f = await fixture();
   try {
     const s = f.service;
@@ -176,7 +176,14 @@ Deno.test("project view groups designs, decisions and epics", async () => {
       meta: {},
       requiredBy: [],
     };
-    await s.createHex({ ...base, kind: "core.design", title: "D", dependsOn: [f.projectId] });
+    assertEquals((await s.projectView(f.projectId)).specs, []);
+    const design = await s.createHex({
+      ...base,
+      kind: "core.design",
+      title: "D",
+      dependsOn: [f.projectId],
+    });
+    await s.createHex({ ...base, kind: "core.spec", title: "Sp", dependsOn: [design.id] });
     await s.createHex({ ...base, kind: "core.decision", title: "Dec", dependsOn: [] });
     await s.createHex({
       ...base,
@@ -205,6 +212,7 @@ Deno.test("project view groups designs, decisions and epics", async () => {
       [view.designs.length, view.decisions.length, view.questions.length, view.epics.length],
       [1, 1, 1, 1],
     );
+    assertEquals(view.specs.map((x) => [x.title, x.kind]), [["Sp", "core.spec"]]);
     assertEquals(view.epics[0]?.progress, { done: 1, total: 2, pct: 50 });
     assertEquals(view.epics[0]?.stories.map((x) => x.title), ["S2", "S1"]);
   } finally {
