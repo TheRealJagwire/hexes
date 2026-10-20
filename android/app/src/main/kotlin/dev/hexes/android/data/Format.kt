@@ -51,4 +51,4 @@ fun deleteImpactText(impact: DeleteImpact): String = when {
     impact.dependents + impact.emerged == 0 -> "Nothing else references this hex."
     else -> "${plural(impact.dependents, "hex")} ${if (impact.dependents == 1) "depends" else "depend"} " +
         "on this one and ${impact.emerged} emerged from it. Their references will be removed."
-}
+} + if (impact.pullRequests > 0) " Its ${plural(impact.pullRequests, "pull request")} will be kept, unlinked." else ""

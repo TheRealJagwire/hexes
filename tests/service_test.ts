@@ -147,7 +147,12 @@ Deno.test("deleting a hex scrubs references; deleting a project cascades", async
       emergedFrom: story.id,
     });
     const view = await s.hexView(story.id);
-    assertEquals(view.deleteImpact, { dependents: 1, emerged: 1, projectHexes: null });
+    assertEquals(view.deleteImpact, {
+      dependents: 1,
+      emerged: 1,
+      projectHexes: null,
+      pullRequests: 0,
+    });
     assertEquals(view.breadcrumbs.map((b) => b.kind), ["core.project", "core.epic", "core.story"]);
     await s.deleteHex(story.id);
     assertEquals((await s.getHex(epic.id)).dependsOn, undefined);

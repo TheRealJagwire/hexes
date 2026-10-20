@@ -91,6 +91,32 @@ export function findProject(idx: HexIndex, prefix: string): Hex | undefined {
   return idx.hexes.find((h) => h.kind === "core.project" && prefixOf(h.id) === prefix);
 }
 
+export const PULL_REQUEST_KIND = "core.pull_request";
+
+/** Planning and structure, not work: these kinds are never worked on a branch. */
+const NOT_WORK = new Set([
+  "core.project",
+  "core.design",
+  "core.spec",
+  "core.decision",
+  "core.gate",
+  "core.epic",
+  "core.question",
+  PULL_REQUEST_KIND,
+]);
+
+/** Kinds whose work is done on a branch and merged through a pull request (story, bug, …). */
+export function isWorkKind(kind: string): boolean {
+  return !NOT_WORK.has(kind) && !kind.startsWith("studio.");
+}
+
+/** The pull requests opened for a work hex (`meta.work_hex`), newest first. */
+export function pullRequestsOf(idx: HexIndex, workId: string): Hex[] {
+  return idx.hexes
+    .filter((h) => h.kind === PULL_REQUEST_KIND && h.meta?.work_hex === workId)
+    .sort((a, b) => byCreated(b, a));
+}
+
 export function projects(idx: HexIndex): Hex[] {
   return idx.hexes.filter((h) => h.kind === "core.project").sort(byCreated);
 }

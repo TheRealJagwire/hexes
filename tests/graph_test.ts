@@ -5,7 +5,9 @@ import {
   epicStories,
   findCycle,
   isReady,
+  isWorkKind,
   progressOf,
+  pullRequestsOf,
   readyHexes,
   reconcileReadiness,
   sortStories,
@@ -128,4 +130,28 @@ Deno.test("core.question hang off the project in breadcrumbs", () => {
     "hx-p-001",
     "hx-p-0a9",
   ]);
+});
+
+Deno.test("work kinds are the ones worked on a branch", () => {
+  for (const k of ["core.story", "core.substory", "core.bug", "custom.task"]) {
+    assertEquals(isWorkKind(k), true, k);
+  }
+  for (const k of ["core.design", "core.epic", "core.question", "core.pull_request", "studio.x"]) {
+    assertEquals(isWorkKind(k), false, k);
+  }
+});
+
+Deno.test("a work hex's pull requests are found through meta.work_hex, newest first", () => {
+  const pr = (id: string, work: string) => ({
+    ...hex(id, "core.pull_request", "pull_requested"),
+    meta: { work_hex: work },
+  });
+  const idx = buildIndex([
+    hex("hx-p-0a1", "core.story", "in_progress"),
+    pr("hx-p-0b1", "hx-p-0a1"),
+    pr("hx-p-0b2", "hx-p-0a9"),
+    pr("hx-p-0b3", "hx-p-0a1"),
+  ]);
+  assertEquals(pullRequestsOf(idx, "hx-p-0a1").map((h) => h.id), ["hx-p-0b3", "hx-p-0b1"]);
+  assertEquals(pullRequestsOf(idx, "hx-p-0zz"), []);
 });

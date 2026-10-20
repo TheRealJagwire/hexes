@@ -67,6 +67,14 @@ export interface ProjectView {
   epics: EpicView[];
 }
 
+/** A pull request as listed on its work hex. */
+export interface PullRequestSummary extends HexSummary {
+  sourceBranch: string;
+  targetBranch: string;
+  /** Set once merged. */
+  mergeSha: string | null;
+}
+
 export interface HexView {
   hex: Hex;
   /** Root-first trail: project › gate › epic › … › this hex (last item is the hex itself). */
@@ -76,12 +84,20 @@ export interface HexView {
   dependedOnBy: HexSummary[];
   emergedFromHex: HexSummary | null;
   emergedHere: HexSummary[];
+  /** For a work hex: the branch its work is on (`meta.git_branch`), or null. */
+  workBranch: string | null;
+  /** For a work hex: its pull requests, newest first. */
+  pullRequests: PullRequestSummary[];
+  /** For a pull request: the work hex it was opened for, or null. */
+  workHex: HexSummary | null;
   /** What deleting this hex would touch, for the confirmation copy. */
   deleteImpact: {
     dependents: number;
     emerged: number;
     /** Set when the hex is a project: every hex in the project is deleted too. */
     projectHexes: number | null;
+    /** Pull requests opened for this hex; they are kept, and lose their link to it. */
+    pullRequests: number;
   };
 }
 

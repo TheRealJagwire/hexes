@@ -240,7 +240,7 @@ function DeletePanel({ view }: { view: HexView }) {
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { dependents, emerged, projectHexes } = view.deleteImpact;
+  const { dependents, emerged, projectHexes, pullRequests } = view.deleteImpact;
 
   const destroy = async () => {
     setBusy(true);
@@ -260,6 +260,9 @@ function DeletePanel({ view }: { view: HexView }) {
     : `${plural(dependents, "hex")} ${
       dependents === 1 ? "depends" : "depend"
     } on this one and ${emerged} emerged from it. Their references will be removed.`;
+  const prNote = pullRequests > 0
+    ? ` Its ${plural(pullRequests, "pull request")} will be kept, unlinked.`
+    : "";
 
   return (
     <section
@@ -283,7 +286,7 @@ function DeletePanel({ view }: { view: HexView }) {
       )}
       {step === 1 && (
         <>
-          <p class="m-0 text-[13px] leading-normal text-ink">{impact}</p>
+          <p class="m-0 text-[13px] leading-normal text-ink">{impact}{prNote}</p>
           <div class="flex flex-wrap gap-2">
             <button
               type="button"

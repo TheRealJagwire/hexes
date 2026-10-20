@@ -175,6 +175,20 @@ data class DeleteImpact(
     val dependents: Int,
     val emerged: Int,
     val projectHexes: Int?,
+    /** Pull requests opened for this hex; they are kept, and lose their link to it. */
+    val pullRequests: Int = 0,
+)
+
+/** A pull request as listed on its work hex. */
+@Serializable
+data class PullRequestSummary(
+    val id: String,
+    val title: String,
+    val kind: String,
+    val status: Status,
+    val sourceBranch: String,
+    val targetBranch: String,
+    val mergeSha: String? = null,
 )
 
 @Serializable
@@ -186,6 +200,12 @@ data class HexView(
     val dependedOnBy: List<HexSummary>,
     val emergedFromHex: HexSummary?,
     val emergedHere: List<HexSummary>,
+    /** For a work hex: the branch its work is on, if started. */
+    val workBranch: String? = null,
+    /** For a work hex: its pull requests, newest first. */
+    val pullRequests: List<PullRequestSummary> = emptyList(),
+    /** For a pull request: the work hex it was opened for. */
+    val workHex: HexSummary? = null,
     val deleteImpact: DeleteImpact,
 )
 

@@ -13,6 +13,7 @@ import {
   progressOf,
   projectHexes,
   projects,
+  pullRequestsOf,
   readyHexes,
   reconcileReadiness,
   summarize,
@@ -221,6 +222,8 @@ export class HexService {
     const emergedHere = idx.hexes.filter((h) => h.emergedFrom === id).sort(byCreated);
     const dependents = dependentsOf(idx, id);
     const emergedFromHex = hex.emergedFrom ? idx.byId.get(hex.emergedFrom) : undefined;
+    const pullRequests = pullRequestsOf(idx, id);
+    const workHex = hex.meta?.work_hex ? idx.byId.get(hex.meta.work_hex) : undefined;
     return {
       hex,
       breadcrumbs: breadcrumbs(idx, hex).map(summarize),
@@ -229,12 +232,21 @@ export class HexService {
       dependedOnBy: dependents.map(summarize),
       emergedFromHex: emergedFromHex ? summarize(emergedFromHex) : null,
       emergedHere: emergedHere.map(summarize),
+      workBranch: hex.meta?.git_branch ?? null,
+      pullRequests: pullRequests.map((pr) => ({
+        ...summarize(pr),
+        sourceBranch: pr.meta?.source_branch ?? "",
+        targetBranch: pr.meta?.target_branch ?? "",
+        mergeSha: pr.meta?.merge_sha ?? null,
+      })),
+      workHex: workHex ? summarize(workHex) : null,
       deleteImpact: {
         dependents: dependents.length,
         emerged: emergedHere.length,
         projectHexes: hex.kind === "core.project" && prefix
           ? projectHexes(idx, prefix).length
           : null,
+        pullRequests: pullRequests.length,
       },
     };
   }
