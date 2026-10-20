@@ -58,7 +58,10 @@ import dev.hexes.android.containerViewModel
 import dev.hexes.android.data.ApiClient
 import dev.hexes.android.data.ApiException
 import dev.hexes.android.data.Status
+import dev.hexes.android.data.PULL_REQUEST_KIND
+import dev.hexes.android.data.PullRequestSummary
 import dev.hexes.android.data.StatusTable
+import dev.hexes.android.data.isWorkKind
 import dev.hexes.android.data.UpdateHexRequest
 import dev.hexes.android.data.deleteImpactText
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -153,6 +156,12 @@ class HexViewModel(private val container: AppContainer, private val id: String) 
         _answerError.value = null
     }
 
+    /** Branch and pull-request actions; Studio runs git, and a refusal is shown in the snackbar. */
+    fun startWork() = launchWrite(::say, { it.startWork(id) })
+    fun openPullRequest() = launchWrite(::say, { it.openPullRequest(id) })
+    fun mergePullRequest() = launchWrite(::say, { it.mergePullRequest(id) })
+    fun closePullRequest() = launchWrite(::say, { it.closePullRequest(id) })
+
     /**
      * Saves the title and description. `expected` is the version the editor was opened on, so an
      * edit made while someone else changed the hex is refused (unless `force`).
@@ -194,6 +203,7 @@ fun HexScreen(
     onOpenProject: (String) -> Unit,
     onCreateFrom: (projectId: String, hexId: String) -> Unit,
     onDeleted: (projectId: String?, wasProject: Boolean) -> Unit,
+    onOpenDiff: (workId: String, prId: String) -> Unit,
 ) {
     val vm = containerViewModel(key = "hex-$id") { HexViewModel(it, id) }
     val res by vm.hex.state.collectAsStateWithLifecycle()
@@ -205,7 +215,7 @@ fun HexScreen(
             when (val r = res) {
                 Resource.Loading -> LoadingState()
                 is Resource.Failed -> ErrorState(r.message, vm.hex::refresh, missing = r.missing) { SecondaryButton("Back", onBack) }
-                is Resource.Ready -> HexContent(r.data, vm, onBack, onOpenHex, onOpenProject, onCreateFrom, onDeleted)
+                is Resource.Ready -> HexContent(r.data, vm, onBack, onOpenHex, onOpenProject, onCreateFrom, onDeleted, onOpenDiff)
             }
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(12.dp))
         }
@@ -221,6 +231,7 @@ private fun HexContent(
     onOpenProject: (String) -> Unit,
     onCreateFrom: (projectId: String, hexId: String) -> Unit,
     onDeleted: (projectId: String?, wasProject: Boolean) -> Unit,
+    onOpenDiff: (workId: String, prId: String) -> Unit,
 ) {
     val c = Hexes.colors
     val hex = view.hex
@@ -260,7 +271,10 @@ private fun HexContent(
             }
         } else {
             item { Text(hex.title, style = MaterialTheme.typography.headlineMedium) }
-            item {
+            if (hex.kind == PULL_REQUEST_KIND) {
+                // A pull request's status moves only by merging or closing it.
+                item { StatusPill(hex.status) }
+            } else item {
                 val options = statuses?.options(hex.kind, hex.status) ?: listOf(hex.status)
                 StatusMenu(hex.status, options, enabled = !busy && statuses != null) { picked ->
                     if (statuses?.requiresResponse?.contains(picked) == true) {
@@ -283,6 +297,8 @@ private fun HexContent(
                 }) { Text("Edit title & description") }
             }
         }
+        if (isWorkKind(hex.kind)) item { WorkPanel(view, busy, vm, onOpenHex, onOpenDiff) }
+        if (hex.kind == PULL_REQUEST_KIND) item { PullRequestPanel(view, busy, vm, onOpenHex, onOpenDiff) }
         item { FieldsPanel(view, onOpenHex) }
         item { MetaPanel(hex.meta, busy, vm) }
         item { RelatedPanel("Depends on", view.dependsOn, onOpenHex) }
@@ -302,6 +318,124 @@ private fun HexContent(
             vm = vm,
             onDismiss = { answering = null },
             onSubmit = { response -> vm.answer(Status.fromWire(wire), response) { answering = null } },
+        )
+    }
+}
+
+/** On a work hex: its branch, its pull requests, and the actions that move it along. */
+@Composable
+private fun WorkPanel(
+    view: HexView,
+    busy: Boolean,
+    vm: HexViewModel,
+    onOpenHex: (String) -> Unit,
+    onOpenDiff: (workId: String, prId: String) -> Unit,
+) {
+    val c = Hexes.colors
+    val open = view.pullRequests.any { it.status == Status.PullRequested }
+    Panel(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Branch & pull requests", style = MaterialTheme.typography.titleSmall, color = c.muted)
+            val branch = view.workBranch
+            if (branch == null) {
+                Text("Not started. Starting work creates a branch off main and switches to it.", color = c.muted)
+            } else {
+                Text(branch, fontFamily = Mono, color = c.ink)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (branch == null) {
+                    Button(onClick = vm::startWork, enabled = !busy) { Text("Start work") }
+                } else {
+                    OutlinedButton(onClick = vm::startWork, enabled = !busy) { Text("Switch to branch") }
+                    if (!open) Button(onClick = vm::openPullRequest, enabled = !busy) { Text("Open pull request") }
+                }
+            }
+            view.pullRequests.forEach { pr -> PullRequestRow(pr, view.hex.id, onOpenHex, onOpenDiff) }
+        }
+    }
+}
+
+@Composable
+private fun PullRequestRow(
+    pr: PullRequestSummary,
+    workId: String,
+    onOpenHex: (String) -> Unit,
+    onOpenDiff: (workId: String, prId: String) -> Unit,
+) {
+    val c = Hexes.colors
+    Panel(Modifier.fillMaxWidth(), onClick = { onOpenHex(pr.id) }) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusPill(pr.status)
+                Text(pr.title, modifier = Modifier.weight(1f))
+            }
+            Text(
+                "${pr.sourceBranch} → ${pr.targetBranch}" + (pr.mergeSha?.let { " · ${it.take(7)}" } ?: ""),
+                fontFamily = Mono,
+                color = c.muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (pr.status != Status.Closed) {
+                TextButton(onClick = { onOpenDiff(workId, pr.id) }) {
+                    Text(if (pr.status == Status.Merged) "View merged changes" else "View changes")
+                }
+            }
+        }
+    }
+}
+
+/** On a pull request: what it merges, and merging or closing it, each confirmed in a dialog. */
+@Composable
+private fun PullRequestPanel(
+    view: HexView,
+    busy: Boolean,
+    vm: HexViewModel,
+    onOpenHex: (String) -> Unit,
+    onOpenDiff: (workId: String, prId: String) -> Unit,
+) {
+    val c = Hexes.colors
+    val m = view.hex.meta
+    var confirm by rememberSaveable { mutableStateOf<String?>(null) }
+    Panel(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Pull request", style = MaterialTheme.typography.titleSmall, color = c.muted)
+            view.workHex?.let { work ->
+                TextButton(onClick = { onOpenHex(work.id) }) { Text("Work: ${work.title}") }
+            }
+            Text("${m["source_branch"]} → ${m["target_branch"]}", fontFamily = Mono)
+            m["merge_sha"]?.let { Text("merged as ${it.take(7)}", fontFamily = Mono, color = c.muted) }
+            if (view.hex.status == Status.PullRequested) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { confirm = "merge" }, enabled = !busy) { Text("Merge…") }
+                    OutlinedButton(onClick = { confirm = "close" }, enabled = !busy) { Text("Close…") }
+                }
+            }
+            val work = view.workHex
+            if (work != null && view.hex.status != Status.Closed) {
+                TextButton(onClick = { onOpenDiff(work.id, view.hex.id) }) {
+                    Text(if (view.hex.status == Status.Merged) "View merged changes" else "View changes")
+                }
+            }
+        }
+    }
+    confirm?.let { action ->
+        val merge = action == "merge"
+        AlertDialog(
+            onDismissRequest = { confirm = null },
+            title = { Text(if (merge) "Merge into ${m["target_branch"]}?" else "Close without merging?") },
+            text = {
+                Text(
+                    if (merge) "Merges ${m["source_branch"]} with a merge commit and switches Studio's working tree to ${m["target_branch"]}."
+                    else "The pull request is kept as a record, and the branch stays.",
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    confirm = null
+                    if (merge) vm.mergePullRequest() else vm.closePullRequest()
+                }) { Text(if (merge) "Merge" else "Close") }
+            },
+            dismissButton = { TextButton(onClick = { confirm = null }) { Text("Cancel") } },
         )
     }
 }

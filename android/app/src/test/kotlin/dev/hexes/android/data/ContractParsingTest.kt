@@ -84,6 +84,47 @@ class ContractParsingTest {
     }
 
     @Test
+    fun aWorkHexViewListsItsPullRequests() {
+        val view = strict.decodeFromString(HexView.serializer(), """
+            {"hex":{"id":"hx-a-0a1","title":"Grid","description":"","kind":"core.story",
+              "createdAtTimeInMs":1,"lastUpdatedAtTimeInMs":2,"status":"in_progress",
+              "dependsOn":["hx-a-0b1"],"meta":{"git_branch":"hx/hx-a-0a1-grid","base_sha":"abc"}},
+             "breadcrumbs":[],"projectId":"hx-a-001","dependsOn":[],"dependedOnBy":[],
+             "emergedFromHex":null,"emergedHere":[],"workBranch":"hx/hx-a-0a1-grid",
+             "pullRequests":[{"id":"hx-a-0b1","title":"PR: Grid","kind":"core.pull_request",
+               "status":"merged","sourceBranch":"hx/hx-a-0a1-grid","targetBranch":"main",
+               "mergeSha":"0123456789"}],
+             "workHex":null,
+             "deleteImpact":{"dependents":0,"emerged":0,"projectHexes":null,"pullRequests":1}}
+        """)
+        assertEquals("hx/hx-a-0a1-grid", view.workBranch)
+        assertEquals(Status.Merged, view.pullRequests.single().status)
+        assertEquals("0123456789", view.pullRequests.single().mergeSha)
+        assertEquals(1, view.deleteImpact.pullRequests)
+        assertTrue(isWorkKind(view.hex.kind))
+        assertTrue(!isWorkKind(PULL_REQUEST_KIND) && !isWorkKind("core.design") && isWorkKind("custom.task"))
+    }
+
+    @Test
+    fun aPullRequestDiffParses() {
+        val diff = strict.decodeFromString(PullRequestDiff.serializer(), """
+            {"files":[
+              {"path":"new.txt","oldPath":"old.txt","status":"renamed","additions":1,"deletions":1,
+               "binary":false,"hunks":[{"header":"@@ -4 +4 @@","lines":[
+                 {"kind":"del","oldNo":4,"newNo":null,"text":"line 3"},
+                 {"kind":"add","oldNo":null,"newNo":4,"text":"line three"}]}]},
+              {"path":"pic.bin","oldPath":null,"status":"added","additions":0,"deletions":0,
+               "binary":true,"hunks":[]}],
+             "truncated":false,"source":"snapshot"}
+        """)
+        assertEquals(listOf("new.txt", "pic.bin"), diff.files.map { it.path })
+        assertEquals("old.txt", diff.files[0].oldPath)
+        assertEquals(listOf(null, 4), diff.files[0].hunks.single().lines.map { it.newNo })
+        assertTrue(diff.files[1].binary)
+        assertEquals("snapshot", diff.source)
+    }
+
+    @Test
     fun unknownStatusesParseInsteadOfFailing() {
         val json = """{"id":"hx-a-001","title":"t","kind":"core.thing","status":"some_future_state"}"""
         assertEquals(Status.Unknown, strict.decodeFromString(HexSummary.serializer(), json).status)

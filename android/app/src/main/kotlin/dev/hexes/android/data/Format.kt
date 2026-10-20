@@ -8,6 +8,16 @@ import java.util.Locale
 
 fun kindQualifier(kind: String): String = kind.split(".").getOrNull(1) ?: kind
 
+const val PULL_REQUEST_KIND = "core.pull_request"
+
+private val NOT_WORK = setOf(
+    "core.project", "core.design", "core.spec", "core.decision", "core.gate", "core.epic", "core.question",
+    PULL_REQUEST_KIND,
+)
+
+/** Kinds worked on a branch and merged through a pull request (story, bug, …). Mirrors graph.ts. */
+fun isWorkKind(kind: String): Boolean = kind !in NOT_WORK && !kind.startsWith("studio.")
+
 /** "just now", "5m ago", "3h ago", "2d ago", "4mo ago", "1y ago". */
 fun relativeTime(ms: Long, now: Long = System.currentTimeMillis()): String {
     val secs = maxOf(0L, (now - ms + 500) / 1000)

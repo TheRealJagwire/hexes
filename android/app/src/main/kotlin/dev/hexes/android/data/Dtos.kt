@@ -236,3 +236,40 @@ data class CreateProjectRequest(
 
 @Serializable
 data class CreateProjectResult(val projectId: String, val warnings: List<String>)
+
+/** `POST /api/hexes/:id/pull-requests`. */
+@Serializable
+data class OpenPullRequestRequest(val title: String? = null, val description: String? = null)
+
+@Serializable
+data class DiffLine(
+    /** `context`, `add` or `del`. */
+    val kind: String,
+    val oldNo: Int? = null,
+    val newNo: Int? = null,
+    val text: String,
+)
+
+@Serializable
+data class DiffHunk(val header: String, val lines: List<DiffLine>)
+
+@Serializable
+data class DiffFile(
+    val path: String,
+    val oldPath: String? = null,
+    /** `added`, `deleted`, `renamed` or `modified`. */
+    val status: String,
+    val additions: Int,
+    val deletions: Int,
+    val binary: Boolean,
+    val hunks: List<DiffHunk>,
+)
+
+/** `GET /api/hexes/:id/diff`. Mirrors `PullRequestDiff` in views.ts. */
+@Serializable
+data class PullRequestDiff(
+    val files: List<DiffFile>,
+    val truncated: Boolean,
+    /** `git`, or `snapshot` when the commits are gone and the patch saved at merge time is used. */
+    val source: String,
+)

@@ -32,6 +32,7 @@ import androidx.navigation.navArgument
 import dev.hexes.android.container
 import dev.hexes.android.data.LiveStatus
 import dev.hexes.android.ui.create.CreateHexScreen
+import dev.hexes.android.ui.diff.DiffScreen
 import dev.hexes.android.ui.hex.HexScreen
 import dev.hexes.android.ui.project.ProjectScreen
 import dev.hexes.android.ui.projects.ProjectsScreen
@@ -50,6 +51,8 @@ object Routes {
     const val Projects = "projects"
     const val ProjectPattern = "project/{id}"
     const val HexPattern = "hex/{id}"
+    const val DiffPattern = "hex/{id}/diff/{pr}"
+    fun diff(workId: String, prId: String) = "hex/$workId/diff/$prId"
     fun project(id: String) = "project/$id"
     fun hex(id: String) = "hex/$id"
     const val CreatePattern = "project/{id}/new?emergedFrom={emergedFrom}"
@@ -140,6 +143,7 @@ fun HexesNavHost() {
                     onOpenHex = { hexId -> nav.navigate(Routes.hex(hexId)) },
                     onOpenProject = { projectId -> nav.navigate(Routes.project(projectId)) },
                     onCreateFrom = { projectId, hexId -> nav.navigate(Routes.create(projectId, hexId)) },
+                    onOpenDiff = { workId, prId -> nav.navigate(Routes.diff(workId, prId)) },
                     onDeleted = { projectId, wasProject ->
                         if (wasProject || projectId == null) {
                             nav.goHome()
@@ -149,6 +153,19 @@ fun HexesNavHost() {
                             }
                         }
                     },
+                )
+            }
+            composable(
+                Routes.DiffPattern,
+                arguments = listOf(
+                    navArgument("id") { type = NavType.StringType },
+                    navArgument("pr") { type = NavType.StringType },
+                ),
+            ) {
+                DiffScreen(
+                    workId = it.arguments?.getString("id").orEmpty(),
+                    prId = it.arguments?.getString("pr").orEmpty(),
+                    onBack = { nav.popBackStack() },
                 )
             }
             composable(Routes.Settings) {
