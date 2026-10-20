@@ -44,6 +44,16 @@ the project's own working tree, so `.hx/` must be in `.gitignore` and uncommitte
 switch or merge. After a merge, the work hex links to a diff view of what landed; the diff is also
 saved under `.hx/diffs/` in case the commits disappear.
 
+## Hex search
+
+Every page inside a project has a search box in its header; press `/` to jump to it. Suggestions
+appear as you type: a hex matches when each word you type is the start of a word in its title ("hex
+ma" finds "Design a hex map of the whole project"), or when you type the start of its id, with or
+without the project part ("0c5" or "hx-hexes-0c5"). An exact id comes first, then titles that start
+with what you typed, then titles whose matching words come earliest; ties go to unfinished, then
+recently updated hexes (`searchHexes` in `src/shared/search.ts`). Use ↑/↓ and Enter, or click, to
+open one; Esc closes the list, then clears the box.
+
 ## Hex map
 
 **Hex map** on a project's page (`/p/:id/map`) shows every hex in the project as a cell on a
