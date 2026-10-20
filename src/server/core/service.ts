@@ -39,6 +39,7 @@ import type {
   ProjectSummary,
   ProjectView,
   PullRequestDiff,
+  RecentProject,
   RecentWorkspace,
   WorkspaceState,
 } from "../../shared/views.ts";
@@ -108,6 +109,58 @@ export class HexService {
       if (project) await this.recordRecent(opened, project);
     }
     return state;
+  }
+
+  /** Projects opened before, across folders, newest first, checked against what is on disk. */
+  async recentProjects(): Promise<RecentProject[]> {
+    const entries = await this.workspace.recentProjects();
+    const { dir: openDir, selectedProjectId } = await this.state();
+    const pinned = this.workspace.pinnedDir;
+    const indexes = new Map<string, HexIndex | null>();
+    const out: RecentProject[] = [];
+    for (const e of entries) {
+      if (!indexes.has(e.dir)) {
+        indexes.set(e.dir, await new HexFile(e.dir).read().then(buildIndex, () => null));
+      }
+      const project = indexes.get(e.dir)?.byId.get(e.projectId);
+      const found = project?.kind === "core.project";
+      out.push({
+        dir: e.dir,
+        projectId: e.projectId,
+        title: found ? project.title : e.title,
+        folder: e.dir.split("/").filter(Boolean).pop() ?? e.dir,
+        openedAt: e.openedAt,
+        found,
+        current: e.dir === openDir && e.projectId === selectedProjectId,
+        switchable: pinned === null || pinned === e.dir,
+      });
+    }
+    return out;
+  }
+
+  /**
+   * Switches to a recent project in one step: opens its folder when it is not the open one, then
+   * selects it. Checks the project exists first, so a stale entry leaves the open folder alone.
+   */
+  async openRecentProject(dir: string, projectId: string): Promise<WorkspaceState> {
+    const target = resolveDir(dir);
+    const pinned = this.workspace.pinnedDir;
+    if (pinned && pinned !== target) {
+      throw new DomainError(`The directory is pinned to ${pinned} by HEXES_DIR`, 409);
+    }
+    const project = await new HexFile(target).read().then(
+      (hexes) => hexes.find((h) => h.id === projectId && h.kind === "core.project"),
+      () => undefined,
+    );
+    if (!project) throw new DomainError(`${projectId} is no longer in ${target}`, 404);
+    if (await this.workspace.current() !== target) await this.workspace.open(target);
+    await this.selectProject(projectId);
+    return await this.state();
+  }
+
+  /** Drops a project from the recent list. */
+  async forgetRecentProject(dir: string, projectId: string): Promise<void> {
+    await this.workspace.forgetProject(resolveDir(dir), projectId);
   }
 
   async createProject(req: CreateProjectRequest): Promise<CreateProjectResult> {

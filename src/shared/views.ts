@@ -155,3 +155,20 @@ export interface PullRequestDiff {
   /** `git` when computed from the commits; `snapshot` when they are gone and the saved patch is used. */
   source: "git" | "snapshot";
 }
+
+/** `GET /api/projects/recent`: a project opened before, in this folder or another. */
+export interface RecentProject {
+  dir: string;
+  projectId: string;
+  /** The project's title now when its folder is readable, else as last seen. */
+  title: string;
+  /** The folder's name, for display. */
+  folder: string;
+  openedAt: number;
+  /** The folder still has a data file with this project in it. */
+  found: boolean;
+  /** It is the open folder's selected project. */
+  current: boolean;
+  /** False when HEXES_DIR pins Studio to another folder. */
+  switchable: boolean;
+}
