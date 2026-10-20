@@ -267,7 +267,7 @@ export function ProjectScreen({ id }: { id: string }) {
     );
   }
 
-  const { project, designs, decisions, questions, epics } = res.data;
+  const { project, designs, specs, decisions, questions, epics } = res.data;
   const meta = Object.entries(project.meta ?? {});
   return (
     <Page header={<ProjectHeader projectId={id} title={project.title} />}>
@@ -301,6 +301,7 @@ export function ProjectScreen({ id }: { id: string }) {
 
       <div class="flex flex-col gap-2.5">
         <HexGroup label="Designs" items={designs} />
+        <HexGroup label="Specs" items={specs} />
         <HexGroup label="Decisions" items={decisions} />
         <HexGroup label="Questions" items={questions} />
       </div>
