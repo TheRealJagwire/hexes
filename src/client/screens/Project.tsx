@@ -10,6 +10,7 @@ import { Link } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
 import { ArrowUpRight, ChevronDown, ChevronRight, HexGrid, Plus } from "../components/Icons.tsx";
 import { CopyButton, KindBadge, ProgressRing, StatusPill } from "../components/Bits.tsx";
+import { HexSearch } from "../components/HexSearch.tsx";
 import { Markdown } from "../components/Markdown.tsx";
 import { ErrorState, Header, LoadingState, Page, ThemeToggle } from "../components/Layout.tsx";
 import { Logo } from "../components/Icons.tsx";
@@ -201,6 +202,7 @@ export function ProjectHeader(
           </>
         )}
       </div>
+      <HexSearch projectId={projectId} class="order-last w-full sm:order-none sm:w-80" />
       <div class="flex items-center gap-2.5">
         <ThemeToggle />
         {children ?? (
