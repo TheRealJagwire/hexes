@@ -1,9 +1,9 @@
-import type { Status } from "../../shared/schemas.ts";
+import { allowedStatuses, REQUIRES_RESPONSE, type Status } from "../../shared/constants.ts";
 
 /** Full class strings so Tailwind can see them. */
 export const PILL: Record<Status, string> = {
   ready: "text-ready bg-ready-bg",
-  blessed: "text-ready bg-ready-bg",
+  blessed: "text-blessed bg-blessed-bg",
   in_progress: "text-accent bg-accent-bg",
   verified: "text-verified bg-verified-bg",
   blocked: "text-blocked bg-blocked-bg",
@@ -11,15 +11,19 @@ export const PILL: Record<Status, string> = {
   answered: "text-muted bg-line-soft",
 };
 
-export const STATUS_OPTIONS: readonly Status[] = [
-  "ready",
-  "in_progress",
-  "verified",
-  "blocked",
-  "done",
-  "blessed",
-  "answered",
-];
+/**
+ * The statuses a person can pick for a hex of `kind`. `current` stays listed even when the kind
+ * no longer allows it (data from before a workflow changed), so the picker can show it.
+ */
+export function statusOptions(kind: string, current?: Status): readonly Status[] {
+  const allowed = allowedStatuses(kind);
+  return current && !allowed.includes(current) ? [current, ...allowed] : allowed;
+}
+
+/** Statuses a new hex can start in: those that need a response are set after creating it. */
+export function createStatusOptions(kind: string): readonly Status[] {
+  return allowedStatuses(kind).filter((s) => !REQUIRES_RESPONSE.includes(s));
+}
 
 export function relativeTime(ms: number, now = Date.now()): string {
   const secs = Math.max(0, Math.round((now - ms) / 1000));

@@ -22,6 +22,8 @@
   --ready-bg: #1c2a3d;
   --verified: #6fd3c0;
   --verified-bg: #143330;
+  --blessed: #c9a7ff;
+  --blessed-bg: #2a2140;
   --blocked: #ff9a7a;
   --blocked-bg: #3a1f18;
   --success: #6fd3a8;
@@ -50,6 +52,8 @@
   --ready-bg: #e3eefc;
   --verified: #0f7363;
   --verified-bg: #ddf3ee;
+  --blessed: #6b3fb8;
+  --blessed-bg: #efe7fb;
   --blocked: #b23a17;
   --blocked-bg: #fbe5dd;
   --success: #1e7a4f;
@@ -81,6 +85,8 @@
   --color-ready-bg: var(--ready-bg);
   --color-verified: var(--verified);
   --color-verified-bg: var(--verified-bg);
+  --color-blessed: var(--blessed);
+  --color-blessed-bg: var(--blessed-bg);
   --color-blocked: var(--blocked);
   --color-blocked-bg: var(--blocked-bg);
   --color-success: var(--success);

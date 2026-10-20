@@ -1,5 +1,6 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { roleOf } from "../../shared/constants.ts";
 import { statusSummary } from "../../shared/graph.ts";
 import type { Hex } from "../../shared/schemas.ts";
 import type { EpicView, HexSummary } from "../../shared/views.ts";
@@ -66,7 +67,7 @@ function HexGroup({ label, items }: { label: string; items: HexSummary[] }) {
 }
 
 function StoryRow({ story, open, onToggle }: { story: Hex; open: boolean; onToggle: () => void }) {
-  const done = story.status === "done";
+  const done = roleOf(story.status) === "terminal";
   const meta = Object.entries(story.meta ?? {});
   return (
     <li class="mt-2 rounded-[10px] border border-line-soft bg-bg">

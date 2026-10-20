@@ -3,7 +3,7 @@ import type { Status } from "../../shared/schemas.ts";
 import { kindQualifier } from "../../shared/graph.ts";
 import type { HexSummary, HexView } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
-import { dateTime, PILL, plural, STATUS_OPTIONS } from "../lib/format.ts";
+import { dateTime, PILL, plural, statusOptions } from "../lib/format.ts";
 import { Link, navigate } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
 import { ChevronDown, ChevronRight, Close, Plus } from "../components/Icons.tsx";
@@ -21,7 +21,7 @@ import { ProjectHeader } from "./Project.tsx";
 
 const STATUS_TEXT: Record<Status, string> = {
   ready: "text-ready",
-  blessed: "text-ready",
+  blessed: "text-blessed",
   in_progress: "text-accent",
   verified: "text-verified",
   blocked: "text-blocked",
@@ -352,7 +352,7 @@ function StatusSelect({ view, onChange }: { view: HexView; onChange: () => void 
             PILL[status]
           }`}
         >
-          {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+          {statusOptions(view.hex.kind, status).map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         <span class="pointer-events-none absolute right-3.5 top-[15px] text-ink-2">
           <ChevronDown size={14} />
