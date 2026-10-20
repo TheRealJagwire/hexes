@@ -1,7 +1,8 @@
 import { useState } from "preact/hooks";
 import { api } from "../lib/api.ts";
-import { Link } from "../lib/router.tsx";
-import { plural } from "../lib/format.ts";
+import type { RecentProject } from "../../shared/views.ts";
+import { Link, navigate } from "../lib/router.tsx";
+import { plural, relativeTime } from "../lib/format.ts";
 import { useResource } from "../lib/use-resource.ts";
 import { ChevronRight, Plus, Search } from "../components/Icons.tsx";
 import {
@@ -12,6 +13,95 @@ import {
   Page,
   ThemeToggle,
 } from "../components/Layout.tsx";
+
+/** Projects opened before, in any folder: one click switches folder and project together. */
+function RecentProjects() {
+  const recent = useResource(() => api.recentProjects(), []);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  if (recent.status !== "ready" || recent.data.length === 0) return null;
+  const key = (r: RecentProject) => `${r.dir}\n${r.projectId}`;
+  const run = async (r: RecentProject, fn: () => Promise<unknown>) => {
+    setBusy(key(r));
+    setError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <section aria-labelledby="recent-h" class="flex flex-col gap-3">
+      <h2 id="recent-h" class="m-0 text-[15px] font-semibold tracking-[0.02em] text-muted">
+        Recent
+      </h2>
+      {error && <span role="alert" class="text-[13px] text-blocked">{error}</span>}
+      <ul class="m-0 flex list-none flex-col gap-2 p-0">
+        {recent.data.map((r) => {
+          const usable = r.found && r.switchable;
+          const meta = (
+            <span class="font-mono text-xs text-muted">
+              {r.folder} · {relativeTime(r.openedAt)}
+            </span>
+          );
+          return (
+            <li key={key(r)}>
+              {usable
+                ? (
+                  <button
+                    type="button"
+                    disabled={busy !== null}
+                    title={r.dir}
+                    onClick={() =>
+                      run(r, async () => {
+                        await api.openRecentProject(r.dir, r.projectId);
+                        navigate(`/p/${r.projectId}`);
+                      })}
+                    class="flex w-full flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-line bg-panel px-5 py-3.5 text-left text-ink hover:border-line-hover hover:bg-panel2"
+                  >
+                    <span class="min-w-0 flex-[1_1_220px] font-semibold">{r.title}</span>
+                    {r.current && (
+                      <span class="rounded-full bg-accent-bg px-2.5 py-0.5 text-xs text-accent">
+                        open now
+                      </span>
+                    )}
+                    {meta}
+                    <span class="text-muted">
+                      {busy === key(r) ? "…" : <ChevronRight size={16} />}
+                    </span>
+                  </button>
+                )
+                : (
+                  <div class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-dashed border-line px-5 py-3.5 text-muted">
+                    <span class="min-w-0 flex-[1_1_220px]">{r.title}</span>
+                    <span class="text-xs">
+                      {r.found ? "Studio is pinned to another folder" : "Folder or project is gone"}
+                    </span>
+                    {meta}
+                    <button
+                      type="button"
+                      class="btn h-9 text-[13px]"
+                      disabled={busy !== null}
+                      aria-label={`Remove ${r.title} from recent projects`}
+                      onClick={() =>
+                        run(r, async () => {
+                          await api.forgetRecentProject(r.dir, r.projectId);
+                          recent.reload();
+                        })}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
 
 export function Projects() {
   const projects = useResource(() => api.projects(), []);
@@ -43,8 +133,7 @@ export function Projects() {
         <div class="flex flex-col gap-2">
           <h1 class="m-0 text-[32px] font-bold tracking-[-0.02em]">Projects</h1>
           <p class="m-0 text-[15px] text-muted">
-            No project selected yet. Pick one to make it your{" "}
-            <code class="font-mono text-ink">studio.selected_project</code>.
+            Pick a project to open it. Recent ones from other folders switch folders too.
           </p>
         </div>
         <Link href="/welcome" class="btn text-sm">
@@ -52,6 +141,9 @@ export function Projects() {
         </Link>
       </div>
 
+      <RecentProjects />
+
+      <h2 class="m-0 text-[15px] font-semibold tracking-[0.02em] text-muted">In this folder</h2>
       <div class="flex h-11 items-center gap-2.5 rounded-[10px] border border-line bg-panel px-3.5">
         <span class="text-muted">
           <Search />

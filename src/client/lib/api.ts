@@ -13,6 +13,7 @@ import type {
   ProjectSummary,
   ProjectView,
   PullRequestDiff,
+  RecentProject,
   WorkspaceState,
 } from "../../shared/views.ts";
 
@@ -57,6 +58,12 @@ export const api = {
   projects: () => request<ProjectSummary[]>("GET", "/projects"),
   project: (id: string) => request<ProjectView>("GET", `/projects/${id}`),
   selectProject: (id: string) => request<{ ok: true }>("POST", "/selected-project", { id }),
+  recentProjects: () => request<RecentProject[]>("GET", "/projects/recent"),
+  /** Opens the project's folder when needed and selects it, in one step. */
+  openRecentProject: (dir: string, projectId: string) =>
+    request<WorkspaceState>("POST", "/projects/open", { dir, projectId }),
+  forgetRecentProject: (dir: string, projectId: string) =>
+    request<{ ok: true }>("POST", "/projects/recent/forget", { dir, projectId }),
   hex: (id: string) => request<HexView>("GET", `/hexes/${id}`),
   /** Every searchable hex in a project (up to 1,000), for client-side pickers. */
   projectHexes: (projectId: string) =>
