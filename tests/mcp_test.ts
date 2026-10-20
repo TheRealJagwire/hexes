@@ -120,3 +120,44 @@ Deno.test("mcp is served over HTTP from the Studio app", async () => {
   const json = await list.json();
   assert(json.result.tools.some((t: { name: string }) => t.name === "get_workspace"));
 });
+
+Deno.test("mcp answers questions with a response and leaves blessing to people", async () => {
+  const f = await fixture();
+  const { client, call } = await connect(f);
+  try {
+    const design = (await call("create_hex", {
+      project_id: f.projectId,
+      kind: "core.design",
+      title: "Design",
+    })).json;
+    const blessed = await call("update_hex_status", { id: design.id, status: "blessed" });
+    assert(blessed.isError && blessed.body.includes("Only a person"), blessed.body);
+    const born = await call("create_hex", {
+      project_id: f.projectId,
+      kind: "core.design",
+      title: "Pre-blessed",
+      status: "blessed",
+    });
+    assert(born.isError && born.body.includes("Only a person"), born.body);
+
+    const q = (await call("create_hex", {
+      project_id: f.projectId,
+      kind: "core.question",
+      title: "Which?",
+      status: "ready",
+    })).json;
+    const bare = await call("update_hex_status", { id: q.id, status: "answered" });
+    assert(bare.isError && bare.body.includes("needs a response"), bare.body);
+    const answered = (await call("update_hex_status", {
+      id: q.id,
+      status: "answered",
+      response: "This one.",
+    })).json;
+    assertEquals(answered.status, "answered");
+    const decision = (await call("get_hex_by_id", { id: answered.meta.decision })).json;
+    assertEquals([decision.kind, decision.emergedFrom], ["core.decision", q.id]);
+  } finally {
+    await client.close();
+    await f.cleanup();
+  }
+});

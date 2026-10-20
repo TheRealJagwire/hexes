@@ -17,6 +17,7 @@ import {
   reconcileReadiness,
   summarize,
 } from "../../shared/graph.ts";
+import { allowedStatuses, REQUIRES_RESPONSE, roleOf, satisfies } from "../../shared/constants.ts";
 import {
   type CreateHexRequest,
   type CreateProjectRequest,
@@ -300,8 +301,18 @@ export class HexService {
       ) {
         this.require(idx, ref);
       }
-      if (req.status === "ready" && !dependsOn.every((d) => idx.byId.get(d)?.status === "done")) {
-        throw new DomainError("Cannot be ready: some dependencies are not done yet", 409);
+      assertAllowed(req.kind, req.status);
+      if (REQUIRES_RESPONSE.includes(req.status)) {
+        throw new DomainError(`Create it first, then set ${req.status} with a response`, 422);
+      }
+      if (
+        roleOf(req.status) === "actionable" &&
+        !dependsOn.every((d) => {
+          const dep = idx.byId.get(d);
+          return dep !== undefined && satisfies(dep.status);
+        })
+      ) {
+        throw notReady(req.status);
       }
       const t = this.now();
       const hex = await this.newHex(hexes, {
@@ -329,7 +340,7 @@ export class HexService {
   }
 
   updateHex(id: string, patch: UpdateHexRequest): Promise<Hex> {
-    return this.mutate((hexes) => {
+    return this.mutate(async (hexes) => {
       const hex = this.require(buildIndex(hexes), id);
       if (
         patch.expectedUpdatedAtTimeInMs !== undefined &&
@@ -338,14 +349,39 @@ export class HexService {
         throw new DomainError("This hex was changed elsewhere. Reload it and try again.", 409);
       }
       const t = this.now();
+      const changing = patch.status !== undefined && patch.status !== hex.status;
+      const response = patch.response?.trim();
+      if (
+        patch.response !== undefined && !(changing && REQUIRES_RESPONSE.includes(patch.status!))
+      ) {
+        throw new DomainError(
+          hex.status === "answered"
+            ? "This question is already answered. Edit its decision hex instead."
+            : "A response is only given when answering a question",
+          400,
+        );
+      }
       if (patch.title !== undefined) hex.title = patch.title;
       if (patch.description !== undefined) hex.description = patch.description;
-      if (patch.status !== undefined && patch.status !== hex.status) {
-        if (patch.status === "ready" && !dependenciesDone(buildIndex(hexes), hex)) {
-          throw new DomainError("Cannot be ready: some dependencies are not done yet", 409);
+      if (changing) {
+        const status = patch.status!;
+        assertAllowed(hex.kind, status);
+        if (roleOf(status) === "actionable" && !dependenciesDone(buildIndex(hexes), hex)) {
+          throw notReady(status);
         }
-        hex.status = patch.status;
-        reconcileReadiness(hexes, dependentsOf(buildIndex(hexes), id).map((d) => d.id), t);
+        if (REQUIRES_RESPONSE.includes(status) && !response) {
+          throw new DomainError("An answer needs a response", 422);
+        }
+        if (status === "answered" && hex.meta?.decision) {
+          throw new DomainError(
+            `This question was already answered by ${hex.meta.decision}. Edit that decision instead.`,
+            409,
+          );
+        }
+        const dependents = dependentsOf(buildIndex(hexes), id).map((d) => d.id);
+        hex.status = status;
+        if (status === "answered") await this.recordAnswer(hexes, hex, response!, t);
+        reconcileReadiness(hexes, dependents, t);
       }
       hex.lastUpdatedAtTimeInMs = t;
       return hex;
@@ -452,6 +488,45 @@ export class HexService {
 
   // ── internals ────────────────────────────────────────────────────────────
 
+  /**
+   * Stores the response on the question and turns it into a `done` decision: under the
+   * question's design (else the project), emerged from the question, and depended on by
+   * everything that depended on the question.
+   */
+  private async recordAnswer(hexes: Hex[], question: Hex, response: string, t: number) {
+    const idx = buildIndex(hexes);
+    const prefix = prefixOf(question.id)!;
+    const designs = [
+      ...dependenciesOf(idx, question),
+      ...(question.emergedFrom ? [idx.byId.get(question.emergedFrom)] : []),
+    ].filter((h): h is Hex => h?.kind === "core.design");
+    const parent = designs[0] ?? findProject(idx, prefix);
+    const decision = await this.newHex(hexes, {
+      prefix,
+      kind: "core.decision",
+      title: `Decision: ${question.title}`,
+      description: `${response}
+
+---
+
+Answers question ${question.id}: ${question.title}`,
+      status: "done",
+      createdAt: t,
+      dependsOn: parent ? [parent.id] : [],
+      emergedFrom: question.id,
+    });
+    for (const dependent of dependentsOf(idx, question.id)) {
+      dependent.dependsOn = unique([...(dependent.dependsOn ?? []), decision.id]);
+      dependent.lastUpdatedAtTimeInMs = t;
+    }
+    question.meta = {
+      ...question.meta,
+      answer: response,
+      answered_at: new Date(t).toISOString(),
+      decision: decision.id,
+    };
+  }
+
   /** Builds a hex with a fresh, collision-free id and appends it to `hexes`. */
   private async newHex(hexes: Hex[], o: {
     prefix: string;
@@ -517,6 +592,23 @@ function selectedProjectOf(idx: HexIndex): string | null {
 
 function unique<T>(items: readonly T[]): T[] {
   return [...new Set(items)];
+}
+
+/** Refuses a status the hex's kind does not use, naming the ones it does. */
+function assertAllowed(kind: string, status: Status): void {
+  const allowed = allowedStatuses(kind);
+  if (allowed.includes(status)) return;
+  // Point at the kind's own word for the same thing, e.g. `blessed` for a design's `ready`.
+  const instead = allowed.find((s) => roleOf(s) === roleOf(status));
+  throw new DomainError(
+    `A ${kind} cannot be ${status}${instead ? `; use ${instead}` : ""}. ` +
+      `Its statuses are ${allowed.join(", ")}.`,
+    422,
+  );
+}
+
+function notReady(status: Status): DomainError {
+  return new DomainError(`Cannot be ${status}: some dependencies are not done yet`, 409);
 }
 
 function assertAcyclic(hexes: readonly Hex[]): void {

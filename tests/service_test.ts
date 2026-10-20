@@ -173,7 +173,13 @@ Deno.test("project view groups designs, decisions and epics", async () => {
     };
     await s.createHex({ ...base, kind: "core.design", title: "D", dependsOn: [f.projectId] });
     await s.createHex({ ...base, kind: "core.decision", title: "Dec", dependsOn: [] });
-    await s.createHex({ ...base, kind: "core.question", title: "Why?", dependsOn: [] });
+    await s.createHex({
+      ...base,
+      status: "blocked",
+      kind: "core.question",
+      title: "Why?",
+      dependsOn: [],
+    });
     const done = await s.createHex({ ...base, kind: "core.story", title: "S1", dependsOn: [] });
     const open = await s.createHex({
       ...base,
@@ -211,4 +217,187 @@ Deno.test("blurb is a plain-text first sentence, without markdown", () => {
   assertEquals(blurb("- first item. second"), "first item.");
   assertEquals(blurb("keeps snake_case_names intact."), "keeps snake_case_names intact.");
   assertEquals(blurb(""), "");
+});
+
+Deno.test("designs are blessed, not ready, and blessing unblocks what depends on them", async () => {
+  const f = await fixture();
+  try {
+    const s = f.service;
+    const base = { description: "", requiredBy: [], meta: {} };
+    const gate = await s.createHex({
+      ...base,
+      projectId: f.projectId,
+      kind: "core.story",
+      title: "Prerequisite",
+      status: "blocked",
+      dependsOn: [],
+    });
+    const design = await s.createHex({
+      ...base,
+      projectId: f.projectId,
+      kind: "core.design",
+      title: "Design",
+      status: "blocked",
+      dependsOn: [gate.id],
+    });
+    const spec = await s.createHex({
+      ...base,
+      projectId: f.projectId,
+      kind: "core.spec",
+      title: "Spec",
+      status: "blocked",
+      dependsOn: [design.id],
+    });
+    await assertRejects(
+      () => s.updateHex(design.id, { status: "ready" }),
+      DomainError,
+      "cannot be ready; use blessed",
+    );
+    await assertRejects(
+      () => s.updateHex(design.id, { status: "blessed" }),
+      DomainError,
+      "not done",
+    );
+    await s.updateHex(gate.id, { status: "done" });
+    assertEquals((await s.getHex(design.id)).status, "blocked", "never blessed automatically");
+
+    await s.updateHex(design.id, { status: "blessed" });
+    assertEquals((await s.getHex(spec.id)).status, "ready");
+    assertEquals((await s.ready(f.projectId)).map((h) => h.id), [design.id, spec.id]);
+
+    await s.updateHex(design.id, { status: "in_progress" });
+    assertEquals((await s.getHex(spec.id)).status, "blocked");
+    await s.updateHex(design.id, { status: "done" });
+    assertEquals((await s.getHex(spec.id)).status, "ready");
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("answering a question needs a response and records it as a decision", async () => {
+  const f = await fixture();
+  try {
+    const s = f.service;
+    const base = { description: "", requiredBy: [], meta: {} };
+    const design = await s.createHex({
+      ...base,
+      projectId: f.projectId,
+      kind: "core.design",
+      title: "Design",
+      status: "blocked",
+      dependsOn: [],
+    });
+    const question = await s.createHex({
+      ...base,
+      projectId: f.projectId,
+      kind: "core.question",
+      title: "Which database?",
+      status: "ready",
+      dependsOn: [design.id],
+    }).catch(() => null);
+    assertEquals(question, null, "ready needs the design blessed first");
+    await s.updateHex(design.id, { status: "blessed" });
+    const q = await s.createHex({
+      ...base,
+      projectId: f.projectId,
+      kind: "core.question",
+      title: "Which database?",
+      status: "ready",
+      dependsOn: [design.id],
+    });
+    const story = await s.createHex({
+      ...base,
+      projectId: f.projectId,
+      kind: "core.story",
+      title: "Pick storage",
+      status: "blocked",
+      dependsOn: [q.id],
+    });
+
+    await assertRejects(
+      () => s.updateHex(q.id, { status: "done" }),
+      DomainError,
+      "cannot be done; use answered",
+    );
+    await assertRejects(
+      () => s.updateHex(q.id, { status: "answered" }),
+      DomainError,
+      "needs a response",
+    );
+    await assertRejects(
+      () => s.updateHex(q.id, { status: "answered", response: "   " }),
+      DomainError,
+      "needs a response",
+    );
+    await assertRejects(
+      () => s.updateHex(story.id, { status: "in_progress", response: "x" }),
+      DomainError,
+      "only given when answering",
+    );
+    await assertRejects(
+      () =>
+        s.createHex({
+          ...base,
+          projectId: f.projectId,
+          kind: "core.question",
+          title: "Pre-answered",
+          status: "answered",
+          dependsOn: [],
+        }),
+      DomainError,
+      "with a response",
+    );
+    assertEquals((await s.search({ kind: "core.decision" })).length, 0, "refusals write nothing");
+
+    const answered = await s.updateHex(q.id, { status: "answered", response: "  Postgres.  " });
+    assertEquals(answered.status, "answered");
+    assertEquals(answered.meta?.answer, "Postgres.");
+    const decision = await s.getHex(answered.meta!.decision!);
+    assertEquals(decision.kind, "core.decision");
+    assertEquals(decision.status, "done");
+    assertEquals(decision.title, "Decision: Which database?");
+    assert(decision.description.startsWith("Postgres."));
+    assertEquals(decision.emergedFrom, q.id);
+    assertEquals(decision.dependsOn, [design.id]);
+    assertEquals((await s.hexView(q.id)).emergedHere.map((h) => h.id), [decision.id]);
+
+    const after = await s.getHex(story.id);
+    assertEquals(after.status, "ready", "answered unblocks dependents");
+    assertEquals(after.dependsOn, [q.id, decision.id]);
+
+    await assertRejects(
+      () => s.updateHex(q.id, { status: "answered", response: "MySQL" }),
+      DomainError,
+      "already answered",
+    );
+    await s.updateHex(q.id, { status: "in_progress" });
+    await assertRejects(
+      () => s.updateHex(q.id, { status: "answered", response: "MySQL" }),
+      DomainError,
+      "already answered",
+    );
+    assertEquals((await s.search({ kind: "core.decision" })).length, 1);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("a question with no design records its decision under the project", async () => {
+  const f = await fixture();
+  try {
+    const q = await f.service.createHex({
+      projectId: f.projectId,
+      kind: "core.question",
+      title: "Q",
+      description: "",
+      status: "ready",
+      requiredBy: [],
+      dependsOn: [],
+      meta: {},
+    });
+    const answered = await f.service.updateHex(q.id, { status: "answered", response: "Yes" });
+    assertEquals((await f.service.getHex(answered.meta!.decision!)).dependsOn, [f.projectId]);
+  } finally {
+    await f.cleanup();
+  }
 });

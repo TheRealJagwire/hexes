@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { PEOPLE_ONLY, type Status } from "../../shared/constants.ts";
+import { DomainError } from "../../server/core/errors.ts";
 import {
   CORE_KINDS,
   HexIdSchema,
@@ -12,6 +14,19 @@ import { defineTool } from "./define.ts";
 const id = HexIdSchema.describe("Hex id, e.g. hx-studio-4a1");
 const key = z.string().min(1).describe("Meta key, e.g. git_branch or desired_language");
 const value = z.string().describe("Meta value");
+
+/** Blessing is a person's approval; agents ask for it instead of setting it. */
+function refusePeopleOnly(status: Status): void {
+  if (PEOPLE_ONLY.includes(status)) {
+    throw new DomainError(
+      `Only a person can set ${status}. Ask the user to do it in Studio.`,
+      403,
+    );
+  }
+}
+
+const STATUS_RULES = "Statuses depend on the kind: designs use blessed (set only by a person in " +
+  "Studio) instead of ready; questions use answered instead of done, which needs a response.";
 
 /**
  * Every Studio action as an MCP tool. The names called out in SPEC.md keep their exact
@@ -133,7 +148,8 @@ export function buildTools(s: HexService) {
           CORE_KINDS.map((k) => `core.${k}`).join(", ")
         }. Conventions: designs depend on the project; specs and decisions depend on a design; ` +
         "epics depend on designs, specs and stories; gates depend on epics. Status defaults to blocked; " +
-        "'ready' needs every dependency done. The id is hashed from title, kind and createdAt.",
+        "'ready' needs every dependency done. The id is hashed from title, kind and createdAt. " +
+        STATUS_RULES,
       kind: "write",
       input: z.object({
         project_id: id.describe("The project the hex belongs to"),
@@ -146,8 +162,9 @@ export function buildTools(s: HexService) {
         emerged_from: id.optional().describe("The hex being worked on when this was discovered"),
         meta: MetaSchema.default({}),
       }),
-      run: (a) =>
-        s.createHex({
+      run: (a) => {
+        refusePeopleOnly(a.status);
+        return s.createHex({
           projectId: a.project_id,
           kind: a.kind,
           title: a.title,
@@ -157,7 +174,8 @@ export function buildTools(s: HexService) {
           requiredBy: a.required_by,
           emergedFrom: a.emerged_from,
           meta: a.meta,
-        }),
+        });
+      },
     }),
     defineTool({
       name: "update_hex",
@@ -173,11 +191,22 @@ export function buildTools(s: HexService) {
     defineTool({
       name: "update_hex_status",
       description:
-        "Set a hex's status. Marking a hex done promotes blocked dependents whose dependencies are " +
-        "now all done to ready. 'ready' is refused while a dependency is not done.",
+        "Set a hex's status. Finishing a hex promotes blocked dependents whose dependencies are " +
+        "now all done to ready. 'ready' is refused while a dependency is not done. " +
+        STATUS_RULES + " Answering a question creates a core.decision holding the response; its " +
+        "id is returned in the question's meta.decision.",
       kind: "write",
-      input: z.object({ id, status: StatusSchema }),
-      run: ({ id, status }) => s.updateHex(id, { status }),
+      input: z.object({
+        id,
+        status: StatusSchema,
+        response: z.string().optional().describe(
+          "Required when setting a question to answered: the answer, in markdown",
+        ),
+      }),
+      run: ({ id, status, response }) => {
+        refusePeopleOnly(status);
+        return s.updateHex(id, { status, response });
+      },
     }),
     defineTool({
       name: "delete_hex",
@@ -192,14 +221,18 @@ export function buildTools(s: HexService) {
     // ── readiness & the dependency graph ──────────────────────────────────
     defineTool({
       name: "get_ready_hexes",
-      description: "Hexes with status ready whose dependencies are all done, across every project.",
+      description:
+        "Hexes that can be picked up (ready, or blessed designs) whose dependencies are all done, " +
+        "across every project.",
       kind: "read",
       input: z.object({}),
       run: () => s.ready(),
     }),
     defineTool({
       name: "get_ready_hexes_for_project",
-      description: "Ready hexes (status ready, all dependencies done) within one project.",
+      description:
+        "Hexes that can be picked up (ready, or blessed designs, with all dependencies done) " +
+        "within one project.",
       kind: "read",
       input: z.object({ project_id: id }),
       run: ({ project_id }) => s.ready(project_id),

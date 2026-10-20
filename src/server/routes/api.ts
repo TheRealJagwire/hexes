@@ -9,6 +9,8 @@ import {
   StatusSchema,
   UpdateHexRequestSchema,
 } from "../../shared/schemas.ts";
+import { DEFAULT_WORKFLOW, KIND_WORKFLOWS, STATUS_INFO } from "../../shared/constants.ts";
+import type { StatusTable } from "../../shared/views.ts";
 import { DomainError } from "../core/errors.ts";
 import type { HexService } from "../core/service.ts";
 import { pickDirectory } from "../core/picker.ts";
@@ -66,6 +68,14 @@ export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
     });
   });
   api.get("/state", async (c) => c.json(await service.state()));
+  api.get("/statuses", (c) =>
+    c.json(
+      {
+        statuses: STATUS_INFO,
+        kinds: KIND_WORKFLOWS,
+        default: DEFAULT_WORKFLOW,
+      } satisfies StatusTable,
+    ));
 
   api.get("/workspace/recent", async (c) => c.json(await service.recentWorkspaces()));
   api.post("/workspace/inspect", async (c) => {

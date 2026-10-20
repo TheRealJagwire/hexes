@@ -3,10 +3,12 @@ import type { Status } from "../../shared/schemas.ts";
 /** Full class strings so Tailwind can see them. */
 export const PILL: Record<Status, string> = {
   ready: "text-ready bg-ready-bg",
+  blessed: "text-ready bg-ready-bg",
   in_progress: "text-accent bg-accent-bg",
   verified: "text-verified bg-verified-bg",
   blocked: "text-blocked bg-blocked-bg",
   done: "text-muted bg-line-soft",
+  answered: "text-muted bg-line-soft",
 };
 
 export const STATUS_OPTIONS: readonly Status[] = [
@@ -15,6 +17,8 @@ export const STATUS_OPTIONS: readonly Status[] = [
   "verified",
   "blocked",
   "done",
+  "blessed",
+  "answered",
 ];
 
 export function relativeTime(ms: number, now = Date.now()): string {

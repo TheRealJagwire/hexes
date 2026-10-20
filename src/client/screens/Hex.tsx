@@ -21,10 +21,12 @@ import { ProjectHeader } from "./Project.tsx";
 
 const STATUS_TEXT: Record<Status, string> = {
   ready: "text-ready",
+  blessed: "text-ready",
   in_progress: "text-accent",
   verified: "text-verified",
   blocked: "text-blocked",
   done: "text-muted",
+  answered: "text-muted",
 };
 
 /** Project crumbs go to the project screen; everything else to its hex screen. */
