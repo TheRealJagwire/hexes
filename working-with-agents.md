@@ -48,7 +48,24 @@ retrying blindly.
   - A dependency is satisfied by `done`, `answered` or `blessed`. `ready` is refused while any
     dependency is unsatisfied, and satisfying the last one auto-promotes blocked dependents to
     `ready` (designs excepted).
+  - **Pull requests** (`core.pull_request`): `pull_requested` → `merged` or `closed`. They are only
+    created by `open_pull_request` and only move by `merge_pull_request` / `close_pull_request`.
   - `GET /api/statuses` returns the full table: each status's role and each kind's statuses.
+- **Work goes through pull requests.** Work hexes (story, substory, bug, custom kinds) are built on
+  their own branch and reach main only by merging a pull request:
+  1. `start_work_branch`: Hexes creates `hx/<id>-<slug>` off main, switches the working tree to it,
+     records `meta.git_branch` and moves the hex to `in_progress`.
+  2. Commit the work on that branch.
+  3. `open_pull_request`: a `core.pull_request` hex; the work hex now depends on it.
+  4. The user reviews (Studio shows the changes, `get_pull_request_diff` too). Only when they say
+     so: `merge_pull_request`. main is then checked out, and the PR records its merge commit.
+  5. `update_hex_status` → `done` on the work hex. It is refused while none of its PRs is merged.
+  - Hexes runs git in the project's own working tree and refuses while tracked files have
+    uncommitted changes (commit or stash them first). `.hx/` must be in `.gitignore`.
+  - A conflicting merge changes nothing and names the files. On the branch, merge main in, resolve,
+    commit, then merge again. To give up on a PR, `close_pull_request` (it is kept as a record and
+    the work stops waiting on it); open a new one later from the same branch.
+  - After a merge, the work hex's page in Studio and the app has a diff view of what landed.
 - **Conventions**: projects own designs, gates and bugs; designs own decisions and specs; gates
   depend on epics; epics depend on designs, specs and stories; stories may have substories. A
   _dependency_ means "must be done first".
@@ -92,6 +109,18 @@ Annotations: **R** = read-only (safe to auto-approve), **W** = write, **D** = de
 | `get_hexes_that_this_hex_depends_on`   | R    | `id`                  | Upstream hexes (what this waits on).                                                                             |
 | `add_dependency`                       | W    | `id`, `depends_on_id` | `id` now waits on `depends_on_id`. Cycles refused.                                                               |
 | `remove_dependency`                    | W    | `id`, `depends_on_id` | Drop that edge.                                                                                                  |
+
+### Branches & pull requests
+
+| Tool                    | Kind | Input                          | Purpose                                                                       |
+| ----------------------- | ---- | ------------------------------ | ----------------------------------------------------------------------------- |
+| `start_work_branch`     | W    | `id`                           | Put a work hex on `hx/<id>-<slug>` off main and switch to it; safe to repeat. |
+| `open_pull_request`     | W    | `id`, `title?`, `description?` | Open a PR for the work hex's branch once it has commits.                      |
+| `merge_pull_request`    | W    | `id` (the PR)                  | Merge into main with a merge commit. Only when the user asks.                 |
+| `close_pull_request`    | W    | `id` (the PR)                  | Abandon a PR; it is kept, and the work no longer waits on it.                 |
+| `get_pull_request_diff` | R    | `id` (the PR)                  | File summaries and a compact patch of what it changes.                        |
+
+`get_hex_view` on a work hex includes `workBranch` and `pullRequests`; on a PR, `workHex`.
 
 ### Meta
 
@@ -176,11 +205,14 @@ description: Pick up and execute the next ready hex, then close it out and repor
    decision it created.
 2. Load context: `get_hex_view` (description, breadcrumbs, dependencies). Read the linked
    design/spec/ decision hexes with `get_hex_by_id` when the description is not self-sufficient.
-3. Claim it: `update_hex_status` → `in_progress`. Record where the work lives with
-   `add_meta_state_to_hex_with_id` (e.g. `git_branch`).
-4. Do the work in the codebase.
-5. Verify (tests, build, manual check). Then `update_hex_status` → `verified`.
-6. When it is merged/accepted: `update_hex_status` → `done`. Add `pr_url` etc. via meta first.
+3. Claim it on its own branch: `start_work_branch` (story, substory, bug, …; it also sets
+   `in_progress`). Other kinds: `update_hex_status` → `in_progress`.
+4. Do the work in the codebase and commit it on that branch.
+5. Verify (tests, build, manual check). Then `open_pull_request` and `update_hex_status` →
+   `verified`.
+6. Ask the user to review the pull request. Only when they say so, `merge_pull_request`; on a
+   conflict, merge main into the branch, resolve, commit and retry. Then `update_hex_status` →
+   `done`.
 7. Report: what changed, and which hexes became ready (`get_ready_hexes_for_project` before vs.
    after).
 
@@ -190,6 +222,7 @@ Rules:
   surface it; do not force it.
 - Never bless a design or invent an answer: both belong to a person.
 - Do not mark `done` without the user's or CI's confirmation unless told you may.
+- Never commit work hexes' changes straight to main, and never merge a pull request unasked.
 - Work that is discovered mid-task goes in via `hexes-capture-discovery`, not into this hex's scope.
 ```
 
@@ -220,6 +253,8 @@ description: Break a goal into hexes (design → spec/decision → epic → stor
 5. Put acceptance criteria in `description`; put tooling facts (`desired_language`, `git_branch`) in
    `meta`.
 6. Finish with `get_project` and show the user the resulting tree and `get_ready_hexes_for_project`.
+
+Never create `core.pull_request` hexes: they come from `open_pull_request` when work is done.
 
 Rules: titles are short and imperative; one hex = one atomic unit; fix wiring with `add_dependency`
 / `remove_dependency` rather than deleting and recreating.
@@ -266,6 +301,9 @@ description: Audit the graph for stale, mis-wired or stuck hexes and propose fix
 2. For each `blocked` hex, `get_hexes_that_this_hex_depends_on`: flag ones whose dependencies are
    all `done` (should be ready) and ones waiting on dependencies that are themselves stuck.
 3. Flag `in_progress` hexes with no `git_branch`/owner meta, and `verified` hexes awaiting `done`.
+   Flag work hexes on a branch with no open pull request, and `pull_requested` pull requests that
+   have waited a long time (`search_hexes` with `kind: core.pull_request`): each needs a review, a
+   merge or a close.
 4. Flag `core.question` hexes not yet `answered`, and `core.design` hexes not yet `blessed` whose
    dependencies are all satisfied: both need a human. Flag any design still marked `ready` (data
    from before blessing existed).
