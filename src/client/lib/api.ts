@@ -10,6 +10,7 @@ import type {
   HexSummary,
   HexView,
   InspectResult,
+  ProjectGraph,
   ProjectSummary,
   ProjectView,
   PullRequestDiff,
@@ -57,6 +58,7 @@ export const api = {
   pickDirectory: () => request<{ dir: string | null }>("POST", "/workspace/pick", {}),
   projects: () => request<ProjectSummary[]>("GET", "/projects"),
   project: (id: string) => request<ProjectView>("GET", `/projects/${id}`),
+  projectGraph: (id: string) => request<ProjectGraph>("GET", `/projects/${id}/graph`),
   selectProject: (id: string) => request<{ ok: true }>("POST", "/selected-project", { id }),
   recentProjects: () => request<RecentProject[]>("GET", "/projects/recent"),
   /** Opens the project's folder when needed and selects it, in one step. */

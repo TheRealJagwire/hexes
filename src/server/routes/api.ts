@@ -116,6 +116,10 @@ export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
     return c.json({ ok: true });
   });
   api.get("/projects/:id", async (c) => c.json(await service.projectView(c.req.param("id"))));
+  api.get(
+    "/projects/:id/graph",
+    async (c) => c.json(await service.projectGraph(c.req.param("id"))),
+  );
   api.post("/selected-project", async (c) => {
     const { id } = SelectSchema.parse(await c.req.json());
     await service.selectProject(id);
