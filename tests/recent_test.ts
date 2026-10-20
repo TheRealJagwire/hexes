@@ -1,4 +1,6 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
+import { DomainError } from "../src/server/core/errors.ts";
+import { HexService } from "../src/server/core/service.ts";
 import { Workspace } from "../src/server/core/workspace.ts";
 import { fixture } from "./helpers.ts";
 
@@ -78,5 +80,71 @@ Deno.test("nothing is recorded while pinned by HEXES_DIR", async () => {
     assertEquals(await w.recentProjects(), []);
   } finally {
     await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("recent projects switch folders in one step and notice what is gone", async () => {
+  const f = await fixture("Alpha");
+  try {
+    const s = f.service;
+    const betaDir = f.dir.replace(/\/proj$/, "/beta");
+    const { projectId: beta } = await s.createProject({
+      dir: betaDir,
+      title: "Beta",
+      description: "",
+      gitInit: false,
+    });
+    let list = await s.recentProjects();
+    assertEquals(list.map((r) => [r.title, r.folder, r.found, r.current, r.switchable]), [
+      ["Beta", "beta", true, true, true],
+      ["Alpha", "proj", true, false, true],
+    ]);
+
+    // Back to Alpha, in another folder, with one call; a later rename shows up when listed.
+    const state = await s.openRecentProject(f.dir, f.projectId);
+    assertEquals([state.dir, state.selectedProjectId], [f.dir, f.projectId]);
+    await s.updateHex(f.projectId, { title: "Alpha 2" });
+    assertEquals((await f.workspace.recentProjects())[0]?.title, "Alpha", "stored as last seen");
+    list = await s.recentProjects();
+    assertEquals(list.map((r) => [r.title, r.current]), [["Alpha 2", true], ["Beta", false]]);
+
+    // A folder that disappeared is listed as not found, and opening it leaves Alpha open.
+    await Deno.remove(betaDir, { recursive: true });
+    list = await s.recentProjects();
+    assertEquals(list.map((r) => [r.title, r.found]), [["Alpha 2", true], ["Beta", false]]);
+    const err = await assertRejects(() => s.openRecentProject(betaDir, beta), DomainError);
+    assertEquals(err.status, 404);
+    assertEquals((await s.state()).dir, f.dir);
+
+    await s.forgetRecentProject(betaDir, beta);
+    assertEquals((await s.recentProjects()).map((r) => r.projectId), [f.projectId]);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("while pinned, other folders' recent projects cannot be switched to", async () => {
+  const f = await fixture("Alpha");
+  try {
+    const betaDir = f.dir.replace(/\/proj$/, "/beta");
+    const { projectId: beta } = await f.service.createProject({
+      dir: betaDir,
+      title: "Beta",
+      description: "",
+      gitInit: false,
+    });
+    const pinned = new HexService(
+      new Workspace({ pinnedDir: f.dir, stateFile: f.workspace.stateFile }),
+    );
+    const list = await pinned.recentProjects();
+    assertEquals(list.map((r) => [r.title, r.switchable]), [["Beta", false], ["Alpha", true]]);
+    const err = await assertRejects(() => pinned.openRecentProject(betaDir, beta), DomainError);
+    assertEquals(err.status, 409);
+    assertEquals(
+      (await pinned.openRecentProject(f.dir, f.projectId)).selectedProjectId,
+      f.projectId,
+    );
+  } finally {
+    await f.cleanup();
   }
 });
