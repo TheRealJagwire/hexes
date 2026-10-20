@@ -119,3 +119,39 @@ export interface StatusTable {
   /** Statuses that are only set together with a `response` (answering a question). */
   requiresResponse: readonly Status[];
 }
+
+export interface DiffLine {
+  kind: "context" | "add" | "del";
+  /** Line number in the old file; null for an added line. */
+  oldNo: number | null;
+  /** Line number in the new file; null for a removed line. */
+  newNo: number | null;
+  text: string;
+}
+
+export interface DiffHunk {
+  /** The `@@ -a,b +c,d @@ …` line. */
+  header: string;
+  lines: DiffLine[];
+}
+
+export interface DiffFile {
+  path: string;
+  /** The path before a rename; null otherwise. */
+  oldPath: string | null;
+  status: "added" | "deleted" | "renamed" | "modified";
+  additions: number;
+  deletions: number;
+  binary: boolean;
+  /** Empty for binary files, and for every file when the diff was truncated. */
+  hunks: DiffHunk[];
+}
+
+/** `GET /api/hexes/:id/diff` for a pull request. */
+export interface PullRequestDiff {
+  files: DiffFile[];
+  /** Too large to show in full: files and counts only, no hunks. */
+  truncated: boolean;
+  /** `git` when computed from the commits; `snapshot` when they are gone and the saved patch is used. */
+  source: "git" | "snapshot";
+}

@@ -9,10 +9,12 @@ import {
   findCycle,
   findProject,
   type HexIndex,
+  isWorkKind,
   prefixOf,
   progressOf,
   projectHexes,
   projects,
+  PULL_REQUEST_KIND,
   pullRequestsOf,
   readyHexes,
   reconcileReadiness,
@@ -36,10 +38,13 @@ import type {
   InspectResult,
   ProjectSummary,
   ProjectView,
+  PullRequestDiff,
   RecentWorkspace,
   WorkspaceState,
 } from "../../shared/views.ts";
+import { parseUnifiedDiff } from "../../shared/diff.ts";
 import { DomainError } from "./errors.ts";
+import { Git } from "./git.ts";
 import { derivePrefix, generateId } from "./ids.ts";
 import { HexFile } from "./store.ts";
 import { gitInit, resolveDir, type Workspace } from "./workspace.ts";
@@ -380,7 +385,19 @@ export class HexService {
       if (patch.description !== undefined) hex.description = patch.description;
       if (changing) {
         const status = patch.status!;
+        if (hex.kind === PULL_REQUEST_KIND) {
+          throw new DomainError("A pull request changes status by being merged or closed", 409);
+        }
         assertAllowed(hex.kind, status);
+        if (
+          status === "done" && hex.meta?.git_branch &&
+          !pullRequestsOf(buildIndex(hexes), id).some((p) => p.status === "merged")
+        ) {
+          throw new DomainError(
+            `Merge its pull request first: the work on ${hex.meta.git_branch} is not on main yet`,
+            409,
+          );
+        }
         if (roleOf(status) === "actionable" && !dependenciesDone(buildIndex(hexes), hex)) {
           throw notReady(status);
         }
@@ -501,6 +518,265 @@ export class HexService {
     });
   }
 
+  // ── branches & pull requests ─────────────────────────────────────────────
+
+  /** Git for the open workspace, after the checks every branch operation needs. */
+  private async git(): Promise<Git> {
+    const git = new Git((await this.workspace.file()).dir);
+    await git.assertRepo();
+    await git.assertDataIgnored();
+    return git;
+  }
+
+  private async mainBranchFor(git: Git, hex: Hex, idx: HexIndex): Promise<string> {
+    const project = findProject(idx, prefixOf(hex.id) ?? "");
+    return await git.mainBranch(project?.meta?.git_main_branch);
+  }
+
+  /**
+   * Puts a work hex's work on its own branch off main and switches to it: `hx/<id>-<slug>`,
+   * recorded as `meta.git_branch` with the commit it started from as `meta.base_sha`. Calling it
+   * again switches back to that branch, recreating it if it was deleted.
+   */
+  async startWork(id: string): Promise<Hex> {
+    const idx = await this.index();
+    const hex = this.require(idx, id);
+    if (!isWorkKind(hex.kind)) {
+      throw new DomainError(`A ${hex.kind} is not worked on a branch`, 422);
+    }
+    if (roleOf(hex.status) === "terminal") {
+      throw new DomainError(`${id} is already ${hex.status}`, 409);
+    }
+    const git = await this.git();
+    return await git.serial(async () => {
+      const main = await this.mainBranchFor(git, hex, idx);
+      const branch = hex.meta?.git_branch ?? branchName(hex);
+      let base = hex.meta?.base_sha;
+      if (await git.branchExists(branch)) {
+        if (await git.currentBranch() !== branch) {
+          await git.assertClean();
+          await git.run("switch", "-q", branch);
+        }
+        base ??= await git.mergeBase(main, branch);
+      } else {
+        await git.assertClean();
+        base = await git.revParse(main);
+        await git.run("switch", "-q", "-c", branch, main);
+      }
+      return await this.mutate((hexes) => {
+        const h = this.require(buildIndex(hexes), id);
+        h.meta = { ...h.meta, git_branch: branch, base_sha: base! };
+        if (roleOf(h.status) !== "active") h.status = "in_progress";
+        h.lastUpdatedAtTimeInMs = this.now();
+        return h;
+      });
+    });
+  }
+
+  /**
+   * Opens a pull request for a work hex's branch: a `core.pull_request` hex the work hex then
+   * depends on, so the work cannot be done until it is merged. Does not switch branches.
+   */
+  async openPullRequest(
+    workId: string,
+    opts: { title?: string | undefined; description?: string | undefined } = {},
+  ): Promise<Hex> {
+    const idx = await this.index();
+    const work = this.require(idx, workId);
+    if (!isWorkKind(work.kind)) {
+      throw new DomainError(`A ${work.kind} does not get pull requests`, 422);
+    }
+    const branch = work.meta?.git_branch;
+    if (!branch) throw new DomainError("Start work on a branch first", 409);
+    const git = await this.git();
+    return await git.serial(async () => {
+      const main = await this.mainBranchFor(git, work, idx);
+      if (!await git.branchExists(branch)) {
+        throw new DomainError(`The branch ${branch} no longer exists. Start work again.`, 409);
+      }
+      if (await git.aheadOf(main, branch) === 0) {
+        throw new DomainError(`${branch} has no commits that ${main} does not have yet`, 409);
+      }
+      const base = await git.mergeBase(main, branch);
+      const head = await git.revParse(branch);
+      return await this.mutate(async (hexes) => {
+        const idx = buildIndex(hexes);
+        const w = this.require(idx, workId);
+        const open = pullRequestsOf(idx, workId).find((p) =>
+          p.status === "pull_requested" && p.meta?.source_branch === branch
+        );
+        if (open) {
+          throw new DomainError(`${branch} already has an open pull request: ${open.id}`, 409);
+        }
+        const t = this.now();
+        const pr = await this.newHex(hexes, {
+          prefix: prefixOf(workId)!,
+          kind: PULL_REQUEST_KIND,
+          title: opts.title?.trim() || `PR: ${w.title}`,
+          description: opts.description ?? "",
+          status: "pull_requested",
+          createdAt: t,
+          meta: {
+            work_hex: workId,
+            source_branch: branch,
+            target_branch: main,
+            base_sha: base,
+            head_sha: head,
+          },
+        });
+        w.dependsOn = unique([...(w.dependsOn ?? []), pr.id]);
+        w.lastUpdatedAtTimeInMs = t;
+        reconcileReadiness(hexes, [workId], t);
+        return pr;
+      });
+    });
+  }
+
+  /**
+   * Merges a pull request into its target branch with a merge commit, in the working tree (the
+   * target stays checked out). A conflict is aborted, the previous branch restored, and nothing
+   * recorded. The diff is also saved to `.hx/diffs/<id>.patch` for when the commits are gone.
+   */
+  async mergePullRequest(id: string): Promise<Hex> {
+    const idx = await this.index();
+    const pr = this.requirePullRequest(idx, id);
+    const work = pr.meta?.work_hex ? idx.byId.get(pr.meta.work_hex) : undefined;
+    const branch = pr.meta?.source_branch ?? "";
+    const target = pr.meta?.target_branch ?? "";
+    const git = await this.git();
+    return await git.serial(async () => {
+      await git.assertClean();
+      for (const b of [branch, target]) {
+        if (!await git.branchExists(b)) {
+          throw new DomainError(`The branch ${b} no longer exists`, 409);
+        }
+      }
+      if (await git.aheadOf(target, branch) === 0) {
+        throw new DomainError(`${target} already has everything on ${branch}`, 409);
+      }
+      const previous = await git.currentBranch();
+      if (previous !== target) await git.run("switch", "-q", target);
+      const label = work ? `${work.title} (${work.id})` : id;
+      const merge = await git.try(
+        "merge",
+        "--no-ff",
+        "--no-edit",
+        "-m",
+        `Merge ${branch}: ${label}`,
+        branch,
+      );
+      if (!merge.ok) {
+        const conflicts = (await git.try("diff", "--name-only", "--diff-filter=U")).stdout;
+        await git.try("merge", "--abort");
+        if (previous && previous !== target) await git.try("switch", "-q", previous);
+        throw new DomainError(
+          conflicts
+            ? `Merging ${branch} into ${target} conflicts in ${
+              conflicts.split("\n").join(", ")
+            }. ` +
+              `Merge ${target} into ${branch}, resolve and commit, then merge again.`
+            : `git merge failed: ${merge.stderr || merge.stdout}`,
+          409,
+        );
+      }
+      const mergeSha = await git.revParse("HEAD");
+      const head = await git.revParse(branch);
+      const patch = await git.run(
+        "diff",
+        "--no-color",
+        "--no-ext-diff",
+        "-M",
+        `${mergeSha}^1`,
+        mergeSha,
+      );
+      const diffs = `${git.dir}/.hx/diffs`;
+      await Deno.mkdir(diffs, { recursive: true });
+      await Deno.writeTextFile(`${diffs}/${id}.patch`, patch + "\n");
+      return await this.mutate((hexes) => {
+        const p = this.require(buildIndex(hexes), id);
+        const t = this.now();
+        p.status = "merged";
+        p.meta = {
+          ...p.meta,
+          head_sha: head,
+          merge_sha: mergeSha,
+          merged_at: new Date(t).toISOString(),
+        };
+        p.lastUpdatedAtTimeInMs = t;
+        reconcileReadiness(hexes, dependentsOf(buildIndex(hexes), id).map((d) => d.id), t);
+        return p;
+      });
+    });
+  }
+
+  /** Abandons a pull request: it is kept as a record, and its work hex no longer waits on it. */
+  closePullRequest(id: string): Promise<Hex> {
+    return this.mutate((hexes) => {
+      const idx = buildIndex(hexes);
+      const pr = this.requirePullRequest(idx, id);
+      const t = this.now();
+      pr.status = "closed";
+      pr.meta = { ...pr.meta, closed_at: new Date(t).toISOString() };
+      pr.lastUpdatedAtTimeInMs = t;
+      const work = pr.meta.work_hex ? idx.byId.get(pr.meta.work_hex) : undefined;
+      if (work?.dependsOn?.includes(id)) {
+        const rest = work.dependsOn.filter((d) => d !== id);
+        if (rest.length) work.dependsOn = rest;
+        else delete work.dependsOn;
+        work.lastUpdatedAtTimeInMs = t;
+        reconcileReadiness(hexes, [work.id], t);
+      }
+      return pr;
+    });
+  }
+
+  /**
+   * What a pull request changes. Merged: the merge commit against main before it. Open or closed:
+   * the branch since it left main. From the saved patch when the commits are gone.
+   */
+  async pullRequestDiff(id: string): Promise<PullRequestDiff> {
+    const idx = await this.index();
+    const pr = this.require(idx, id);
+    if (pr.kind !== PULL_REQUEST_KIND) throw new DomainError(`${id} is not a pull request`, 422);
+    const m = pr.meta ?? {};
+    const dir = (await this.workspace.file()).dir;
+    const git = new Git(dir);
+    let text: string | null = null;
+    let source: PullRequestDiff["source"] = "git";
+    const range = pr.status === "merged" && m.merge_sha
+      ? [`${m.merge_sha}^1`, m.merge_sha]
+      : m.source_branch && await git.branchExists(m.source_branch).catch(() => false)
+      ? [`${m.target_branch}...${m.source_branch}`]
+      : m.base_sha && m.head_sha
+      ? [m.base_sha, m.head_sha]
+      : null;
+    if (range) {
+      const r = await git.try("diff", "--no-color", "--no-ext-diff", "-M", ...range).catch(() =>
+        null
+      );
+      if (r?.ok) text = r.stdout;
+    }
+    if (text === null) {
+      try {
+        text = await Deno.readTextFile(`${dir}/.hx/diffs/${id}.patch`);
+        source = "snapshot";
+      } catch {
+        throw new DomainError("This pull request's commits are gone and no saved diff exists", 404);
+      }
+    }
+    const files = parseUnifiedDiff(text);
+    const truncated = text.length > MAX_DIFF_CHARS;
+    if (truncated) { for (const f of files) f.hunks = []; }
+    return { files, truncated, source };
+  }
+
+  private requirePullRequest(idx: HexIndex, id: string): Hex {
+    const pr = this.require(idx, id);
+    if (pr.kind !== PULL_REQUEST_KIND) throw new DomainError(`${id} is not a pull request`, 422);
+    if (pr.status !== "pull_requested") throw new DomainError(`${id} is already ${pr.status}`, 409);
+    return pr;
+  }
+
   // ── internals ────────────────────────────────────────────────────────────
 
   /**
@@ -603,6 +879,16 @@ function selectedProjectOf(idx: HexIndex): string | null {
   const sel = idx.hexes.find((h) => h.kind === SELECTED_PROJECT_KIND);
   const target = sel ? idx.byId.get(sel.description) : undefined;
   return target?.kind === "core.project" ? target.id : null;
+}
+
+/** Past this, a diff is listed by file only. */
+const MAX_DIFF_CHARS = 1_000_000;
+
+/** `hx/<id>-<slug>`, the slug from the title: lowercase words joined by dashes, at most 40 chars. */
+export function branchName(hex: Hex): string {
+  const slug = hex.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+    .slice(0, 40).replace(/-+$/, "");
+  return slug ? `hx/${hex.id}-${slug}` : `hx/${hex.id}`;
 }
 
 function unique<T>(items: readonly T[]): T[] {
