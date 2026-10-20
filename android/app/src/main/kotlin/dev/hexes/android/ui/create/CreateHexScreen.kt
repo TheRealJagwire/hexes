@@ -52,6 +52,7 @@ import dev.hexes.android.data.HexSummary
 import dev.hexes.android.data.Resource
 import dev.hexes.android.data.ResourceLoader
 import dev.hexes.android.data.Status
+import dev.hexes.android.data.StatusTable
 import dev.hexes.android.data.kindQualifier
 import dev.hexes.android.ui.components.ErrorState
 import dev.hexes.android.ui.components.LoadingState
@@ -80,6 +81,14 @@ class CreateHexViewModel(
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
+    /** Which statuses each kind allows; the legacy table until the server's arrives. */
+    private val _statuses = MutableStateFlow(StatusTable.LEGACY)
+    val statuses: StateFlow<StatusTable> = _statuses.asStateFlow()
+
+    init {
+        viewModelScope.launch { runCatching { container.statuses() }.onSuccess { _statuses.value = it } }
+    }
+
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
@@ -103,7 +112,7 @@ class CreateHexViewModel(
         _busy.value = true
         _error.value = null
         viewModelScope.launch {
-            runCatching { container.api().createHex(current.toRequest(projectId)) }
+            runCatching { container.api().createHex(current.toRequest(projectId, container.statuses())) }
                 .onSuccess(onCreated)
                 .onFailure { _error.value = it.message ?: "Could not create the hex." }
             _busy.value = false
@@ -154,6 +163,7 @@ private fun CreateHexContent(
     val form by vm.form.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
+    val statuses by vm.statuses.collectAsStateWithLifecycle()
 
     Column(
         Modifier.readable().imePadding().verticalScroll(rememberScrollState())
@@ -196,7 +206,7 @@ private fun CreateHexContent(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        StatusField(form.status) { s -> vm.edit { it.copy(status = s) } }
+        StatusField(form.effectiveStatus(statuses), form.statusOptions(statuses)) { s -> vm.edit { it.copy(status = s) } }
 
         SinglePicker(
             label = "Emerged from",
@@ -255,7 +265,7 @@ private fun CreateHexContent(
 }
 
 @Composable
-private fun StatusField(status: Status, onChange: (Status) -> Unit) {
+private fun StatusField(status: Status, options: List<Status>, onChange: (Status) -> Unit) {
     var open by remember { mutableStateOf(false) }
     val c = Hexes.colors
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -270,7 +280,7 @@ private fun StatusField(status: Status, onChange: (Status) -> Unit) {
                 Text("▾", color = c.muted)
             }
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                CREATE_STATUSES.forEach { s ->
+                options.forEach { s ->
                     DropdownMenuItem(text = { StatusPill(s) }, onClick = { open = false; onChange(s) })
                 }
             }

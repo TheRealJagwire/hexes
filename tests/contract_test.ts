@@ -50,6 +50,7 @@ Deno.test("api responses match the contract fixtures", async () => {
     });
     await make({ kind: "core.question", title: "Wrap edges?", emergedFrom: design.id });
     await call("PATCH", `/hexes/${design.id}`, { status: "done" });
+    const question = await make({ kind: "core.question", title: "Snap to grid?" });
 
     const checks: Record<string, { status: number; body: unknown }> = {
       state: await call("GET", "/state"),
@@ -59,6 +60,11 @@ Deno.test("api responses match the contract fixtures", async () => {
       hex_search: await call("GET", `/hexes?project=${f.projectId}&limit=50`),
       recent_workspaces: await call("GET", "/workspace/recent"),
       update_hex: await call("PATCH", `/hexes/${epic.id}`, { title: "Board (v1)" }),
+      answer_question: await call("PATCH", `/hexes/${question.id}`, {
+        status: "answered",
+        response: "Yes, always.",
+      }),
+      statuses: await call("GET", "/statuses"),
       error_not_found: await call("GET", "/hexes/hx-nope-000"),
       error_stale_edit: await call("PATCH", `/hexes/${epic.id}`, {
         title: "x",

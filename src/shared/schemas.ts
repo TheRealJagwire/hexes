@@ -63,6 +63,8 @@ export const UpdateHexRequestSchema = z.object({
   title: trimmed.min(1).optional(),
   description: z.string().optional(),
   status: StatusSchema.optional(),
+  /** Required when `status` is one that records an answer (`answered`). */
+  response: z.string().optional(),
   /** The `lastUpdatedAtTimeInMs` the client last saw; a mismatch is refused with 409. */
   expectedUpdatedAtTimeInMs: z.number().int().nonnegative().optional(),
 });

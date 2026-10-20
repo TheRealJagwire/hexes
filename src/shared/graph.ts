@@ -1,4 +1,12 @@
-import { HEX_ID_RE, SELECTED_PROJECT_KIND, type Status, STATUSES } from "./constants.ts";
+import {
+  HEX_ID_RE,
+  roleOf,
+  satisfies,
+  SELECTED_PROJECT_KIND,
+  type Status,
+  STATUSES,
+  workflowOf,
+} from "./constants.ts";
 import type { Hex } from "./schemas.ts";
 import type { HexSummary, Progress } from "./views.ts";
 
@@ -59,14 +67,17 @@ export function dependentsOf(idx: HexIndex, id: string): Hex[] {
   return [...(idx.dependents.get(id) ?? [])].sort(byCreated);
 }
 
-/** A dependency that no longer exists counts as not done. */
+/** Every dependency is in a status that satisfies dependents; a missing one does not. */
 export function dependenciesDone(idx: HexIndex, hex: Hex): boolean {
-  return (hex.dependsOn ?? []).every((id) => idx.byId.get(id)?.status === "done");
+  return (hex.dependsOn ?? []).every((id) => {
+    const dep = idx.byId.get(id);
+    return dep !== undefined && satisfies(dep.status);
+  });
 }
 
-/** Ready = marked `ready` and every dependency is `done`. */
+/** Ready = in an actionable status (`ready`, …) and every dependency is satisfied. */
 export function isReady(idx: HexIndex, hex: Hex): boolean {
-  return hex.status === "ready" && dependenciesDone(idx, hex);
+  return roleOf(hex.status) === "actionable" && dependenciesDone(idx, hex);
 }
 
 export function readyHexes(idx: HexIndex, prefix?: string): Hex[] {
@@ -92,8 +103,10 @@ const STORY_ORDER: Record<Status, number> = {
   in_progress: 0,
   verified: 1,
   ready: 2,
+  blessed: 2,
   blocked: 3,
   done: 4,
+  answered: 4,
 };
 
 export function sortStories(stories: readonly Hex[]): Hex[] {
@@ -108,13 +121,24 @@ export function epicStories(idx: HexIndex, epic: Hex): Hex[] {
 
 export function progressOf(stories: readonly Hex[]): Progress {
   const total = stories.length;
-  const done = stories.filter((s) => s.status === "done").length;
+  const done = stories.filter((s) => roleOf(s.status) === "terminal").length;
   return { done, total, pct: total === 0 ? 0 : Math.round((done / total) * 100) };
 }
 
+/** Most finished first; a `Record` so a new status cannot be forgotten here. */
+const SUMMARY_ORDER: Record<Status, number> = {
+  done: 0,
+  answered: 1,
+  verified: 2,
+  in_progress: 3,
+  blessed: 4,
+  ready: 5,
+  blocked: 6,
+};
+
 /** "2 done · 1 in progress", in status-lifecycle order. */
 export function statusSummary(items: readonly { status: Status }[]): string {
-  const order: Status[] = ["done", "verified", "in_progress", "ready", "blocked"];
+  const order = [...STATUSES].sort((a, b) => SUMMARY_ORDER[a] - SUMMARY_ORDER[b]);
   const parts: string[] = [];
   for (const status of order) {
     const n = items.filter((i) => i.status === status).length;
@@ -201,10 +225,11 @@ export function findCycle(hexes: readonly Hex[]): string[] | null {
 }
 
 /**
- * Keeps `ready` honest for hexes whose dependencies just changed: a `blocked` hex whose
- * dependencies are all done becomes `ready`, and a `ready` hex with an unfinished dependency
- * drops back to `blocked`. Only the listed ids are considered, so a hex the user blocked by
- * hand is never promoted by an unrelated change. Mutates `hexes`; returns the changed ids.
+ * Keeps readiness honest for hexes whose dependencies just changed: a `blocked` hex whose
+ * dependencies are all satisfied moves to its kind's `promoteTo` status (usually `ready`), and
+ * an actionable hex with an unsatisfied dependency drops back to `blocked`. Only the listed ids
+ * are considered, so a hex the user blocked by hand is never promoted by an unrelated change.
+ * Mutates `hexes`; returns the changed ids.
  */
 export function reconcileReadiness(hexes: Hex[], ids: Iterable<string>, now: number): string[] {
   const idx = buildIndex(hexes);
@@ -214,8 +239,8 @@ export function reconcileReadiness(hexes: Hex[], ids: Iterable<string>, now: num
     if (!hex || hex.kind.startsWith("studio.") || !hex.dependsOn?.length) continue;
     const done = dependenciesDone(idx, hex);
     const next = hex.status === "blocked" && done
-      ? "ready"
-      : hex.status === "ready" && !done
+      ? workflowOf(hex.kind).promoteTo
+      : roleOf(hex.status) === "actionable" && !done
       ? "blocked"
       : null;
     if (next) {

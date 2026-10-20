@@ -1,17 +1,77 @@
 package dev.hexes.android.data
 
-import kotlinx.serialization.SerialName
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 
 /** Wire types of Studio's JSON API. They mirror src/shared/{schemas,views}.ts. */
 
+/**
+ * A hex status. A value this build does not know (from a newer Studio) parses to [Unknown] rather
+ * than failing the whole response; [Unknown] is shown but never offered or sent.
+ */
+@Serializable(with = StatusSerializer::class)
+enum class Status(val wire: String, val finished: Boolean = false) {
+    Blocked("blocked"),
+    Ready("ready"),
+    InProgress("in_progress"),
+    Verified("verified"),
+    Done("done", finished = true),
+    Blessed("blessed"),
+    Answered("answered", finished = true),
+    Unknown("unknown"),
+    ;
+
+    companion object {
+        fun fromWire(wire: String): Status = entries.firstOrNull { it.wire == wire && it != Unknown } ?: Unknown
+    }
+}
+
+object StatusSerializer : KSerializer<Status> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("dev.hexes.Status", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: Status) = encoder.encodeString(value.wire)
+    override fun deserialize(decoder: Decoder): Status = Status.fromWire(decoder.decodeString())
+}
+
 @Serializable
-enum class Status(val wire: String) {
-    @SerialName("blocked") Blocked("blocked"),
-    @SerialName("ready") Ready("ready"),
-    @SerialName("in_progress") InProgress("in_progress"),
-    @SerialName("verified") Verified("verified"),
-    @SerialName("done") Done("done"),
+data class StatusInfo(val role: String, val satisfies: Boolean)
+
+@Serializable
+data class KindWorkflow(val statuses: List<Status>, val promoteTo: Status? = null)
+
+/** `GET /api/statuses`: which statuses each kind allows. Mirrors `StatusTable` in views.ts. */
+@Serializable
+data class StatusTable(
+    val statuses: Map<String, StatusInfo>,
+    val kinds: Map<String, KindWorkflow>,
+    val default: KindWorkflow,
+    val requiresResponse: List<Status> = emptyList(),
+) {
+    fun allowed(kind: String): List<Status> = (kinds[kind] ?: default).statuses.filter { it != Status.Unknown }
+
+    /**
+     * What the status menu offers a hex of `kind` that is now `current`. A status the kind no
+     * longer allows stays listed so the menu can show it. Picking one in [requiresResponse] asks
+     * for the response first.
+     */
+    fun options(kind: String, current: Status): List<Status> {
+        val allowed = allowed(kind)
+        return if (current in allowed || current == Status.Unknown) allowed else listOf(current) + allowed
+    }
+
+    companion object {
+        private val DEFAULT = KindWorkflow(
+            listOf(Status.Blocked, Status.Ready, Status.InProgress, Status.Verified, Status.Done),
+            Status.Ready,
+        )
+
+        /** Used against a Studio from before `/api/statuses`: every kind had the default statuses. */
+        val LEGACY = StatusTable(statuses = emptyMap(), kinds = emptyMap(), default = DEFAULT)
+    }
 }
 
 @Serializable
@@ -26,6 +86,8 @@ data class UpdateHexRequest(
     val title: String? = null,
     val description: String? = null,
     val status: Status? = null,
+    /** Required with `answered`: the answer to a question. */
+    val response: String? = null,
     /** The `lastUpdatedAtTimeInMs` the user saw; the server answers 409 if the hex has moved on. */
     val expectedUpdatedAtTimeInMs: Long? = null,
 )

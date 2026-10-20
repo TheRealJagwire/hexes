@@ -1,7 +1,9 @@
 package dev.hexes.android.ui.create
 
 import dev.hexes.android.data.HexSummary
+import dev.hexes.android.data.KindWorkflow
 import dev.hexes.android.data.Status
+import dev.hexes.android.data.StatusTable
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -65,8 +67,39 @@ class CreateHexFormTest {
     @Test
     fun newHexesStartBlockedAndTheStatusListLeadsWithIt() {
         assertEquals(Status.Blocked, CreateHexForm().status)
-        assertEquals(Status.Blocked, CREATE_STATUSES.first())
-        assertEquals(Status.entries.toSet(), CREATE_STATUSES.toSet())
+        val options = CreateHexForm().statusOptions(StatusTable.LEGACY)
+        assertEquals(Status.Blocked, options.first())
+        assertEquals(setOf(Status.Blocked, Status.Ready, Status.InProgress, Status.Verified, Status.Done), options.toSet())
+    }
+
+    private val table = StatusTable(
+        statuses = emptyMap(),
+        kinds = mapOf(
+            "core.design" to KindWorkflow(listOf(Status.Blocked, Status.InProgress, Status.Blessed, Status.Done)),
+            "core.question" to KindWorkflow(listOf(Status.Blocked, Status.Ready, Status.InProgress, Status.Answered), Status.Ready),
+        ),
+        default = KindWorkflow(listOf(Status.Blocked, Status.Ready, Status.InProgress, Status.Verified, Status.Done), Status.Ready),
+        requiresResponse = listOf(Status.Answered),
+    )
+
+    @Test
+    fun statusesFollowTheKindAndLeaveOutOnesThatNeedAResponse() {
+        assertEquals(
+            listOf(Status.Blocked, Status.InProgress, Status.Blessed, Status.Done),
+            CreateHexForm(kind = "core.design").statusOptions(table),
+        )
+        assertEquals(
+            listOf(Status.Blocked, Status.Ready, Status.InProgress),
+            CreateHexForm(kind = "core.question").statusOptions(table),
+        )
+    }
+
+    @Test
+    fun switchingToAKindWithoutTheChosenStatusFallsBackToBlocked() {
+        val form = CreateHexForm(kind = "core.design", title = "t", status = Status.Ready)
+        assertEquals(Status.Blocked, form.effectiveStatus(table))
+        assertEquals(Status.Blocked, form.toRequest("p", table).status)
+        assertEquals(Status.Blessed, form.copy(status = Status.Blessed).toRequest("p", table).status)
     }
 
     @Test

@@ -3,7 +3,7 @@ import { CORE_KINDS, type Status } from "../../shared/constants.ts";
 import { kindQualifier, prefixOf } from "../../shared/graph.ts";
 import type { HexSummary } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
-import { STATUS_OPTIONS } from "../lib/format.ts";
+import { createStatusOptions } from "../lib/format.ts";
 import { Link, navigate } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
 import { Close, Minus, Plus } from "../components/Icons.tsx";
@@ -11,7 +11,6 @@ import { ErrorState, LoadingState, ThemeToggle } from "../components/Layout.tsx"
 
 /** Project hexes can be created here; projects themselves come from the welcome screen. */
 const KINDS = CORE_KINDS.filter((k) => k !== "project").map((k) => `core.${k}`);
-const CREATE_STATUSES: Status[] = ["blocked", ...STATUS_OPTIONS.filter((s) => s !== "blocked")];
 
 /** Search-and-chip multi-select over the project's hexes. */
 function HexPicker(
@@ -111,6 +110,9 @@ export function CreateHex(
   const back = emergedFrom ? `/h/${emergedFrom}` : `/p/${projectId}`;
   const effectiveKind = customKind.trim() || kind;
   const canSubmit = title.trim() !== "" && effectiveKind !== "" && !busy;
+  const statuses = createStatusOptions(effectiveKind);
+  // Switching kind can leave the chosen status unavailable; fall back to the first (blocked).
+  const effectiveStatus = statuses.includes(status) ? status : statuses[0] ?? "blocked";
   const prefix = prefixOf(projectId) ?? "…";
 
   if (project.status === "loading" || hexes.status === "loading") return <LoadingState />;
@@ -137,7 +139,7 @@ export function CreateHex(
         kind: effectiveKind,
         title,
         description,
-        status,
+        status: effectiveStatus,
         ...(emerged ? { emergedFrom: emerged } : {}),
         requiredBy: requiredBy.map((h) => h.id),
         dependsOn: dependsOn.map((h) => h.id),
@@ -246,11 +248,11 @@ export function CreateHex(
                 <label for="hx-status" class="label">Status</label>
                 <select
                   id="hx-status"
-                  value={status}
+                  value={effectiveStatus}
                   onChange={(e) => setStatus(e.currentTarget.value as Status)}
                   class="field field-mono"
                 >
-                  {CREATE_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div class="flex flex-col gap-2">

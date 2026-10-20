@@ -1,0 +1,68 @@
+{
+  "status": 200,
+  "body": {
+    "statuses": {
+      "blocked": {
+        "role": "waiting",
+        "satisfies": false
+      },
+      "ready": {
+        "role": "actionable",
+        "satisfies": false
+      },
+      "in_progress": {
+        "role": "active",
+        "satisfies": false
+      },
+      "verified": {
+        "role": "active",
+        "satisfies": false
+      },
+      "done": {
+        "role": "terminal",
+        "satisfies": true
+      },
+      "blessed": {
+        "role": "actionable",
+        "satisfies": true
+      },
+      "answered": {
+        "role": "terminal",
+        "satisfies": true
+      }
+    },
+    "kinds": {
+      "core.design": {
+        "statuses": [
+          "blocked",
+          "in_progress",
+          "blessed",
+          "done"
+        ],
+        "promoteTo": null
+      },
+      "core.question": {
+        "statuses": [
+          "blocked",
+          "ready",
+          "in_progress",
+          "answered"
+        ],
+        "promoteTo": "ready"
+      }
+    },
+    "default": {
+      "statuses": [
+        "blocked",
+        "ready",
+        "in_progress",
+        "verified",
+        "done"
+      ],
+      "promoteTo": "ready"
+    },
+    "requiresResponse": [
+      "answered"
+    ]
+  }
+}

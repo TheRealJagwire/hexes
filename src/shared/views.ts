@@ -1,3 +1,4 @@
+import type { KindWorkflow, StatusInfo } from "./constants.ts";
 import type { Hex, Status } from "./schemas.ts";
 
 /** Compact hex reference used in lists, breadcrumbs and relationship panels. */
@@ -91,4 +92,14 @@ export interface CreateProjectResult {
 
 export interface ApiError {
   error: string;
+}
+
+/** `GET /api/statuses`: what each status means and which statuses each kind allows. */
+export interface StatusTable {
+  statuses: Record<Status, StatusInfo>;
+  /** Kinds whose lifecycle differs from `default`. */
+  kinds: Record<string, KindWorkflow>;
+  default: KindWorkflow;
+  /** Statuses that are only set together with a `response` (answering a question). */
+  requiresResponse: readonly Status[];
 }

@@ -49,8 +49,45 @@ class ContractParsingTest {
         val v = parse("project_view", ProjectView.serializer())
         assertEquals("core.project", v.project.kind)
         assertEquals(Status.Ready, v.epics.single().stories.single().status)
-        assertEquals(1, v.questions.size)
+        assertEquals(2, v.questions.size)
         assertTrue(v.designs.single().status == Status.Done)
+    }
+
+    @Test
+    fun statuses() {
+        val table = parse("statuses", StatusTable.serializer())
+        assertEquals(listOf(Status.Blocked, Status.InProgress, Status.Blessed, Status.Done), table.allowed("core.design"))
+        assertEquals(listOf(Status.Answered), table.requiresResponse)
+        assertEquals("terminal", table.statuses.getValue("answered").role)
+        // Every status the server names is one this build knows.
+        table.statuses.keys.forEach { assertTrue("unknown status $it", Status.fromWire(it) != Status.Unknown) }
+        assertEquals(StatusTable.LEGACY.default, table.default)
+        // A design still marked ready keeps showing it.
+        assertEquals(listOf(Status.Ready, Status.Blocked, Status.InProgress, Status.Blessed, Status.Done), table.options("core.design", Status.Ready))
+        assertEquals(listOf(Status.Blocked, Status.Ready, Status.InProgress, Status.Answered), table.options("core.question", Status.Ready))
+    }
+
+    @Test
+    fun answerQuestion() {
+        val hex = parse("answer_question", Hex.serializer())
+        assertEquals(Status.Answered, hex.status)
+        assertEquals("Yes, always.", hex.meta["answer"])
+        assertNotNull(hex.meta["decision"])
+    }
+
+    @Test
+    fun anAnswerSendsItsResponseAndPlainUpdatesLeaveItOut() {
+        val answer = apiJson.encodeToString(UpdateHexRequest.serializer(), UpdateHexRequest(status = Status.Answered, response = "Yes."))
+        assertEquals("""{"status":"answered","response":"Yes."}""", answer)
+        val plain = apiJson.encodeToString(UpdateHexRequest.serializer(), UpdateHexRequest(status = Status.Done))
+        assertEquals("""{"status":"done"}""", plain)
+    }
+
+    @Test
+    fun unknownStatusesParseInsteadOfFailing() {
+        val json = """{"id":"hx-a-001","title":"t","kind":"core.thing","status":"some_future_state"}"""
+        assertEquals(Status.Unknown, strict.decodeFromString(HexSummary.serializer(), json).status)
+        assertEquals("\"blessed\"", strict.encodeToString(StatusSerializer, Status.Blessed))
     }
 
     @Test

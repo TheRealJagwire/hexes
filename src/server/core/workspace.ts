@@ -1,6 +1,7 @@
 import { DataFileSchema } from "../../shared/schemas.ts";
 import type { InspectResult } from "../../shared/views.ts";
 import { DomainError } from "./errors.ts";
+import { ensureMigrated } from "./migrate.ts";
 import { HexFile } from "./store.ts";
 
 export interface WorkspaceOptions {
@@ -76,7 +77,9 @@ export class Workspace {
     if (!dir) {
       throw new DomainError("No project directory is open. Open or create one first.", 409);
     }
-    return new HexFile(dir);
+    const file = new HexFile(dir);
+    await ensureMigrated(file);
+    return file;
   }
 
   /** Directories opened before, most recent first (at most RECENT_LIMIT). */
