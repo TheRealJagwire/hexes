@@ -238,7 +238,7 @@ Rules:
 
 ### Skill: `hexes-plan-work`
 
-```markdown
+````markdown
 ---
 name: hexes-plan-work
 description: Break a goal into hexes (design → spec/decision → epic → stories → gate) with correct dependencies.
@@ -263,13 +263,30 @@ description: Break a goal into hexes (design → spec/decision → epic → stor
    `done`.
 5. Put acceptance criteria in `description`; put tooling facts (`desired_language`, `git_branch`) in
    `meta`.
-6. Finish with `get_project` and show the user the resulting tree and `get_ready_hexes_for_project`.
+6. When a hex will touch the codebase (stories, substories, bugs, and specs that pin down code), end
+   its `description` with a `## Files` section listing every file the work is expected to create,
+   modify, delete, move or rename, one per line, paths relative to the repository root:
+
+   ```markdown
+   ## Files
+
+   - create `src/shared/search.ts`: matching and ranking
+   - modify `src/client/screens/Project.tsx`: mount the search box in the header
+   - delete `src/client/lib/old-search.ts`
+   - move `tests/graph_test.ts` → `tests/shared/graph_test.ts`
+   - rename `src/client/Hex.tsx` → `src/client/HexScreen.tsx`
+   ```
+
+   Look in the codebase first so the paths you modify, delete, move or rename really exist; mark a
+   path you are unsure of with "(likely)". Leave the section out of designs, decisions, epics and
+   gates, and out of any hex that changes no files.
+7. Finish with `get_project` and show the user the resulting tree and `get_ready_hexes_for_project`.
 
 Never create `core.pull_request` hexes: they come from `open_pull_request` when work is done.
 
 Rules: titles are short and imperative; one hex = one atomic unit; fix wiring with `add_dependency`
 / `remove_dependency` rather than deleting and recreating.
-```
+````
 
 ---
 
