@@ -66,6 +66,7 @@ class ContractParsingTest {
     fun statuses() {
         val table = parse("statuses", StatusTable.serializer())
         assertEquals(listOf(Status.Blocked, Status.InProgress, Status.Blessed, Status.Done), table.allowed("core.design"))
+        assertEquals(table.allowed("core.design"), table.allowed("core.spec"))
         assertEquals(listOf(Status.Answered), table.requiresResponse)
         assertEquals("terminal", table.statuses.getValue("answered").role)
         // Every status the server names is one this build knows.

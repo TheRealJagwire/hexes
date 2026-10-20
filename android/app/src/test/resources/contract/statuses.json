@@ -53,6 +53,15 @@
         ],
         "promoteTo": null
       },
+      "core.spec": {
+        "statuses": [
+          "blocked",
+          "in_progress",
+          "blessed",
+          "done"
+        ],
+        "promoteTo": null
+      },
       "core.question": {
         "statuses": [
           "blocked",

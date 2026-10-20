@@ -62,8 +62,9 @@ export const DEFAULT_WORKFLOW: KindWorkflow = {
 
 /** Kinds whose lifecycle differs from `DEFAULT_WORKFLOW`. */
 export const KIND_WORKFLOWS: Readonly<Record<string, KindWorkflow>> = {
-  // Blessing is an approval, so a design is never promoted to it automatically.
+  // Blessing is an approval, so designs and specs are never promoted to it automatically.
   "core.design": { statuses: ["blocked", "in_progress", "blessed", "done"], promoteTo: null },
+  "core.spec": { statuses: ["blocked", "in_progress", "blessed", "done"], promoteTo: null },
   "core.question": {
     statuses: ["blocked", "ready", "in_progress", "answered"],
     promoteTo: "ready",

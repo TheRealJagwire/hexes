@@ -256,8 +256,8 @@ Deno.test("designs are blessed, not ready, and blessing unblocks what depends on
     const spec = await s.createHex({
       ...base,
       projectId: f.projectId,
-      kind: "core.spec",
-      title: "Spec",
+      kind: "core.decision",
+      title: "Decision",
       status: "blocked",
       dependsOn: [design.id],
     });
@@ -282,6 +282,53 @@ Deno.test("designs are blessed, not ready, and blessing unblocks what depends on
     assertEquals((await s.getHex(spec.id)).status, "blocked");
     await s.updateHex(design.id, { status: "done" });
     assertEquals((await s.getHex(spec.id)).status, "ready");
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("specs are blessed like designs, and only blessing unblocks work built on them", async () => {
+  const f = await fixture();
+  try {
+    const s = f.service;
+    const base = { description: "", requiredBy: [], meta: {}, projectId: f.projectId };
+    const design = await s.createHex({
+      ...base,
+      kind: "core.design",
+      title: "Design",
+      status: "blocked",
+      dependsOn: [f.projectId],
+    });
+    const spec = await s.createHex({
+      ...base,
+      kind: "core.spec",
+      title: "Spec",
+      status: "blocked",
+      dependsOn: [design.id],
+    });
+    const story = await s.createHex({
+      ...base,
+      kind: "core.story",
+      title: "Story",
+      status: "blocked",
+      dependsOn: [spec.id],
+    });
+    await assertRejects(
+      () => s.updateHex(spec.id, { status: "ready" }),
+      DomainError,
+      "cannot be ready; use blessed",
+    );
+    await assertRejects(() => s.updateHex(spec.id, { status: "blessed" }), DomainError, "not done");
+
+    await s.updateHex(design.id, { status: "blessed" });
+    assertEquals((await s.getHex(spec.id)).status, "blocked", "never blessed automatically");
+    await s.updateHex(spec.id, { status: "in_progress" });
+    assertEquals((await s.getHex(story.id)).status, "blocked", "a draft does not unblock work");
+
+    await s.updateHex(spec.id, { status: "blessed" });
+    assertEquals((await s.getHex(story.id)).status, "ready");
+    await s.updateHex(spec.id, { status: "in_progress" });
+    assertEquals((await s.getHex(story.id)).status, "blocked", "reopening re-blocks");
   } finally {
     await f.cleanup();
   }

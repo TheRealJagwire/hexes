@@ -8,12 +8,13 @@ import type { HexFile } from "./store.ts";
  */
 const RENAMED: Readonly<Record<string, Partial<Record<Status, Status>>>> = {
   "core.design": { ready: "blessed" },
+  "core.spec": { ready: "blessed" },
   "core.question": { done: "answered" },
 };
 
 /**
  * Rewrites renamed statuses in place, then re-checks the hexes that depend on them, as a status
- * change would: a `ready` design becoming `blessed` now satisfies its specs and decisions.
+ * change would: a `ready` design or spec becoming `blessed` now satisfies what depends on it.
  * Returns the ids it renamed; a second run changes nothing.
  */
 export function migrateStatuses(hexes: Hex[], now: number): string[] {
