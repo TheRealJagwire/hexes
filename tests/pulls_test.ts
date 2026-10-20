@@ -1,4 +1,8 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { buildServer } from "../src/mcp/build.ts";
+import { createApp } from "../src/server/app.ts";
 import { DomainError } from "../src/server/core/errors.ts";
 import { branchName } from "../src/server/core/service.ts";
 import { parseUnifiedDiff } from "../src/shared/diff.ts";
@@ -266,6 +270,74 @@ Deno.test("merging refuses uncommitted changes, and a huge diff lists files only
     await assertRejects(() => s.mergePullRequest(pr.id), DomainError, "README.md");
     assertEquals((await s.getHex(pr.id)).status, "pull_requested");
   } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("the pull-request flow over REST", async () => {
+  const f = await repoFixture();
+  try {
+    const app = createApp(f.service);
+    const call = async (method: string, path: string, body?: unknown) => {
+      const res = await app.request(`/api${path}`, {
+        method,
+        headers: { host: "localhost:8000", "content-type": "application/json" },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      return { status: res.status, json: await res.json() };
+    };
+    const id = f.storyId;
+    assertEquals((await call("POST", `/hexes/${id}/pull-requests`, {})).status, 409);
+    const started = await call("POST", `/hexes/${id}/branch`);
+    assertEquals([started.status, started.json.status], [200, "in_progress"]);
+    await commitFile(f.dir, "a.txt", "a\n");
+    const pr = await call("POST", `/hexes/${id}/pull-requests`, { title: "Grid" });
+    assertEquals([pr.status, pr.json.title, pr.json.status], [201, "Grid", "pull_requested"]);
+    const view = await call("GET", `/hexes/${id}`);
+    assertEquals(view.json.pullRequests[0].id, pr.json.id);
+    const diff = await call("GET", `/hexes/${pr.json.id}/diff`);
+    assertEquals(diff.json.files[0].path, "a.txt");
+    assertEquals((await call("GET", `/hexes/${id}/diff`)).status, 422);
+    const merged = await call("POST", `/hexes/${pr.json.id}/merge`);
+    assertEquals([merged.status, merged.json.status], [200, "merged"]);
+    const closed = await call("POST", `/hexes/${pr.json.id}/close`);
+    assertEquals([closed.status, closed.json.error], [409, `${pr.json.id} is already merged`]);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("the pull-request flow over MCP", async () => {
+  const f = await repoFixture();
+  const [clientT, serverT] = InMemoryTransport.createLinkedPair();
+  await buildServer(f.service).connect(serverT);
+  const client = new Client({ name: "test", version: "0" });
+  await client.connect(clientT);
+  const call = async (name: string, args: Record<string, unknown>) => {
+    const res = await client.callTool({ name, arguments: args });
+    const text = (res.content as { text: string }[])[0]?.text ?? "";
+    return res.isError ? { error: text } : JSON.parse(text);
+  };
+  try {
+    const id = f.storyId;
+    assertEquals((await call("start_work_branch", { id })).status, "in_progress");
+    await commitFile(f.dir, "a.txt", "a\nb\n");
+    const pr = await call("open_pull_request", { id });
+    const diff = await call("get_pull_request_diff", { id: pr.id });
+    assertEquals(diff.files, [{
+      path: "a.txt",
+      oldPath: null,
+      status: "added",
+      additions: 2,
+      deletions: 0,
+      binary: false,
+    }]);
+    assertEquals(diff.patch, "--- a.txt\n+++ a.txt\n@@ -0,0 +1,2 @@\n+a\n+b");
+    assertEquals((await call("merge_pull_request", { id: pr.id })).status, "merged");
+    assertEquals((await call("update_hex_status", { id, status: "done" })).status, "done");
+    assert((await call("close_pull_request", { id: pr.id })).error.includes("already merged"));
+  } finally {
+    await client.close();
     await f.cleanup();
   }
 });

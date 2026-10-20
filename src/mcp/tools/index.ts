@@ -145,8 +145,8 @@ export function buildTools(s: HexService) {
       name: "create_hex",
       description:
         `Create a hex in a project. Kinds are <category>.<qualifier>; core kinds: ${
-          CORE_KINDS.map((k) => `core.${k}`).join(", ")
-        }. Conventions: designs depend on the project; specs and decisions depend on a design; ` +
+          CORE_KINDS.filter((k) => k !== "pull_request").map((k) => `core.${k}`).join(", ")
+        } (pull requests come from open_pull_request). Conventions: designs depend on the project; specs and decisions depend on a design; ` +
         "epics depend on designs, specs and stories; gates depend on epics. Status defaults to blocked; " +
         "'ready' needs every dependency done. The id is hashed from title, kind and createdAt. " +
         STATUS_RULES,
@@ -216,6 +216,80 @@ export function buildTools(s: HexService) {
       kind: "destructive",
       input: z.object({ id, confirm: z.literal(true).describe("Must be true") }),
       run: async ({ id }) => ({ deleted: await s.deleteHex(id) }),
+    }),
+
+    // ── branches & pull requests ──────────────────────────────────────────
+    defineTool({
+      name: "start_work_branch",
+      description: "Start work on a work hex (story, substory, bug, …) on its own git branch, " +
+        "hx/<id>-<slug> off main, and switch the working tree to it. Records meta.git_branch and " +
+        "moves the hex to in_progress. Safe to call again to switch back. Refused with uncommitted " +
+        "changes. Then commit on the branch and call open_pull_request.",
+      kind: "write",
+      input: z.object({ id }),
+      run: ({ id }) => s.startWork(id),
+    }),
+    defineTool({
+      name: "open_pull_request",
+      description:
+        "Open a pull request (a core.pull_request hex, status pull_requested) for a work hex's " +
+        "branch once it has commits. The work hex then depends on it and cannot be done until it " +
+        "is merged. Next: the user reviews; merge_pull_request only when they say so.",
+      kind: "write",
+      input: z.object({
+        id: id.describe("The work hex"),
+        title: z.string().optional().describe("Defaults to 'PR: <work title>'"),
+        description: z.string().optional(),
+      }),
+      run: ({ id, title, description }) => s.openPullRequest(id, { title, description }),
+    }),
+    defineTool({
+      name: "merge_pull_request",
+      description:
+        "Merge a pull request into main with a merge commit, in the working tree (main stays " +
+        "checked out). Only when the user asks. A conflict changes nothing and names the files: " +
+        "merge main into the branch, resolve, commit, and try again. Then mark the work hex done.",
+      kind: "write",
+      input: z.object({ id: id.describe("The pull request") }),
+      run: ({ id }) => s.mergePullRequest(id),
+    }),
+    defineTool({
+      name: "close_pull_request",
+      description:
+        "Abandon a pull request without merging. It is kept (status closed) and its work hex no " +
+        "longer waits on it; the branch is kept too.",
+      kind: "write",
+      input: z.object({ id: id.describe("The pull request") }),
+      run: ({ id }) => s.closePullRequest(id),
+    }),
+    defineTool({
+      name: "get_pull_request_diff",
+      description:
+        "What a pull request changes: each file's status and +/- counts, and the unified patch. " +
+        "Merged: the merge commit; open: the branch since it left main.",
+      kind: "read",
+      input: z.object({ id: id.describe("The pull request") }),
+      run: async ({ id }) => {
+        const diff = await s.pullRequestDiff(id);
+        return {
+          source: diff.source,
+          truncated: diff.truncated,
+          files: diff.files.map(({ hunks: _, ...file }) => file),
+          patch: diff.files.map((f) =>
+            [
+              `--- ${f.oldPath ?? f.path}`,
+              `+++ ${f.path}`,
+              ...(f.binary ? ["(binary)"] : []),
+              ...f.hunks.flatMap((h) => [
+                h.header,
+                ...h.lines.map((l) =>
+                  (l.kind === "add" ? "+" : l.kind === "del" ? "-" : " ") + l.text
+                ),
+              ]),
+            ].join("\n")
+          ).join("\n"),
+        };
+      },
     }),
 
     // ── readiness & the dependency graph ──────────────────────────────────
