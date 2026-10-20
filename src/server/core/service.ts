@@ -36,6 +36,7 @@ import type {
   HexSummary,
   HexView,
   InspectResult,
+  ProjectGraph,
   ProjectSummary,
   ProjectView,
   PullRequestDiff,
@@ -285,6 +286,34 @@ export class HexService {
       decisions: own.filter((h) => h.kind === "core.decision").map(summarize),
       questions: own.filter((h) => h.kind === "core.question").map(summarize),
       epics,
+    };
+  }
+
+  /** Every hex in a project and the links between them, for the hex map. */
+  async projectGraph(id: string): Promise<ProjectGraph> {
+    const idx = await this.index();
+    const project = idx.byId.get(id);
+    if (!project) throw new DomainError(`No project with id ${id}`, 404);
+    if (project.kind !== "core.project") throw new DomainError(`${id} is not a project`, 422);
+    const nodes = projectHexes(idx, prefixOf(id) ?? "")
+      .filter((h) => h.id !== id && !h.kind.startsWith("studio."))
+      .sort(byCreated);
+    nodes.unshift(project);
+    const ids = new Set(nodes.map((h) => h.id));
+    return {
+      projectId: id,
+      nodes: nodes.map((h) => ({
+        id: h.id,
+        title: h.title,
+        kind: h.kind,
+        status: h.status,
+        blurb: blurb(h.description),
+        gitBranch: h.meta?.git_branch ?? null,
+        updatedAt: h.lastUpdatedAtTimeInMs,
+      })),
+      edges: nodes.flatMap((h) =>
+        (h.dependsOn ?? []).filter((to) => ids.has(to)).map((to) => ({ from: h.id, to }))
+      ),
     };
   }
 

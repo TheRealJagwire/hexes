@@ -68,6 +68,34 @@ export interface ProjectView {
   epics: EpicView[];
 }
 
+/** A hex as one cell of the project hex map. */
+export interface GraphNode {
+  id: string;
+  title: string;
+  kind: string;
+  status: Status;
+  /** First sentence of the description, as plain text. */
+  blurb: string;
+  /** `meta.git_branch`, set on work hexes once work has started on a branch. */
+  gitBranch: string | null;
+  updatedAt: number;
+}
+
+/** `from` depends on `to`. */
+export interface GraphEdge {
+  from: string;
+  to: string;
+}
+
+/** Every hex in a project and the dependency links between them, for the hex map. */
+export interface ProjectGraph {
+  projectId: string;
+  /** The project first, then by creation time. */
+  nodes: GraphNode[];
+  /** Only links with both ends in this project. */
+  edges: GraphEdge[];
+}
+
 /** A pull request as listed on its work hex. */
 export interface PullRequestSummary extends HexSummary {
   sourceBranch: string;
