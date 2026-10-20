@@ -62,6 +62,7 @@ export interface EpicView {
 export interface ProjectView {
   project: Hex;
   designs: HexSummary[];
+  specs: HexSummary[];
   decisions: HexSummary[];
   questions: HexSummary[];
   epics: EpicView[];
