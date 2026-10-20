@@ -44,6 +44,20 @@ the project's own working tree, so `.hx/` must be in `.gitignore` and uncommitte
 switch or merge. After a merge, the work hex links to a diff view of what landed; the diff is also
 saved under `.hx/diffs/` in case the commits disappear.
 
+## Hex map
+
+**Hex map** on a project's page (`/p/:id/map`) shows every hex in the project as a cell on a
+hexagonal grid. A cell's colour is its status, the same as the status pills, and its label is its
+kind (P project, D design, Sp spec, Dec decision, Q question, E epic, St story, Sub substory, B bug,
+G gate, PR pull request). Hover or focus a cell for its details and to highlight the hexes it links
+to; click it, or press Enter, to open it. Drag to pan, scroll or pinch to zoom, and **Fit** frames
+the whole map.
+
+The project sits in the centre and every other hex goes in the free cell closest to the hexes it
+links to, so related hexes cluster together (`hexLayout` in `src/shared/hexmap.ts`). The layout is
+the same every time. The map reads `GET /api/projects/:id/graph`: the project's hexes, project
+first, and the dependency links between them.
+
 ## MCP server
 
 Studio serves MCP itself over streamable HTTP at `http://localhost:8000/mcp`, sharing one service

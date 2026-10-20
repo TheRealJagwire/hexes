@@ -19,7 +19,10 @@ does not share Studio's write lock (the UI still picks up its changes).
 
 Studio updates live: anything an agent writes through these tools appears in an open Studio tab
 within a moment, with no refresh. Studio also truncates a project's description to ten lines on the
-project screen (the full text is on the hex's own page), so put the essentials first.
+project screen (the full text is on the hex's own page), so put the essentials first. Its **Hex
+map** shows the whole project as a grid of cells coloured by status, placed next to the hexes they
+link to; it is for people, with no MCP tool, so a mis-wired dependency shows up there as a hex far
+from where it belongs.
 
 In Claude Code the tools appear as `mcp__hexes__<tool_name>`. Every tool returns JSON text; domain
 failures (cycle, unknown id, `ready` with unfinished dependencies, a status the kind doesn't use, …)
