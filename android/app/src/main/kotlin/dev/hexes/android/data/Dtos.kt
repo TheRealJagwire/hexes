@@ -23,6 +23,9 @@ enum class Status(val wire: String, val finished: Boolean = false) {
     Done("done", finished = true),
     Blessed("blessed"),
     Answered("answered", finished = true),
+    PullRequested("pull_requested"),
+    Merged("merged", finished = true),
+    Closed("closed", finished = true),
     Unknown("unknown"),
     ;
 
@@ -172,6 +175,20 @@ data class DeleteImpact(
     val dependents: Int,
     val emerged: Int,
     val projectHexes: Int?,
+    /** Pull requests opened for this hex; they are kept, and lose their link to it. */
+    val pullRequests: Int = 0,
+)
+
+/** A pull request as listed on its work hex. */
+@Serializable
+data class PullRequestSummary(
+    val id: String,
+    val title: String,
+    val kind: String,
+    val status: Status,
+    val sourceBranch: String,
+    val targetBranch: String,
+    val mergeSha: String? = null,
 )
 
 @Serializable
@@ -183,6 +200,12 @@ data class HexView(
     val dependedOnBy: List<HexSummary>,
     val emergedFromHex: HexSummary?,
     val emergedHere: List<HexSummary>,
+    /** For a work hex: the branch its work is on, if started. */
+    val workBranch: String? = null,
+    /** For a work hex: its pull requests, newest first. */
+    val pullRequests: List<PullRequestSummary> = emptyList(),
+    /** For a pull request: the work hex it was opened for. */
+    val workHex: HexSummary? = null,
     val deleteImpact: DeleteImpact,
 )
 
@@ -213,3 +236,40 @@ data class CreateProjectRequest(
 
 @Serializable
 data class CreateProjectResult(val projectId: String, val warnings: List<String>)
+
+/** `POST /api/hexes/:id/pull-requests`. */
+@Serializable
+data class OpenPullRequestRequest(val title: String? = null, val description: String? = null)
+
+@Serializable
+data class DiffLine(
+    /** `context`, `add` or `del`. */
+    val kind: String,
+    val oldNo: Int? = null,
+    val newNo: Int? = null,
+    val text: String,
+)
+
+@Serializable
+data class DiffHunk(val header: String, val lines: List<DiffLine>)
+
+@Serializable
+data class DiffFile(
+    val path: String,
+    val oldPath: String? = null,
+    /** `added`, `deleted`, `renamed` or `modified`. */
+    val status: String,
+    val additions: Int,
+    val deletions: Int,
+    val binary: Boolean,
+    val hunks: List<DiffHunk>,
+)
+
+/** `GET /api/hexes/:id/diff`. Mirrors `PullRequestDiff` in views.ts. */
+@Serializable
+data class PullRequestDiff(
+    val files: List<DiffFile>,
+    val truncated: Boolean,
+    /** `git`, or `snapshot` when the commits are gone and the patch saved at merge time is used. */
+    val source: String,
+)

@@ -147,7 +147,12 @@ Deno.test("deleting a hex scrubs references; deleting a project cascades", async
       emergedFrom: story.id,
     });
     const view = await s.hexView(story.id);
-    assertEquals(view.deleteImpact, { dependents: 1, emerged: 1, projectHexes: null });
+    assertEquals(view.deleteImpact, {
+      dependents: 1,
+      emerged: 1,
+      projectHexes: null,
+      pullRequests: 0,
+    });
     assertEquals(view.breadcrumbs.map((b) => b.kind), ["core.project", "core.epic", "core.story"]);
     await s.deleteHex(story.id);
     assertEquals((await s.getHex(epic.id)).dependsOn, undefined);
@@ -397,6 +402,44 @@ Deno.test("a question with no design records its decision under the project", as
     });
     const answered = await f.service.updateHex(q.id, { status: "answered", response: "Yes" });
     assertEquals((await f.service.getHex(answered.meta!.decision!)).dependsOn, [f.projectId]);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("pull requests are only opened, never created directly", async () => {
+  const f = await fixture();
+  try {
+    await assertRejects(
+      () =>
+        f.service.createHex({
+          projectId: f.projectId,
+          kind: "core.pull_request",
+          title: "PR",
+          description: "",
+          status: "pull_requested",
+          requiredBy: [],
+          dependsOn: [],
+          meta: {},
+        }),
+      DomainError,
+      "opening one on a work hex",
+    );
+    const story = await f.service.createHex({
+      projectId: f.projectId,
+      kind: "core.story",
+      title: "S",
+      description: "",
+      status: "blocked",
+      requiredBy: [],
+      dependsOn: [],
+      meta: {},
+    });
+    await assertRejects(
+      () => f.service.updateHex(story.id, { status: "merged" }),
+      DomainError,
+      "cannot be merged",
+    );
   } finally {
     await f.cleanup();
   }

@@ -55,10 +55,14 @@
     ],
     "emergedFromHex": null,
     "emergedHere": [],
+    "workBranch": "feat/grid",
+    "pullRequests": [],
+    "workHex": null,
     "deleteImpact": {
       "dependents": 1,
       "emerged": 0,
-      "projectHexes": null
+      "projectHexes": null,
+      "pullRequests": 0
     }
   }
 }

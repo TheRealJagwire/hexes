@@ -29,6 +29,18 @@
       "answered": {
         "role": "terminal",
         "satisfies": true
+      },
+      "pull_requested": {
+        "role": "active",
+        "satisfies": false
+      },
+      "merged": {
+        "role": "terminal",
+        "satisfies": true
+      },
+      "closed": {
+        "role": "terminal",
+        "satisfies": false
       }
     },
     "kinds": {
@@ -49,6 +61,14 @@
           "answered"
         ],
         "promoteTo": "ready"
+      },
+      "core.pull_request": {
+        "statuses": [
+          "pull_requested",
+          "merged",
+          "closed"
+        ],
+        "promoteTo": null
       }
     },
     "default": {

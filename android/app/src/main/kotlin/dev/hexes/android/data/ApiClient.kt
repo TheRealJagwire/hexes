@@ -126,6 +126,24 @@ class ApiClient(
     suspend fun deleteHex(id: String): List<String> =
         decode(send("DELETE", "/api/hexes/${encode(id)}", null), DeleteResult.serializer()).deleted
 
+    /** Puts a work hex on its own branch, switching Studio's working tree to it. */
+    suspend fun startWork(id: String): Hex =
+        decode(send("POST", "/api/hexes/${encode(id)}/branch", "{}"), Hex.serializer())
+
+    suspend fun openPullRequest(id: String, req: OpenPullRequestRequest = OpenPullRequestRequest()): Hex {
+        val body = apiJson.encodeToString(OpenPullRequestRequest.serializer(), req)
+        return decode(send("POST", "/api/hexes/${encode(id)}/pull-requests", body), Hex.serializer())
+    }
+
+    suspend fun mergePullRequest(id: String): Hex =
+        decode(send("POST", "/api/hexes/${encode(id)}/merge", "{}"), Hex.serializer())
+
+    suspend fun closePullRequest(id: String): Hex =
+        decode(send("POST", "/api/hexes/${encode(id)}/close", "{}"), Hex.serializer())
+
+    suspend fun pullRequestDiff(id: String): PullRequestDiff =
+        get("/api/hexes/${encode(id)}/diff", PullRequestDiff.serializer())
+
     /** Every hex of a project (up to 1,000), for the pickers on the create screen. */
     suspend fun projectHexes(projectId: String): List<HexSummary> =
         get("/api/hexes?project=${encode(projectId)}&limit=1000", ListSerializer(HexSummary.serializer()))

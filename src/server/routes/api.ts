@@ -24,6 +24,10 @@ import type { ChangeWatcher } from "../core/watcher.ts";
 export const API_VERSION = 1;
 
 const MetaValueSchema = z.object({ value: z.string() });
+const OpenPullRequestSchema = z.object({
+  title: z.string().optional(),
+  description: z.string().optional(),
+});
 const SelectSchema = z.object({ id: HexIdSchema });
 
 /** JSON API consumed by the Preact client. Every handler delegates to HexService. */
@@ -133,6 +137,22 @@ export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
     "/hexes/:id",
     async (c) => c.json({ deleted: await service.deleteHex(c.req.param("id")) }),
   );
+
+  // Branches and pull requests: Hexes runs git in the workspace's working tree.
+  api.post("/hexes/:id/branch", async (c) => c.json(await service.startWork(c.req.param("id"))));
+  api.post("/hexes/:id/pull-requests", async (c) => {
+    const opts = OpenPullRequestSchema.parse(await c.req.json().catch(() => ({})));
+    return c.json(await service.openPullRequest(c.req.param("id"), opts), 201);
+  });
+  api.post(
+    "/hexes/:id/merge",
+    async (c) => c.json(await service.mergePullRequest(c.req.param("id"))),
+  );
+  api.post(
+    "/hexes/:id/close",
+    async (c) => c.json(await service.closePullRequest(c.req.param("id"))),
+  );
+  api.get("/hexes/:id/diff", async (c) => c.json(await service.pullRequestDiff(c.req.param("id"))));
 
   api.put("/hexes/:id/meta/:key", async (c) => {
     const { value } = MetaValueSchema.parse(await c.req.json());

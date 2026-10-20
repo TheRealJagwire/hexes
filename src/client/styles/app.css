@@ -24,6 +24,8 @@
   --verified-bg: #143330;
   --blessed: #c9a7ff;
   --blessed-bg: #2a2140;
+  --diff-add-bg: #15301f;
+  --diff-del-bg: #3a1f1d;
   --blocked: #ff9a7a;
   --blocked-bg: #3a1f18;
   --success: #6fd3a8;
@@ -54,6 +56,8 @@
   --verified-bg: #ddf3ee;
   --blessed: #6b3fb8;
   --blessed-bg: #efe7fb;
+  --diff-add-bg: #e3f5e9;
+  --diff-del-bg: #fbe7e4;
   --blocked: #b23a17;
   --blocked-bg: #fbe5dd;
   --success: #1e7a4f;
@@ -87,6 +91,8 @@
   --color-verified-bg: var(--verified-bg);
   --color-blessed: var(--blessed);
   --color-blessed-bg: var(--blessed-bg);
+  --color-diff-add-bg: var(--diff-add-bg);
+  --color-diff-del-bg: var(--diff-del-bg);
   --color-blocked: var(--blocked);
   --color-blocked-bg: var(--blocked-bg);
   --color-success: var(--success);

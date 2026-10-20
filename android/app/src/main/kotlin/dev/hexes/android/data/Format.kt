@@ -8,6 +8,16 @@ import java.util.Locale
 
 fun kindQualifier(kind: String): String = kind.split(".").getOrNull(1) ?: kind
 
+const val PULL_REQUEST_KIND = "core.pull_request"
+
+private val NOT_WORK = setOf(
+    "core.project", "core.design", "core.spec", "core.decision", "core.gate", "core.epic", "core.question",
+    PULL_REQUEST_KIND,
+)
+
+/** Kinds worked on a branch and merged through a pull request (story, bug, …). Mirrors graph.ts. */
+fun isWorkKind(kind: String): Boolean = kind !in NOT_WORK && !kind.startsWith("studio.")
+
 /** "just now", "5m ago", "3h ago", "2d ago", "4mo ago", "1y ago". */
 fun relativeTime(ms: Long, now: Long = System.currentTimeMillis()): String {
     val secs = maxOf(0L, (now - ms + 500) / 1000)
@@ -35,7 +45,8 @@ fun plural(n: Int, word: String): String = when {
 /** "2 done · 1 in progress", in status-lifecycle order. */
 fun statusSummary(statuses: List<Status>): String {
     val order = listOf(
-        Status.Done, Status.Answered, Status.Verified, Status.InProgress, Status.Blessed, Status.Ready, Status.Blocked,
+        Status.Done, Status.Answered, Status.Merged, Status.Closed, Status.Verified, Status.PullRequested,
+        Status.InProgress, Status.Blessed, Status.Ready, Status.Blocked,
         Status.Unknown,
     )
     return order.mapNotNull { status ->
@@ -50,4 +61,4 @@ fun deleteImpactText(impact: DeleteImpact): String = when {
     impact.dependents + impact.emerged == 0 -> "Nothing else references this hex."
     else -> "${plural(impact.dependents, "hex")} ${if (impact.dependents == 1) "depends" else "depend"} " +
         "on this one and ${impact.emerged} emerged from it. Their references will be removed."
-}
+} + if (impact.pullRequests > 0) " Its ${plural(impact.pullRequests, "pull request")} will be kept, unlinked." else ""

@@ -26,6 +26,16 @@ specs and decisions. A question is `answered` instead of `done`: answering needs
 is recorded as a new decision hex. Data from before these workflows is migrated the first time a
 workspace is opened.
 
+## Branches and pull requests
+
+Work hexes (stories, bugs, …) are built on their own branch and reach main through a pull request.
+Studio's "Branch & pull requests" panel, the app and the MCP tools all drive the same steps: start
+work (Hexes creates `hx/<id>-<slug>` off main and switches to it), commit, open a pull request (a
+`core.pull_request` hex the work then waits on), and merge it with a merge commit. Hexes runs git in
+the project's own working tree, so `.hx/` must be in `.gitignore` and uncommitted changes block a
+switch or merge. After a merge, the work hex links to a diff view of what landed; the diff is also
+saved under `.hx/diffs/` in case the commits disappear.
+
 ## MCP server
 
 Studio serves MCP itself over streamable HTTP at `http://localhost:8000/mcp`, sharing one service

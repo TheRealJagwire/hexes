@@ -12,6 +12,7 @@ import type {
   InspectResult,
   ProjectSummary,
   ProjectView,
+  PullRequestDiff,
   WorkspaceState,
 } from "../../shared/views.ts";
 
@@ -67,4 +68,11 @@ export const api = {
     request<Hex>("PUT", `/hexes/${id}/meta/${encodeURIComponent(key)}`, { value }),
   removeMeta: (id: string, key: string) =>
     request<Hex>("DELETE", `/hexes/${id}/meta/${encodeURIComponent(key)}`),
+  /** Puts a work hex on its own branch (and switches the working tree to it). */
+  startWork: (id: string) => request<Hex>("POST", `/hexes/${id}/branch`, {}),
+  openPullRequest: (id: string, opts: { title?: string; description?: string } = {}) =>
+    request<Hex>("POST", `/hexes/${id}/pull-requests`, opts),
+  mergePullRequest: (id: string) => request<Hex>("POST", `/hexes/${id}/merge`, {}),
+  closePullRequest: (id: string) => request<Hex>("POST", `/hexes/${id}/close`, {}),
+  pullRequestDiff: (id: string) => request<PullRequestDiff>("GET", `/hexes/${id}/diff`),
 };

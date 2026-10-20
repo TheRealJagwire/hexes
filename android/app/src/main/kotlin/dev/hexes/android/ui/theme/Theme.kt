@@ -32,6 +32,8 @@ data class HexesColors(
     val verifiedBg: Color,
     val blessed: Color,
     val blessedBg: Color,
+    val diffAddBg: Color,
+    val diffDelBg: Color,
     val blocked: Color,
     val blockedBg: Color,
     val success: Color,
@@ -47,6 +49,7 @@ val DarkHexes = HexesColors(
     onAccent = Color(0xFF1A1405), accentBg = Color(0xFF362A12), ready = Color(0xFF8EC1FF),
     readyBg = Color(0xFF1C2A3D), verified = Color(0xFF6FD3C0), verifiedBg = Color(0xFF143330),
     blessed = Color(0xFFC9A7FF), blessedBg = Color(0xFF2A2140),
+    diffAddBg = Color(0xFF15301F), diffDelBg = Color(0xFF3A1F1D),
     blocked = Color(0xFFFF9A7A), blockedBg = Color(0xFF3A1F18), success = Color(0xFF6FD3A8),
     dangerLine = Color(0xFF5A2A24), danger = Color(0xFFB3261E),
 )
@@ -59,6 +62,7 @@ val LightHexes = HexesColors(
     onAccent = Color(0xFFFFFFFF), accentBg = Color(0xFFFBEFD6), ready = Color(0xFF1F5FB8),
     readyBg = Color(0xFFE3EEFC), verified = Color(0xFF0F7363), verifiedBg = Color(0xFFDDF3EE),
     blessed = Color(0xFF6B3FB8), blessedBg = Color(0xFFEFE7FB),
+    diffAddBg = Color(0xFFE3F5E9), diffDelBg = Color(0xFFFBE7E4),
     blocked = Color(0xFFB23A17), blockedBg = Color(0xFFFBE5DD), success = Color(0xFF1E7A4F),
     dangerLine = Color(0xFFE8B4A8), danger = Color(0xFFB3261E),
 )

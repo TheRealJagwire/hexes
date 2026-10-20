@@ -91,6 +91,32 @@ export function findProject(idx: HexIndex, prefix: string): Hex | undefined {
   return idx.hexes.find((h) => h.kind === "core.project" && prefixOf(h.id) === prefix);
 }
 
+export const PULL_REQUEST_KIND = "core.pull_request";
+
+/** Planning and structure, not work: these kinds are never worked on a branch. */
+const NOT_WORK = new Set([
+  "core.project",
+  "core.design",
+  "core.spec",
+  "core.decision",
+  "core.gate",
+  "core.epic",
+  "core.question",
+  PULL_REQUEST_KIND,
+]);
+
+/** Kinds whose work is done on a branch and merged through a pull request (story, bug, …). */
+export function isWorkKind(kind: string): boolean {
+  return !NOT_WORK.has(kind) && !kind.startsWith("studio.");
+}
+
+/** The pull requests opened for a work hex (`meta.work_hex`), newest first. */
+export function pullRequestsOf(idx: HexIndex, workId: string): Hex[] {
+  return idx.hexes
+    .filter((h) => h.kind === PULL_REQUEST_KIND && h.meta?.work_hex === workId)
+    .sort((a, b) => byCreated(b, a));
+}
+
 export function projects(idx: HexIndex): Hex[] {
   return idx.hexes.filter((h) => h.kind === "core.project").sort(byCreated);
 }
@@ -104,9 +130,12 @@ const STORY_ORDER: Record<Status, number> = {
   verified: 1,
   ready: 2,
   blessed: 2,
+  pull_requested: 1,
   blocked: 3,
   done: 4,
   answered: 4,
+  merged: 4,
+  closed: 5,
 };
 
 export function sortStories(stories: readonly Hex[]): Hex[] {
@@ -129,11 +158,14 @@ export function progressOf(stories: readonly Hex[]): Progress {
 const SUMMARY_ORDER: Record<Status, number> = {
   done: 0,
   answered: 1,
-  verified: 2,
-  in_progress: 3,
-  blessed: 4,
-  ready: 5,
-  blocked: 6,
+  merged: 2,
+  closed: 3,
+  verified: 4,
+  pull_requested: 5,
+  in_progress: 6,
+  blessed: 7,
+  ready: 8,
+  blocked: 9,
 };
 
 /** "2 done · 1 in progress", in status-lifecycle order. */

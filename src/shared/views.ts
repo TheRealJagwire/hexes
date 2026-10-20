@@ -67,6 +67,14 @@ export interface ProjectView {
   epics: EpicView[];
 }
 
+/** A pull request as listed on its work hex. */
+export interface PullRequestSummary extends HexSummary {
+  sourceBranch: string;
+  targetBranch: string;
+  /** Set once merged. */
+  mergeSha: string | null;
+}
+
 export interface HexView {
   hex: Hex;
   /** Root-first trail: project › gate › epic › … › this hex (last item is the hex itself). */
@@ -76,12 +84,20 @@ export interface HexView {
   dependedOnBy: HexSummary[];
   emergedFromHex: HexSummary | null;
   emergedHere: HexSummary[];
+  /** For a work hex: the branch its work is on (`meta.git_branch`), or null. */
+  workBranch: string | null;
+  /** For a work hex: its pull requests, newest first. */
+  pullRequests: PullRequestSummary[];
+  /** For a pull request: the work hex it was opened for, or null. */
+  workHex: HexSummary | null;
   /** What deleting this hex would touch, for the confirmation copy. */
   deleteImpact: {
     dependents: number;
     emerged: number;
     /** Set when the hex is a project: every hex in the project is deleted too. */
     projectHexes: number | null;
+    /** Pull requests opened for this hex; they are kept, and lose their link to it. */
+    pullRequests: number;
   };
 }
 
@@ -102,4 +118,40 @@ export interface StatusTable {
   default: KindWorkflow;
   /** Statuses that are only set together with a `response` (answering a question). */
   requiresResponse: readonly Status[];
+}
+
+export interface DiffLine {
+  kind: "context" | "add" | "del";
+  /** Line number in the old file; null for an added line. */
+  oldNo: number | null;
+  /** Line number in the new file; null for a removed line. */
+  newNo: number | null;
+  text: string;
+}
+
+export interface DiffHunk {
+  /** The `@@ -a,b +c,d @@ …` line. */
+  header: string;
+  lines: DiffLine[];
+}
+
+export interface DiffFile {
+  path: string;
+  /** The path before a rename; null otherwise. */
+  oldPath: string | null;
+  status: "added" | "deleted" | "renamed" | "modified";
+  additions: number;
+  deletions: number;
+  binary: boolean;
+  /** Empty for binary files, and for every file when the diff was truncated. */
+  hunks: DiffHunk[];
+}
+
+/** `GET /api/hexes/:id/diff` for a pull request. */
+export interface PullRequestDiff {
+  files: DiffFile[];
+  /** Too large to show in full: files and counts only, no hunks. */
+  truncated: boolean;
+  /** `git` when computed from the commits; `snapshot` when they are gone and the saved patch is used. */
+  source: "git" | "snapshot";
 }

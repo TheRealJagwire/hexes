@@ -11,9 +11,12 @@ import { fixture } from "./helpers.ts";
 
 const workflows = () => [["default", DEFAULT_WORKFLOW] as const, ...Object.entries(KIND_WORKFLOWS)];
 
-Deno.test("every workflow starts blocked, ends terminal and promotes within itself", () => {
+Deno.test("every workflow ends terminal, promotes within itself and can block what waits", () => {
   for (const [kind, wf] of workflows()) {
-    assert(wf.statuses.includes("blocked"), `${kind} can be blocked`);
+    // An actionable hex drops back to blocked when a dependency reopens.
+    if (wf.statuses.some((s) => STATUS_INFO[s].role === "actionable")) {
+      assert(wf.statuses.includes("blocked"), `${kind} can be blocked`);
+    }
     assert(
       wf.statuses.some((s) => STATUS_INFO[s].role === "terminal"),
       `${kind} has a terminal status`,
@@ -23,11 +26,22 @@ Deno.test("every workflow starts blocked, ends terminal and promotes within itse
   }
 });
 
-Deno.test("terminal statuses satisfy dependents and nothing waiting or active does", () => {
+Deno.test("only finished or approved statuses satisfy dependents", () => {
   for (const s of STATUSES) {
     const { role, satisfies } = STATUS_INFO[s];
-    if (role === "terminal") assert(satisfies, `${s} should satisfy`);
     if (role === "waiting" || role === "active") assert(!satisfies, `${s} should not satisfy`);
+  }
+  // A closed pull request is finished but abandoned: the work it was for is not done.
+  assertEquals(STATUS_INFO.closed, { role: "terminal", satisfies: false });
+  assertEquals(STATUS_INFO.merged, { role: "terminal", satisfies: true });
+});
+
+Deno.test("pull-request statuses belong to pull requests only", () => {
+  const pr = workflowOf("core.pull_request").statuses;
+  assertEquals(pr, ["pull_requested", "merged", "closed"]);
+  for (const [kind, wf] of workflows()) {
+    if (kind === "core.pull_request") continue;
+    for (const s of pr) assert(!wf.statuses.includes(s), `${kind} must not allow ${s}`);
   }
 });
 

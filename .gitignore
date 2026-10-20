@@ -5,3 +5,4 @@ static/client.js
 .env
 .DS_Store
 .zuke/
+.hx/

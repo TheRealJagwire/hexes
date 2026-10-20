@@ -9,6 +9,9 @@ export const PILL: Record<Status, string> = {
   blocked: "text-blocked bg-blocked-bg",
   done: "text-muted bg-line-soft",
   answered: "text-muted bg-line-soft",
+  pull_requested: "text-accent bg-accent-bg",
+  merged: "text-verified bg-verified-bg",
+  closed: "text-muted bg-line-soft",
 };
 
 /**
