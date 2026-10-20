@@ -26,6 +26,14 @@ specs and decisions. A question is `answered` instead of `done`: answering needs
 is recorded as a new decision hex. Data from before these workflows is migrated the first time a
 workspace is opened.
 
+## Per-user state
+
+Studio remembers, per user, the folder it last opened, recent folders and recently opened projects
+(`recentProjects`: folder, project id, title and when, newest first, at most 10). They live in
+`~/.config/hexes/state.json` (under `$XDG_CONFIG_HOME` when set; `HEXES_STATE_FILE` overrides the
+path), never in a project's repository. The projects screen lists recent projects from every folder,
+so switching to one in another folder takes a single click.
+
 ## Branches and pull requests
 
 Work hexes (stories, bugs, …) are built on their own branch and reach main through a pull request.

@@ -84,6 +84,8 @@ Annotations: **R** = read-only (safe to auto-approve), **W** = write, **D** = de
 | `list_projects`        | R    | –                                               | All `core.project` hexes with epic/story counts.                                                                                                                 |
 | `get_selected_project` | R    | –                                               | The selected project hex, or `null`.                                                                                                                             |
 | `select_project`       | W    | `project_id`                                    | Make a project the selected one.                                                                                                                                 |
+| `list_recent_projects` | R    | –                                               | Projects opened recently in any folder, newest first, with whether each is still found and can be switched to.                                                   |
+| `open_recent_project`  | W    | `dir`, `project_id`                             | Switch to a recent project in one step: opens its folder if needed and selects it.                                                                               |
 | `get_project`          | R    | `project_id`                                    | Project screen as data: designs, decisions, epics (each with gate, `progress {done,total,pct}`, stories sorted in_progress → verified → ready → blocked → done). |
 
 ### Hexes
@@ -178,7 +180,8 @@ description: Get oriented in a Hexes workspace — find the open project, its st
 
 1. `get_workspace`. If no workspace is open, ask the user for the directory and `open_workspace`.
 2. `get_selected_project`. If null, `list_projects`; if there is exactly one, `select_project` it,
-   otherwise ask the user which.
+   otherwise ask the user which. If the project they mean is in another folder,
+   `list_recent_projects` and `open_recent_project` switch to it in one step.
 3. `get_project` for the overview: designs, decisions, epic progress.
 4. `get_ready_hexes_for_project` for the actionable queue.
 5. Summarize: project statement, epic progress, and the ready hexes (id, kind, title). The user can
