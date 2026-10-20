@@ -273,3 +273,20 @@ data class PullRequestDiff(
     /** `git`, or `snapshot` when the commits are gone and the patch saved at merge time is used. */
     val source: String,
 )
+
+/** `GET /api/projects/recent`: a project opened before, in this folder or another. */
+@Serializable
+data class RecentProject(
+    val dir: String,
+    val projectId: String,
+    val title: String,
+    val folder: String,
+    val openedAt: Long,
+    val found: Boolean,
+    val current: Boolean,
+    val switchable: Boolean,
+)
+
+/** `POST /api/projects/open` and `/api/projects/recent/forget`. */
+@Serializable
+data class RecentProjectRequest(val dir: String, val projectId: String)

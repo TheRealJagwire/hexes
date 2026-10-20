@@ -68,6 +68,14 @@ class ContractParsingTest {
     }
 
     @Test
+    fun recentProjects() {
+        val r = parse("recent_projects", ListSerializer(RecentProject.serializer())).single()
+        assertEquals("Contract Demo", r.title)
+        assertEquals("proj", r.folder)
+        assertTrue(r.found && r.current && r.switchable)
+    }
+
+    @Test
     fun answerQuestion() {
         val hex = parse("answer_question", Hex.serializer())
         assertEquals(Status.Answered, hex.status)

@@ -45,6 +45,7 @@ import kotlinx.coroutines.launch
 class ProjectsViewModel(private val container: AppContainer) : ViewModel() {
     val projects = ResourceLoader(viewModelScope, container.live.version) { container.api().projects() }
     val workspace = ResourceLoader(viewModelScope, container.live.version) { container.api().state().dir }
+    val recent = RecentProjectsController(container, viewModelScope)
 
     /** Remember the choice on the server, as the web app does when you open a project. */
     fun select(id: String) {
@@ -89,6 +90,10 @@ fun ProjectsScreen(
                         needle.isEmpty() || it.title.lowercase().contains(needle) || it.id.contains(needle)
                     }
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.weight(1f)) {
+                        if (needle.isEmpty()) {
+                            item { RecentProjectsSection(vm.recent, onOpenProject) }
+                            item { Text("In this folder", style = MaterialTheme.typography.titleMedium) }
+                        }
                         if (rows.isEmpty()) {
                             item {
                                 Text(
