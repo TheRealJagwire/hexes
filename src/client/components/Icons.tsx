@@ -99,6 +99,13 @@ export const HexPlus = (p: IconProps) => (
   </Svg>
 );
 
+/** Three cells of a hex grid. */
+export const HexGrid = (p: IconProps) => (
+  <Svg {...p} width={1.8}>
+    <path d="M12 2.5l3.5 2v4L12 10.5l-3.5-2v-4zM8 11.5l3.5 2v4L8 19.5l-3.5-2v-4zM16 11.5l3.5 2v4l-3.5 2-3.5-2v-4z" />
+  </Svg>
+);
+
 export function Logo({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 28 28" aria-hidden="true">

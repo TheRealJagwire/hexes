@@ -8,7 +8,7 @@ import { api } from "../lib/api.ts";
 import { relativeTime } from "../lib/format.ts";
 import { Link } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
-import { ArrowUpRight, ChevronDown, ChevronRight, Plus } from "../components/Icons.tsx";
+import { ArrowUpRight, ChevronDown, ChevronRight, HexGrid, Plus } from "../components/Icons.tsx";
 import { CopyButton, KindBadge, ProgressRing, StatusPill } from "../components/Bits.tsx";
 import { Markdown } from "../components/Markdown.tsx";
 import { ErrorState, Header, LoadingState, Page, ThemeToggle } from "../components/Layout.tsx";
@@ -270,7 +270,18 @@ export function ProjectScreen({ id }: { id: string }) {
   const { project, designs, specs, decisions, questions, epics } = res.data;
   const meta = Object.entries(project.meta ?? {});
   return (
-    <Page header={<ProjectHeader projectId={id} title={project.title} />}>
+    <Page
+      header={
+        <ProjectHeader projectId={id} title={project.title}>
+          <Link href={`/p/${id}/map`} class="btn">
+            <HexGrid size={16} /> Hex map
+          </Link>
+          <Link href={`/p/${id}/new`} class="btn-primary">
+            <Plus size={16} width={2.4} /> Create hex
+          </Link>
+        </ProjectHeader>
+      }
+    >
       <section
         aria-label="Project statement"
         class="flex flex-col gap-[18px] rounded-2xl border border-line bg-panel px-10 py-9"

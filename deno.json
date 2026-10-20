@@ -17,6 +17,10 @@
     "zuke": "deno run -A zuke.ts"
   },
   "imports": {
+    "@types/d3-selection": "npm:@types/d3-selection@^3.0.12",
+    "@types/d3-zoom": "npm:@types/d3-zoom@^3.0.9",
+    "d3-selection": "npm:d3-selection@^3.0.0",
+    "d3-zoom": "npm:d3-zoom@^3.0.0",
     "dompurify": "npm:dompurify@^3.4.17",
     "hono": "jsr:@hono/hono@^4.13.13",
     "hono/deno": "jsr:@hono/hono@^4.13.13/deno",
