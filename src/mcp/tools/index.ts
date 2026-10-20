@@ -25,8 +25,8 @@ function refusePeopleOnly(status: Status): void {
   }
 }
 
-const STATUS_RULES = "Statuses depend on the kind: designs use blessed (set only by a person in " +
-  "Studio) instead of ready; questions use answered instead of done, which needs a response.";
+const STATUS_RULES = "Statuses depend on the kind: designs and specs use blessed (set only by a " +
+  "person in Studio) instead of ready; questions use answered instead of done, which needs a response.";
 
 /**
  * Every Studio action as an MCP tool. The names called out in SPEC.md keep their exact
@@ -314,7 +314,8 @@ export function buildTools(s: HexService) {
     defineTool({
       name: "get_ready_hexes",
       description:
-        "Hexes that can be picked up (ready, or blessed designs) whose dependencies are all done, " +
+        "Hexes that can be picked up (ready, or blessed designs and specs) whose dependencies are all " +
+        "done, " +
         "across every project.",
       kind: "read",
       input: z.object({}),
@@ -323,7 +324,8 @@ export function buildTools(s: HexService) {
     defineTool({
       name: "get_ready_hexes_for_project",
       description:
-        "Hexes that can be picked up (ready, or blessed designs, with all dependencies done) " +
+        "Hexes that can be picked up (ready, or blessed designs and specs, with all dependencies " +
+        "done) " +
         "within one project.",
       kind: "read",
       input: z.object({ project_id: id }),
