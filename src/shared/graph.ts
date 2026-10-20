@@ -104,9 +104,12 @@ const STORY_ORDER: Record<Status, number> = {
   verified: 1,
   ready: 2,
   blessed: 2,
+  pull_requested: 1,
   blocked: 3,
   done: 4,
   answered: 4,
+  merged: 4,
+  closed: 5,
 };
 
 export function sortStories(stories: readonly Hex[]): Hex[] {
@@ -129,11 +132,14 @@ export function progressOf(stories: readonly Hex[]): Progress {
 const SUMMARY_ORDER: Record<Status, number> = {
   done: 0,
   answered: 1,
-  verified: 2,
-  in_progress: 3,
-  blessed: 4,
-  ready: 5,
-  blocked: 6,
+  merged: 2,
+  closed: 3,
+  verified: 4,
+  pull_requested: 5,
+  in_progress: 6,
+  blessed: 7,
+  ready: 8,
+  blocked: 9,
 };
 
 /** "2 done · 1 in progress", in status-lifecycle order. */

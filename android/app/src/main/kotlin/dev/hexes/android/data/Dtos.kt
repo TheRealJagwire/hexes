@@ -23,6 +23,9 @@ enum class Status(val wire: String, val finished: Boolean = false) {
     Done("done", finished = true),
     Blessed("blessed"),
     Answered("answered", finished = true),
+    PullRequested("pull_requested"),
+    Merged("merged", finished = true),
+    Closed("closed", finished = true),
     Unknown("unknown"),
     ;
 

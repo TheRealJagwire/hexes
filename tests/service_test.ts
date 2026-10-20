@@ -401,3 +401,41 @@ Deno.test("a question with no design records its decision under the project", as
     await f.cleanup();
   }
 });
+
+Deno.test("pull requests are only opened, never created directly", async () => {
+  const f = await fixture();
+  try {
+    await assertRejects(
+      () =>
+        f.service.createHex({
+          projectId: f.projectId,
+          kind: "core.pull_request",
+          title: "PR",
+          description: "",
+          status: "pull_requested",
+          requiredBy: [],
+          dependsOn: [],
+          meta: {},
+        }),
+      DomainError,
+      "opening one on a work hex",
+    );
+    const story = await f.service.createHex({
+      projectId: f.projectId,
+      kind: "core.story",
+      title: "S",
+      description: "",
+      status: "blocked",
+      requiredBy: [],
+      dependsOn: [],
+      meta: {},
+    });
+    await assertRejects(
+      () => f.service.updateHex(story.id, { status: "merged" }),
+      DomainError,
+      "cannot be merged",
+    );
+  } finally {
+    await f.cleanup();
+  }
+});

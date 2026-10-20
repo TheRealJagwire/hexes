@@ -27,6 +27,9 @@ const STATUS_TEXT: Record<Status, string> = {
   blocked: "text-blocked",
   done: "text-muted",
   answered: "text-muted",
+  pull_requested: "text-accent",
+  merged: "text-verified",
+  closed: "text-muted",
 };
 
 /** Project crumbs go to the project screen; everything else to its hex screen. */

@@ -9,8 +9,12 @@ import { useResource } from "../lib/use-resource.ts";
 import { Close, Minus, Plus } from "../components/Icons.tsx";
 import { ErrorState, LoadingState, ThemeToggle } from "../components/Layout.tsx";
 
-/** Project hexes can be created here; projects themselves come from the welcome screen. */
-const KINDS = CORE_KINDS.filter((k) => k !== "project").map((k) => `core.${k}`);
+/**
+ * Project hexes can be created here; projects come from the welcome screen and pull requests from
+ * opening one on a work hex.
+ */
+const KINDS = CORE_KINDS.filter((k) => k !== "project" && k !== "pull_request")
+  .map((k) => `core.${k}`);
 
 /** Search-and-chip multi-select over the project's hexes. */
 function HexPicker(

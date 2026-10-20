@@ -289,6 +289,9 @@ export class HexService {
     if (req.kind === "core.project") {
       throw new DomainError("Projects are created with create_project / the welcome screen", 400);
     }
+    if (req.kind === "core.pull_request") {
+      throw new DomainError("Pull requests are created by opening one on a work hex", 422);
+    }
     return await this.mutate(async (hexes) => {
       const idx = buildIndex(hexes);
       if (!findProject(idx, prefix) && prefix !== SELECTED_PROJECT_PREFIX) {

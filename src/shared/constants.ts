@@ -8,6 +8,9 @@ export const STATUSES = [
   "done",
   "blessed",
   "answered",
+  "pull_requested",
+  "merged",
+  "closed",
 ] as const;
 export type Status = (typeof STATUSES)[number];
 
@@ -33,6 +36,10 @@ export const STATUS_INFO: Record<Status, StatusInfo> = {
   blessed: { role: "actionable", satisfies: true },
   // A question with a recorded response; answering also creates a `core.decision`.
   answered: { role: "terminal", satisfies: true },
+  // Pull requests: open for review, merged into main (the work can finish), or abandoned.
+  pull_requested: { role: "active", satisfies: false },
+  merged: { role: "terminal", satisfies: true },
+  closed: { role: "terminal", satisfies: false },
 };
 
 /** Statuses that are a person's approval, so agents (over MCP) may not set them. */
@@ -61,6 +68,8 @@ export const KIND_WORKFLOWS: Readonly<Record<string, KindWorkflow>> = {
     statuses: ["blocked", "ready", "in_progress", "answered"],
     promoteTo: "ready",
   },
+  // Only ever created by opening a PR, so never blocked or promoted.
+  "core.pull_request": { statuses: ["pull_requested", "merged", "closed"], promoteTo: null },
 };
 
 export function workflowOf(kind: string): KindWorkflow {
@@ -91,6 +100,7 @@ export const CORE_KINDS = [
   "substory",
   "bug",
   "question",
+  "pull_request",
 ] as const;
 
 export const SELECTED_PROJECT_KIND = "studio.selected_project";
