@@ -100,6 +100,7 @@ private fun ProjectContent(view: ProjectView, onBack: () -> Unit, onOpenHex: (St
         }
         item { Statement(project, onOpenHex) }
         item { HexGroup("Designs", view.designs, onOpenHex) }
+        item { HexGroup("Specs", view.specs, onOpenHex) }
         item { HexGroup("Decisions", view.decisions, onOpenHex) }
         item { HexGroup("Questions", view.questions, onOpenHex) }
         item { Text("Epics", style = MaterialTheme.typography.titleMedium, color = c.ink2) }
