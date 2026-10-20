@@ -37,17 +37,18 @@ retrying blindly.
   `core.decision`, `core.gate`, `core.epic`, `core.story`, `core.substory`, `core.bug`,
   `core.question`. Custom kinds are allowed. `studio.selected_project` is internal.
 - **Statuses** depend on the kind. Most kinds go `blocked` → `ready` → `in_progress` → `verified` →
-  `done`. Two kinds differ:
-  - **Designs**: `blocked` → `in_progress` → `blessed` → `done`. `blessed` replaces `ready`: a
-    person has approved the design and it is ready to be broken down. Only a person blesses, in
-    Studio; the MCP tools refuse `blessed`, and a design is never blessed automatically.
+  `done`. These kinds differ:
+  - **Designs and specs**: `blocked` → `in_progress` → `blessed` → `done`. `blessed` replaces
+    `ready`: a person has approved it. A blessed design is ready to be broken down; a blessed spec
+    is ready to be built, so the work that depends on it unblocks. Only a person blesses, in Studio;
+    the MCP tools refuse `blessed`, and nothing is ever blessed automatically.
   - **Questions**: `blocked` → `ready` → `in_progress` → `answered`. `answered` replaces `done` and
     needs a `response`. Answering stores the response on the question (`meta.answer`) and creates a
     `done` `core.decision` holding it (`meta.decision` is its id); whatever depended on the question
     then depends on the decision too. A question is answered once; revise the decision instead.
   - A dependency is satisfied by `done`, `answered` or `blessed`. `ready` is refused while any
     dependency is unsatisfied, and satisfying the last one auto-promotes blocked dependents to
-    `ready` (designs excepted).
+    `ready` (designs and specs excepted: they wait for a person).
   - **Pull requests** (`core.pull_request`): `pull_requested` → `merged` or `closed`. They are only
     created by `open_pull_request` and only move by `merge_pull_request` / `close_pull_request`.
   - `GET /api/statuses` returns the full table: each status's role and each kind's statuses.
@@ -203,9 +204,10 @@ description: Pick up and execute the next ready hex, then close it out and repor
 1. Pick a hex: `get_ready_hexes_for_project`. Prefer `core.bug` first, then
    `core.story`/`core.substory`, then others; within a kind, take the one that unblocks the most
    (`get_hexes_that_depend_on_hex_with_id`). A blessed `core.design` in the list is ready to be
-   broken down: use `hexes-plan-work` for it. A ready `core.question` needs the user: ask it, then
-   answer it with their words (`update_hex_status` → `answered` with `response`), and report the
-   decision it created.
+   broken down: use `hexes-plan-work` for it. A blessed `core.spec` is approved: build the work that
+   depends on it, and mark the spec `done` once that work is. A ready `core.question` needs the
+   user: ask it, then answer it with their words (`update_hex_status` → `answered` with `response`),
+   and report the decision it created.
 2. Load context: `get_hex_view` (description, breadcrumbs, dependencies). Read the linked
    design/spec/ decision hexes with `get_hex_by_id` when the description is not self-sufficient.
 3. Claim it on its own branch: `start_work_branch` (story, substory, bug, …; it also sets
@@ -221,9 +223,9 @@ description: Pick up and execute the next ready hex, then close it out and repor
 
 Rules:
 
-- Only work on hexes that are `ready` (or blessed designs). If something you need is blocked,
-  surface it; do not force it.
-- Never bless a design or invent an answer: both belong to a person.
+- Only work on hexes that are `ready` (or blessed designs and specs). If something you need is
+  blocked, surface it; do not force it.
+- Never bless a design or spec, or invent an answer: these belong to a person.
 - Do not mark `done` without the user's or CI's confirmation unless told you may.
 - Never commit work hexes' changes straight to main, and never merge a pull request unasked.
 - Work that is discovered mid-task goes in via `hexes-capture-discovery`, not into this hex's scope.
@@ -244,6 +246,8 @@ description: Break a goal into hexes (design → spec/decision → epic → stor
    - `core.design` (depends_on: [project_id]), left `blocked` (or `in_progress` while you draft it).
      Ask the user to bless it in Studio; you cannot. Break down only designs that are `blessed`.
    - `core.spec` / `core.decision` (depends_on: [design]); they stay `blocked` until it is blessed.
+     Write each spec in full in its `description`, then ask the user to bless it too; work that
+     depends on a spec stays `blocked` until they do.
    - `core.story` hexes: concrete, independently verifiable, one outcome each; `core.substory` for
      steps.
    - `core.epic` (depends_on: its design, specs, and stories).
@@ -252,7 +256,8 @@ description: Break a goal into hexes (design → spec/decision → epic → stor
    into an existing one (e.g. a new story required by an existing epic).
 4. Statuses: leave `blocked` when there are unfinished dependencies; use `ready` only when every
    dependency is satisfied (`done`, `answered` or `blessed`; otherwise the call is refused). Hexes
-   with no dependencies can be `ready`. Designs are never `ready`; questions are never `done`.
+   with no dependencies can be `ready`. Designs and specs are never `ready`; questions are never
+   `done`.
 5. Put acceptance criteria in `description`; put tooling facts (`desired_language`, `git_branch`) in
    `meta`.
 6. Finish with `get_project` and show the user the resulting tree and `get_ready_hexes_for_project`.
@@ -307,9 +312,9 @@ description: Audit the graph for stale, mis-wired or stuck hexes and propose fix
    Flag work hexes on a branch with no open pull request, and `pull_requested` pull requests that
    have waited a long time (`search_hexes` with `kind: core.pull_request`): each needs a review, a
    merge or a close.
-4. Flag `core.question` hexes not yet `answered`, and `core.design` hexes not yet `blessed` whose
-   dependencies are all satisfied: both need a human. Flag any design still marked `ready` (data
-   from before blessing existed).
+4. Flag `core.question` hexes not yet `answered`, and `core.design` / `core.spec` hexes not yet
+   `blessed` whose dependencies are all satisfied: they need a human. Flag any design or spec still
+   marked `ready` (data from before blessing existed).
 5. Present findings as a list with a proposed action each. Apply only what the user approves, using
    `update_hex_status`, `add_dependency`, `remove_dependency`, `update_hex`.
 ```

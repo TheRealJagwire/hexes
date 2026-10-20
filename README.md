@@ -20,11 +20,11 @@ deno task dev     # watch CSS, client and server
 ## Statuses
 
 Each kind has its own lifecycle (`KIND_WORKFLOWS` in `src/shared/constants.ts`, served at
-`GET /api/statuses`). Most go `blocked` → `ready` → `in_progress` → `verified` → `done`. A design is
-`blessed` instead of `ready`: a person has approved it for breaking down, and that unblocks its
-specs and decisions. A question is `answered` instead of `done`: answering needs a response, which
-is recorded as a new decision hex. Data from before these workflows is migrated the first time a
-workspace is opened.
+`GET /api/statuses`). Most go `blocked` → `ready` → `in_progress` → `verified` → `done`. Designs and
+specs are `blessed` instead of `ready`: a person has approved them, and that unblocks what depends
+on them (a design's specs and decisions, a spec's stories). A question is `answered` instead of
+`done`: answering needs a response, which is recorded as a new decision hex. Data from before these
+workflows is migrated the first time a workspace is opened.
 
 ## Per-user state
 
