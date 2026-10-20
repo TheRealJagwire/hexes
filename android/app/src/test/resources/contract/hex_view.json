@@ -2,15 +2,15 @@
   "status": 200,
   "body": {
     "hex": {
-      "id": "hx-contract-122",
+      "id": "hx-contract-ee8",
       "title": "Draw the grid",
       "description": "",
       "kind": "core.story",
-      "createdAtTimeInMs": 1700000004000,
-      "lastUpdatedAtTimeInMs": 1700000007000,
+      "createdAtTimeInMs": 1700000005000,
+      "lastUpdatedAtTimeInMs": 1700000008000,
       "status": "ready",
       "dependsOn": [
-        "hx-contract-d35"
+        "hx-contract-6a4"
       ],
       "meta": {
         "git_branch": "feat/grid"
@@ -24,13 +24,13 @@
         "status": "done"
       },
       {
-        "id": "hx-contract-c0a",
+        "id": "hx-contract-a76",
         "title": "Board",
         "kind": "core.epic",
         "status": "blocked"
       },
       {
-        "id": "hx-contract-122",
+        "id": "hx-contract-ee8",
         "title": "Draw the grid",
         "kind": "core.story",
         "status": "ready"
@@ -39,7 +39,7 @@
     "projectId": "hx-contract-16d",
     "dependsOn": [
       {
-        "id": "hx-contract-d35",
+        "id": "hx-contract-6a4",
         "title": "Board layout",
         "kind": "core.design",
         "status": "done"
@@ -47,7 +47,7 @@
     ],
     "dependedOnBy": [
       {
-        "id": "hx-contract-c0a",
+        "id": "hx-contract-a76",
         "title": "Board",
         "kind": "core.epic",
         "status": "blocked"

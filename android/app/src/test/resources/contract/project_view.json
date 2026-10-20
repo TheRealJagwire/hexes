@@ -12,7 +12,7 @@
     },
     "designs": [
       {
-        "id": "hx-contract-d35",
+        "id": "hx-contract-6a4",
         "title": "Board layout",
         "kind": "core.design",
         "status": "done"
@@ -21,13 +21,13 @@
     "decisions": [],
     "questions": [
       {
-        "id": "hx-contract-6a3",
+        "id": "hx-contract-d9d",
         "title": "Wrap edges?",
         "kind": "core.question",
         "status": "blocked"
       },
       {
-        "id": "hx-contract-0bf",
+        "id": "hx-contract-c60",
         "title": "Snap to grid?",
         "kind": "core.question",
         "status": "blocked"
@@ -36,16 +36,16 @@
     "epics": [
       {
         "hex": {
-          "id": "hx-contract-c0a",
+          "id": "hx-contract-a76",
           "title": "Board",
           "description": "",
           "kind": "core.epic",
-          "createdAtTimeInMs": 1700000005000,
-          "lastUpdatedAtTimeInMs": 1700000005000,
+          "createdAtTimeInMs": 1700000006000,
+          "lastUpdatedAtTimeInMs": 1700000006000,
           "status": "blocked",
           "dependsOn": [
-            "hx-contract-d35",
-            "hx-contract-122"
+            "hx-contract-6a4",
+            "hx-contract-ee8"
           ]
         },
         "gate": null,
@@ -56,15 +56,15 @@
         },
         "stories": [
           {
-            "id": "hx-contract-122",
+            "id": "hx-contract-ee8",
             "title": "Draw the grid",
             "description": "",
             "kind": "core.story",
-            "createdAtTimeInMs": 1700000004000,
-            "lastUpdatedAtTimeInMs": 1700000007000,
+            "createdAtTimeInMs": 1700000005000,
+            "lastUpdatedAtTimeInMs": 1700000008000,
             "status": "ready",
             "dependsOn": [
-              "hx-contract-d35"
+              "hx-contract-6a4"
             ],
             "meta": {
               "git_branch": "feat/grid"

@@ -1,16 +1,16 @@
 {
   "status": 200,
   "body": {
-    "id": "hx-contract-c0a",
+    "id": "hx-contract-a76",
     "title": "Board (v1)",
     "description": "",
     "kind": "core.epic",
-    "createdAtTimeInMs": 1700000005000,
-    "lastUpdatedAtTimeInMs": 1700000009000,
+    "createdAtTimeInMs": 1700000006000,
+    "lastUpdatedAtTimeInMs": 1700000010000,
     "status": "blocked",
     "dependsOn": [
-      "hx-contract-d35",
-      "hx-contract-122"
+      "hx-contract-6a4",
+      "hx-contract-ee8"
     ]
   }
 }
