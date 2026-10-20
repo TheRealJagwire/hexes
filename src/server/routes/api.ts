@@ -9,7 +9,12 @@ import {
   StatusSchema,
   UpdateHexRequestSchema,
 } from "../../shared/schemas.ts";
-import { DEFAULT_WORKFLOW, KIND_WORKFLOWS, STATUS_INFO } from "../../shared/constants.ts";
+import {
+  DEFAULT_WORKFLOW,
+  KIND_WORKFLOWS,
+  REQUIRES_RESPONSE,
+  STATUS_INFO,
+} from "../../shared/constants.ts";
 import type { StatusTable } from "../../shared/views.ts";
 import { DomainError } from "../core/errors.ts";
 import type { HexService } from "../core/service.ts";
@@ -74,6 +79,7 @@ export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
         statuses: STATUS_INFO,
         kinds: KIND_WORKFLOWS,
         default: DEFAULT_WORKFLOW,
+        requiresResponse: REQUIRES_RESPONSE,
       } satisfies StatusTable,
     ));
 

@@ -57,6 +57,7 @@ import dev.hexes.android.containerViewModel
 import dev.hexes.android.data.ApiClient
 import dev.hexes.android.data.ApiException
 import dev.hexes.android.data.Status
+import dev.hexes.android.data.StatusTable
 import dev.hexes.android.data.UpdateHexRequest
 import dev.hexes.android.data.deleteImpactText
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -97,6 +98,14 @@ class HexViewModel(private val container: AppContainer, private val id: String) 
 
     private val _editError = MutableStateFlow<EditError?>(null)
     val editError: StateFlow<EditError?> = _editError.asStateFlow()
+
+    /** Which statuses each kind allows; null until the server's table arrives. */
+    private val _statuses = MutableStateFlow<StatusTable?>(null)
+    val statuses: StateFlow<StatusTable?> = _statuses.asStateFlow()
+
+    init {
+        viewModelScope.launch { runCatching { container.statuses() }.onSuccess { _statuses.value = it } }
+    }
 
     /** One-off messages for the snackbar: failures of status, meta and delete actions. */
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
@@ -197,6 +206,7 @@ private fun HexContent(
     val c = Hexes.colors
     val hex = view.hex
     val busy by vm.busy.collectAsStateWithLifecycle()
+    val statuses by vm.statuses.collectAsStateWithLifecycle()
     var editing by rememberSaveable(hex.id) { mutableStateOf(false) }
     // The version the editor was opened on: a change made meanwhile is detected on save.
     var editedFrom by rememberSaveable(hex.id) { mutableLongStateOf(0L) }
@@ -229,7 +239,10 @@ private fun HexContent(
             }
         } else {
             item { Text(hex.title, style = MaterialTheme.typography.headlineMedium) }
-            item { StatusMenu(hex.status, enabled = !busy, onPick = vm::setStatus) }
+            item {
+                val options = statuses?.options(hex.kind, hex.status) ?: listOf(hex.status)
+                StatusMenu(hex.status, options, enabled = !busy && statuses != null, onPick = vm::setStatus)
+            }
             item {
                 if (hex.description.isBlank()) Text("No description.", color = c.muted) else MarkdownText(hex.description)
             }
@@ -256,7 +269,7 @@ private fun HexContent(
 
 /** The status pill as a button: tap it to pick another status. */
 @Composable
-private fun StatusMenu(status: Status, enabled: Boolean, onPick: (Status) -> Unit) {
+private fun StatusMenu(status: Status, options: List<Status>, enabled: Boolean, onPick: (Status) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         Row(
@@ -268,7 +281,7 @@ private fun StatusMenu(status: Status, enabled: Boolean, onPick: (Status) -> Uni
             Text("▾", color = Hexes.colors.muted)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            STATUS_OPTIONS.forEach { option ->
+            options.forEach { option ->
                 DropdownMenuItem(
                     text = { StatusPill(option) },
                     trailingIcon = { if (option == status) Text("✓") },
@@ -281,8 +294,6 @@ private fun StatusMenu(status: Status, enabled: Boolean, onPick: (Status) -> Uni
         }
     }
 }
-
-private val STATUS_OPTIONS = listOf(Status.Ready, Status.InProgress, Status.Verified, Status.Blocked, Status.Done)
 
 @Composable
 private fun EditTextCard(hex: Hex, vm: HexViewModel, editedFrom: Long, onClose: () -> Unit) {

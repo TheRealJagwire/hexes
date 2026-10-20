@@ -14,6 +14,7 @@ import dev.hexes.android.data.Connection
 import dev.hexes.android.data.LiveUpdates
 import dev.hexes.android.data.PairingLink
 import dev.hexes.android.data.SettingsRepository
+import dev.hexes.android.data.StatusTable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 
@@ -28,12 +29,20 @@ class AppContainer(context: Context) {
     val pendingPairing = MutableStateFlow<PairingLink?>(null)
 
     private var cached: Pair<Connection, ApiClient>? = null
+    private var statusTable: Pair<ApiClient, StatusTable>? = null
 
     /** A client for the saved server; rebuilt when the address or token changes. */
     suspend fun api(): ApiClient {
         val connection = settings.connection.first() ?: throw ApiException.NotConfigured()
         cached?.let { (c, client) -> if (c == connection) return client }
         return ApiClient(connection).also { cached = connection to it }
+    }
+
+    /** The server's status table, fetched once per server; it only changes when Studio is upgraded. */
+    suspend fun statuses(): StatusTable {
+        val client = api()
+        statusTable?.let { (c, table) -> if (c === client) return table }
+        return client.statuses().also { statusTable = client to it }
     }
 }
 

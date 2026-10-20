@@ -100,4 +100,6 @@ export interface StatusTable {
   /** Kinds whose lifecycle differs from `default`. */
   kinds: Record<string, KindWorkflow>;
   default: KindWorkflow;
+  /** Statuses that are only set together with a `response` (answering a question). */
+  requiresResponse: readonly Status[];
 }

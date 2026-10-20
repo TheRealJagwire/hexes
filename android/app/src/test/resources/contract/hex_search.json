@@ -30,6 +30,12 @@
       "title": "Wrap edges?",
       "kind": "core.question",
       "status": "blocked"
+    },
+    {
+      "id": "hx-contract-0bf",
+      "title": "Snap to grid?",
+      "kind": "core.question",
+      "status": "blocked"
     }
   ]
 }

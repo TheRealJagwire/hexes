@@ -47,6 +47,7 @@ Deno.test("GET /api/statuses serves the status table", async () => {
     assertEquals(table.statuses, STATUS_INFO);
     assertEquals(table.kinds, KIND_WORKFLOWS);
     assertEquals(table.default, DEFAULT_WORKFLOW);
+    assertEquals(table.requiresResponse, ["answered"]);
   } finally {
     await f.cleanup();
   }

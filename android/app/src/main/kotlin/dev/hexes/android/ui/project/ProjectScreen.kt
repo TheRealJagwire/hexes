@@ -249,7 +249,7 @@ private fun EpicAccordion(epic: EpicView, defaultOpen: Boolean, onOpenHex: (Stri
 @Composable
 private fun StoryRow(story: Hex, open: Boolean, onToggle: () -> Unit, onOpenHex: (String) -> Unit) {
     val c = Hexes.colors
-    val done = story.status == Status.Done
+    val done = story.status.finished
     run {
         Panel(Modifier.fillMaxWidth()) {
             Column {

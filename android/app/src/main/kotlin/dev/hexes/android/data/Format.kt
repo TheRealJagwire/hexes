@@ -34,7 +34,10 @@ fun plural(n: Int, word: String): String = when {
 
 /** "2 done · 1 in progress", in status-lifecycle order. */
 fun statusSummary(statuses: List<Status>): String {
-    val order = listOf(Status.Done, Status.Verified, Status.InProgress, Status.Ready, Status.Blocked)
+    val order = listOf(
+        Status.Done, Status.Answered, Status.Verified, Status.InProgress, Status.Blessed, Status.Ready, Status.Blocked,
+        Status.Unknown,
+    )
     return order.mapNotNull { status ->
         val n = statuses.count { it == status }
         if (n > 0) "$n ${status.wire.replace('_', ' ')}" else null

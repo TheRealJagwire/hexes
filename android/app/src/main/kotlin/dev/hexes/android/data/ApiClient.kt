@@ -80,6 +80,14 @@ class ApiClient(
 
     suspend fun state(): WorkspaceState = get("/api/state", WorkspaceState.serializer())
 
+    /** The per-kind status table; [StatusTable.LEGACY] for a Studio too old to serve it. */
+    suspend fun statuses(): StatusTable =
+        try {
+            get("/api/statuses", StatusTable.serializer())
+        } catch (e: ApiException.Http) {
+            if (e.status == 404) StatusTable.LEGACY else throw e
+        }
+
     suspend fun projects(): List<ProjectSummary> =
         get("/api/projects", ListSerializer(ProjectSummary.serializer()))
 
