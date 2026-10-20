@@ -99,8 +99,15 @@ export class HexService {
   }
 
   async openWorkspace(dir: string): Promise<WorkspaceState> {
-    await this.workspace.open(dir);
-    return this.state();
+    const opened = await this.workspace.open(dir);
+    const state = await this.state();
+    if (state.selectedProjectId) {
+      const project = buildIndex(await new HexFile(opened).read()).byId.get(
+        state.selectedProjectId,
+      );
+      if (project) await this.recordRecent(opened, project);
+    }
+    return state;
   }
 
   async createProject(req: CreateProjectRequest): Promise<CreateProjectResult> {
@@ -141,6 +148,12 @@ export class HexService {
       if (warning) warnings.push(warning);
     }
     await this.workspace.remember(dir);
+    await this.workspace.rememberProject({
+      dir,
+      projectId,
+      title: req.title,
+      openedAt: this.now(),
+    });
     return { projectId, warnings };
   }
 
@@ -175,10 +188,23 @@ export class HexService {
   }
 
   async selectProject(id: string): Promise<void> {
-    await this.mutate(async (hexes) => {
+    const file = await this.workspace.file();
+    const project = await file.mutate(async (hexes) => {
       const project = hexes.find((h) => h.id === id && h.kind === "core.project");
       if (!project) throw new DomainError(`No project with id ${id}`, 404);
       await this.writeSelected(hexes, id);
+      return project;
+    });
+    await this.recordRecent(file.dir, project);
+  }
+
+  /** Puts a project at the front of the per-user recent list, for switching back later. */
+  private async recordRecent(dir: string, project: Hex): Promise<void> {
+    await this.workspace.rememberProject({
+      dir,
+      projectId: project.id,
+      title: project.title,
+      openedAt: this.now(),
     });
   }
 

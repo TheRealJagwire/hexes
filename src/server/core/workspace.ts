@@ -13,6 +13,20 @@ export interface WorkspaceOptions {
 
 const RECENT_LIMIT = 10;
 
+/** A project opened before, remembered across folders for switching back to it. */
+export interface RecentProjectEntry {
+  dir: string;
+  projectId: string;
+  title: string;
+  openedAt: number;
+}
+
+function isRecentProjectEntry(v: unknown): v is RecentProjectEntry {
+  const e = v as Partial<RecentProjectEntry> | null;
+  return typeof e?.dir === "string" && typeof e.projectId === "string" &&
+    typeof e.title === "string" && typeof e.openedAt === "number";
+}
+
 function homeDir(): string {
   return Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? "/";
 }
@@ -56,14 +70,31 @@ export class Workspace {
     });
   }
 
-  async lastDir(): Promise<string | null> {
+  /** The state file as an object; empty when it is missing or unreadable. */
+  private async readState(): Promise<Record<string, unknown>> {
     try {
       const json: unknown = JSON.parse(await Deno.readTextFile(this.stateFile));
-      const dir = (json as { lastDir?: unknown } | null)?.lastDir;
-      return typeof dir === "string" ? dir : null;
+      return json && typeof json === "object" && !Array.isArray(json)
+        ? json as Record<string, unknown>
+        : {};
     } catch {
-      return null;
+      return {};
     }
+  }
+
+  /** Merges `patch` into the state file, keeping keys it does not know, via a temp file. */
+  private async writeState(patch: Record<string, unknown>): Promise<void> {
+    const next = { ...await this.readState(), ...patch };
+    const dir = this.stateFile.replace(/\/[^/]*$/, "");
+    await Deno.mkdir(dir, { recursive: true });
+    const tmp = `${this.stateFile}.${crypto.randomUUID().slice(0, 8)}.tmp`;
+    await Deno.writeTextFile(tmp, JSON.stringify(next, null, 2) + "\n");
+    await Deno.rename(tmp, this.stateFile);
+  }
+
+  async lastDir(): Promise<string | null> {
+    const dir = (await this.readState()).lastDir;
+    return typeof dir === "string" ? dir : null;
   }
 
   /** The active directory if it still has a data file. */
@@ -84,23 +115,33 @@ export class Workspace {
 
   /** Directories opened before, most recent first (at most RECENT_LIMIT). */
   async recent(): Promise<string[]> {
-    try {
-      const json: unknown = JSON.parse(await Deno.readTextFile(this.stateFile));
-      const list = (json as { recent?: unknown } | null)?.recent;
-      return Array.isArray(list) ? list.filter((d): d is string => typeof d === "string") : [];
-    } catch {
-      return [];
-    }
+    const list = (await this.readState()).recent;
+    return Array.isArray(list) ? list.filter((d): d is string => typeof d === "string") : [];
   }
 
   async remember(dir: string): Promise<void> {
     if (this.pinnedDir) return;
     const recent = [dir, ...(await this.recent()).filter((d) => d !== dir)].slice(0, RECENT_LIMIT);
-    await Deno.mkdir(this.stateFile.replace(/\/[^/]*$/, ""), { recursive: true });
-    await Deno.writeTextFile(
-      this.stateFile,
-      JSON.stringify({ lastDir: dir, recent }, null, 2) + "\n",
-    );
+    await this.writeState({ lastDir: dir, recent });
+  }
+
+  /** Projects opened before, across folders, most recent first (at most RECENT_LIMIT). */
+  async recentProjects(): Promise<RecentProjectEntry[]> {
+    const list = (await this.readState()).recentProjects;
+    return Array.isArray(list) ? list.filter(isRecentProjectEntry) : [];
+  }
+
+  /** Moves a project to the front of the recent list. Not recorded while pinned by HEXES_DIR. */
+  async rememberProject(entry: RecentProjectEntry): Promise<void> {
+    if (this.pinnedDir) return;
+    const rest = (await this.recentProjects()).filter((e) => !sameProject(e, entry));
+    await this.writeState({ recentProjects: [entry, ...rest].slice(0, RECENT_LIMIT) });
+  }
+
+  async forgetProject(dir: string, projectId: string): Promise<void> {
+    const list = await this.recentProjects();
+    const rest = list.filter((e) => !sameProject(e, { dir, projectId }));
+    if (rest.length !== list.length) await this.writeState({ recentProjects: rest });
   }
 
   async inspect(input: string): Promise<InspectResult> {
@@ -138,6 +179,10 @@ export class Workspace {
     await this.remember(info.dir);
     return info.dir;
   }
+}
+
+function sameProject(a: { dir: string; projectId: string }, b: { dir: string; projectId: string }) {
+  return a.dir === b.dir && a.projectId === b.projectId;
 }
 
 /** Runs `git init` unless the directory is already a repo. Returns a warning on failure. */
