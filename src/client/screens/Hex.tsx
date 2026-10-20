@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { REQUIRES_RESPONSE, type Status } from "../../shared/constants.ts";
-import { kindQualifier } from "../../shared/graph.ts";
+import { isWorkKind, kindQualifier, PULL_REQUEST_KIND } from "../../shared/graph.ts";
 import type { HexSummary, HexView } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
 import { dateTime, PILL, plural, statusOptions } from "../lib/format.ts";
 import { Link, navigate } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
 import { ChevronDown, ChevronRight, Close, Plus } from "../components/Icons.tsx";
-import { CopyButton, KindBadge } from "../components/Bits.tsx";
+import { CopyButton, KindBadge, StatusPill } from "../components/Bits.tsx";
 import { Markdown } from "../components/Markdown.tsx";
 import {
   Brand,
@@ -18,6 +18,7 @@ import {
   ThemeToggle,
 } from "../components/Layout.tsx";
 import { ProjectHeader } from "./Project.tsx";
+import { PullRequestPanel, WorkPanel } from "./PullRequests.tsx";
 
 const STATUS_TEXT: Record<Status, string> = {
   ready: "text-ready",
@@ -533,7 +534,10 @@ export function HexScreen({ id }: { id: string }) {
           <h1 class="m-0 flex-[1_1_480px] text-[34px] font-bold leading-[1.15] tracking-[-0.02em]">
             {hex.title}
           </h1>
-          <StatusSelect view={view} onChange={reload} />
+          {hex.kind === PULL_REQUEST_KIND
+            // A pull request's status moves only by merging or closing it.
+            ? <StatusPill status={hex.status} />
+            : <StatusSelect view={view} onChange={reload} />}
         </div>
         {editing
           ? (
@@ -569,6 +573,8 @@ export function HexScreen({ id }: { id: string }) {
 
       <div class="flex flex-wrap items-start gap-6">
         <div class="flex min-w-0 flex-[999_1_520px] flex-col gap-6">
+          {isWorkKind(hex.kind) && <WorkPanel view={view} onChange={reload} />}
+          {hex.kind === PULL_REQUEST_KIND && <PullRequestPanel view={view} onChange={reload} />}
           <section aria-labelledby="fields-h" class="card flex flex-col gap-4 px-7 py-6">
             <h2 id="fields-h" class="m-0 text-[15px] font-semibold tracking-[0.02em] text-muted">
               Fields

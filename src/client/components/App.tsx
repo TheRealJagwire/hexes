@@ -7,6 +7,7 @@ import { ErrorState, LoadingState } from "./Layout.tsx";
 import { CreateHex } from "../screens/CreateHex.tsx";
 import { HexScreen } from "../screens/Hex.tsx";
 import { ProjectScreen } from "../screens/Project.tsx";
+import { DiffScreen } from "../screens/PullRequests.tsx";
 import { Projects } from "../screens/Projects.tsx";
 import { Welcome } from "../screens/Welcome.tsx";
 
@@ -70,5 +71,8 @@ function Routes() {
     return <CreateHex projectId={m.id as string} emergedFrom={query.get("emergedFrom")} />;
   }
   if ((m = matchPath("/h/:id", path))) return <HexScreen id={m.id as string} />;
+  if ((m = matchPath("/h/:id/diff/:pr", path))) {
+    return <DiffScreen workId={m.id as string} prId={m.pr as string} />;
+  }
   return <NotFound />;
 }
