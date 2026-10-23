@@ -80,6 +80,12 @@ class CreateHexFormTest {
         ),
         default = KindWorkflow(listOf(Status.Blocked, Status.Ready, Status.InProgress, Status.Verified, Status.Done), Status.Ready),
         requiresResponse = listOf(Status.Answered),
+        derived = listOf(Status.InReview, Status.Merged),
+    )
+
+    private val work = KindWorkflow(
+        listOf(Status.Blocked, Status.Ready, Status.InProgress, Status.InReview, Status.Merged, Status.Done),
+        Status.Ready,
     )
 
     @Test
@@ -91,6 +97,20 @@ class CreateHexFormTest {
         assertEquals(
             listOf(Status.Blocked, Status.Ready, Status.InProgress),
             CreateHexForm(kind = "core.question").statusOptions(table),
+        )
+    }
+
+    @Test
+    fun aNewHexNeverStartsInReviewOrMerged() {
+        val withWork = table.copy(default = work)
+        assertEquals(
+            listOf(Status.Blocked, Status.Ready, Status.InProgress, Status.Done),
+            CreateHexForm(kind = "core.story").statusOptions(withWork),
+        )
+        // The hex screen's menu keeps showing a derived status the hex is in.
+        assertEquals(
+            listOf(Status.InReview, Status.Blocked, Status.Ready, Status.InProgress, Status.Done),
+            withWork.options("core.story", Status.InReview),
         )
     }
 

@@ -59,14 +59,17 @@ data class StatusTable(
 ) {
     fun allowed(kind: String): List<Status> = (kinds[kind] ?: default).statuses.filter { it != Status.Unknown }
 
+    /** What a person can pick for `kind`: pull requests set the [derived] statuses, not people. */
+    fun pickable(kind: String): List<Status> = allowed(kind).filter { it !in derived }
+
     /**
-     * What the status menu offers a hex of `kind` that is now `current`. A status the kind no
-     * longer allows stays listed so the menu can show it. Picking one in [requiresResponse] asks
-     * for the response first.
+     * What the status menu offers a hex of `kind` that is now `current`. A status that can't be
+     * picked (set by a pull request, or no longer allowed) stays listed so the menu can show it.
+     * Picking one in [requiresResponse] asks for the response first.
      */
     fun options(kind: String, current: Status): List<Status> {
-        val allowed = allowed(kind)
-        return if (current in allowed || current == Status.Unknown) allowed else listOf(current) + allowed
+        val pickable = pickable(kind)
+        return if (current in pickable || current == Status.Unknown) pickable else listOf(current) + pickable
     }
 
     companion object {

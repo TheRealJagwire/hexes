@@ -52,6 +52,10 @@ class FormatTest {
         val statuses = listOf(Status.Blocked, Status.Done, Status.Done, Status.InProgress)
         assertEquals("2 done · 1 in progress · 1 blocked", statusSummary(statuses))
         assertEquals("", statusSummary(emptyList()))
+        assertEquals(
+            "2 merged · 1 in review · 1 in progress",
+            statusSummary(listOf(Status.InProgress, Status.InReview, Status.Merged, Status.Merged)),
+        )
     }
 
     @Test
