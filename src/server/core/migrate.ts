@@ -1,4 +1,10 @@
-import { buildIndex, dependentsOf, reconcileReadiness } from "../../shared/graph.ts";
+import {
+  buildIndex,
+  dependentsOf,
+  isWorkKind,
+  pullRequestsOf,
+  reconcileReadiness,
+} from "../../shared/graph.ts";
 import type { Hex, Status } from "../../shared/schemas.ts";
 import type { HexFile } from "./store.ts";
 
@@ -26,11 +32,45 @@ export function migrateStatuses(hexes: Hex[], now: number): string[] {
     hex.lastUpdatedAtTimeInMs = now;
     changed.push(hex.id);
   }
-  if (changed.length) {
-    const idx = buildIndex(hexes);
-    reconcileReadiness(hexes, changed.flatMap((id) => dependentsOf(idx, id).map((d) => d.id)), now);
-  }
+  reconcileDependents(hexes, changed, now);
   return changed;
+}
+
+/**
+ * Brings work from before pull requests drove its status in line with them: finished work whose
+ * pull request was merged becomes `merged`, work with an open one `in_review`, and `verified`
+ * (which work no longer uses) goes back to `in_progress`. Returns the ids it changed; a second
+ * run changes nothing.
+ */
+export function migrateWorkStatuses(hexes: Hex[], now: number): string[] {
+  const idx = buildIndex(hexes);
+  const changed: string[] = [];
+  for (const hex of hexes) {
+    if (!isWorkKind(hex.kind)) continue;
+    const prs = pullRequestsOf(idx, hex.id);
+    const from = hex.status;
+    if (prs.some((p) => p.status === "merged") && (from === "done" || from === "verified")) {
+      hex.status = "merged";
+    } else if (
+      prs.some((p) => p.status === "pull_requested") &&
+      (from === "in_progress" || from === "verified")
+    ) {
+      hex.status = "in_review";
+    } else if (from === "verified") {
+      hex.status = "in_progress";
+    } else continue;
+    hex.lastUpdatedAtTimeInMs = now;
+    changed.push(hex.id);
+  }
+  reconcileDependents(hexes, changed, now);
+  return changed;
+}
+
+/** Re-checks what depends on `ids`, as a status change would. */
+function reconcileDependents(hexes: Hex[], ids: readonly string[], now: number): void {
+  if (!ids.length) return;
+  const idx = buildIndex(hexes);
+  reconcileReadiness(hexes, ids.flatMap((id) => dependentsOf(idx, id).map((d) => d.id)), now);
 }
 
 const migrated = new Map<string, Promise<void>>();
@@ -39,7 +79,10 @@ const migrated = new Map<string, Promise<void>>();
 export function ensureMigrated(file: HexFile, now: () => number = Date.now): Promise<void> {
   let done = migrated.get(file.path);
   if (!done) {
-    done = file.mutate((hexes) => migrateStatuses(hexes, now())).then((ids) => {
+    done = file.mutate((hexes) => {
+      const t = now();
+      return [...migrateStatuses(hexes, t), ...migrateWorkStatuses(hexes, t)];
+    }).then((ids) => {
       // stderr: the stdio MCP server's stdout carries the protocol.
       if (ids.length) console.error(`hexes: migrated ${ids.length} statuses in ${file.path}`);
     });
