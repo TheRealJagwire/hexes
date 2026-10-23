@@ -24,6 +24,26 @@ map** shows the whole project as a grid of cells coloured by status, placed next
 link to; it is for people, with no MCP tool, so a mis-wired dependency shows up there as a hex far
 from where it belongs.
 
+**Waking the agent (optional).** `hexes-channel` is a one-way Claude Code channel
+(`deno task
+channel`, registered in `.mcp.json`). When a person blesses a design or spec, or answers
+a question, it pushes an event into the session naming what was blessed or answered and what became
+ready. Channels are a research preview, so opt in per session with
+`claude
+--dangerously-load-development-channels server:hexes-channel`; without the flag the events
+are dropped. Use one such session per working tree. An event arrives as:
+
+```text
+<channel source="hexes-channel" project="hx-hexes-f1a" event="unblocked" blessed="hx-hexes-775" ready="hx-hexes-1a4">
+Blessed: spec hx-hexes-775 "Spec the hexes-channel events and server"
+Now ready: hx-hexes-1a4 (story) "Detect unblocking transitions between two snapshots"
+</channel>
+```
+
+Act on it only for the selected project. Finish the step you are on, then run `hexes-plan-work` for
+a blessed design, or `hexes-next-task` for a blessed spec or an answered question. Ignore an answer
+you gave yourself.
+
 In Claude Code the tools appear as `mcp__hexes__<tool_name>`. Every tool returns JSON text; domain
 failures (cycle, unknown id, `ready` with unfinished dependencies, a status the kind doesn't use, …)
 come back as tool errors with a readable message, so read the message and adjust rather than
@@ -232,6 +252,8 @@ Rules:
 - Do not mark `done` without the user's or CI's confirmation unless told you may.
 - Never commit work hexes' changes straight to main, and never merge a pull request unasked.
 - Work that is discovered mid-task goes in via `hexes-capture-discovery`, not into this hex's scope.
+- A `<channel source="hexes-channel">` event means a person just unblocked work: finish the current
+  step, then start here (or `hexes-plan-work` for a blessed design).
 ```
 
 ---

@@ -75,6 +75,37 @@ with the UI, and `.mcp.json` points Claude Code at it (start Studio first). It w
 last opened in Studio, or on `HEXES_DIR` if set. The stdio entry (`deno task mcp`) still exists for
 clients that need a spawned process.
 
+## Waking the agent
+
+Blessing a design or spec, or answering a question, unblocks work. `hexes-channel` tells a waiting
+Claude Code session about it, so the agent picks the work up without you typing "please continue".
+It is a one-way [Claude Code channel](https://code.claude.com/docs/en/channels-reference): a small
+stdio MCP server (`src/mcp/channel.ts`, `deno task channel`) with no tools. It watches the active
+workspace, like Studio does, and doesn't need Studio running.
+
+After changes settle (1.5 s), it sends one event per project that names what was blessed or answered
+and what became ready:
+
+```
+Blessed: spec hx-hexes-775 "Spec the hexes-channel events and server"
+Now ready: hx-hexes-1a4 (story) "Detect unblocking transitions between two snapshots"
+```
+
+The agent then breaks down a blessed design with `hexes-plan-work`, or starts the newly ready hexes
+with `hexes-next-task`. It finishes its current step first and still leaves merging to you. Changes
+that only move readiness, like an agent finishing a story, send nothing. Nothing is replayed when
+the channel starts.
+
+`.mcp.json` registers it. Channels are a Claude Code research preview and custom channels aren't on
+its allowlist, so opt in per session with the development flag:
+
+```sh
+claude --dangerously-load-development-channels server:hexes-channel
+```
+
+A plain `claude` start doesn't load it, and the events are simply dropped. Every session that loads
+the channel gets every event, so run one per working tree: branches are shared anyway.
+
 ## Remote access (phone)
 
 By default Studio listens on `127.0.0.1` only. To reach it from the Android app, bind a wider
@@ -115,7 +146,7 @@ and back it up: an update must be signed with the same key to install over the o
 ```
 src/shared/   zod schemas, constants and the pure graph logic (ready, progress, breadcrumbs)
 src/server/   core/ (store, workspace, HexService), routes/ (Hono API), guard.ts, app.ts
-src/mcp/      tool definitions (tools/) and the stdio entry
+src/mcp/      tool definitions (tools/), the stdio entry and hexes-channel
 src/client/   Preact app: screens/, components/, lib/, styles/app.css (theme tokens)
 tests/        deno test
 scripts/      seed.ts
