@@ -3,6 +3,7 @@
 export const STATUSES = [
   "ready",
   "in_progress",
+  "in_review",
   "verified",
   "blocked",
   "done",
@@ -30,13 +31,16 @@ export const STATUS_INFO: Record<Status, StatusInfo> = {
   blocked: { role: "waiting", satisfies: false },
   ready: { role: "actionable", satisfies: false },
   in_progress: { role: "active", satisfies: false },
+  // Work whose pull request is open, waiting for review. Set only by opening one.
+  in_review: { role: "active", satisfies: false },
   verified: { role: "active", satisfies: false },
   done: { role: "terminal", satisfies: true },
   // A design that has been approved: it can be broken down, so what depends on it unblocks.
   blessed: { role: "actionable", satisfies: true },
   // A question with a recorded response; answering also creates a `core.decision`.
   answered: { role: "terminal", satisfies: true },
-  // Pull requests: open for review, merged into main (the work can finish), or abandoned.
+  // Pull requests: open for review, merged into main, or abandoned. Work hexes are `merged` too,
+  // once their pull request is.
   pull_requested: { role: "active", satisfies: false },
   merged: { role: "terminal", satisfies: true },
   closed: { role: "terminal", satisfies: false },
@@ -44,6 +48,9 @@ export const STATUS_INFO: Record<Status, StatusInfo> = {
 
 /** Statuses that are a person's approval, so agents (over MCP) may not set them. */
 export const PEOPLE_ONLY: readonly Status[] = ["blessed"];
+
+/** Statuses that only pull requests set: opening one, or merging it. Never set by hand. */
+export const DERIVED: readonly Status[] = ["in_review", "merged"];
 
 /** Statuses that can only be set together with a `response`. */
 export const REQUIRES_RESPONSE: readonly Status[] = ["answered"];
@@ -55,13 +62,27 @@ export interface KindWorkflow {
   promoteTo: Status | null;
 }
 
+/**
+ * Work (story, substory, bug and custom kinds) moves through its pull requests: `in_review`
+ * when one is opened, `merged` when it is merged. `done` is for work that never had a branch.
+ */
 export const DEFAULT_WORKFLOW: KindWorkflow = {
+  statuses: ["blocked", "ready", "in_progress", "in_review", "merged", "done"],
+  promoteTo: "ready",
+};
+
+/** Planning and structure: checked by hand, with no pull request of their own. */
+const PLANNING_WORKFLOW: KindWorkflow = {
   statuses: ["blocked", "ready", "in_progress", "verified", "done"],
   promoteTo: "ready",
 };
 
 /** Kinds whose lifecycle differs from `DEFAULT_WORKFLOW`. */
 export const KIND_WORKFLOWS: Readonly<Record<string, KindWorkflow>> = {
+  "core.project": PLANNING_WORKFLOW,
+  "core.epic": PLANNING_WORKFLOW,
+  "core.gate": PLANNING_WORKFLOW,
+  "core.decision": PLANNING_WORKFLOW,
   // Blessing is an approval, so designs and specs are never promoted to it automatically.
   "core.design": { statuses: ["blocked", "in_progress", "blessed", "done"], promoteTo: null },
   "core.spec": { statuses: ["blocked", "in_progress", "blessed", "done"], promoteTo: null },

@@ -33,6 +33,7 @@ const COLOURS: Record<Status, [string, string]> = {
   done: ["--muted", "--line-soft"],
   answered: ["--muted", "--line-soft"],
   pull_requested: ["--accent", "--accent-bg"],
+  in_review: ["--accent", "--accent-bg"],
   merged: ["--verified", "--verified-bg"],
   closed: ["--muted", "--line-soft"],
 };

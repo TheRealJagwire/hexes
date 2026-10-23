@@ -11,6 +11,7 @@ import {
 } from "../../shared/schemas.ts";
 import {
   DEFAULT_WORKFLOW,
+  DERIVED,
   KIND_WORKFLOWS,
   REQUIRES_RESPONSE,
   STATUS_INFO,
@@ -85,6 +86,7 @@ export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
         kinds: KIND_WORKFLOWS,
         default: DEFAULT_WORKFLOW,
         requiresResponse: REQUIRES_RESPONSE,
+        derived: DERIVED,
       } satisfies StatusTable,
     ));
 

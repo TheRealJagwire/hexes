@@ -14,6 +14,10 @@
         "role": "active",
         "satisfies": false
       },
+      "in_review": {
+        "role": "active",
+        "satisfies": false
+      },
       "verified": {
         "role": "active",
         "satisfies": false
@@ -44,6 +48,46 @@
       }
     },
     "kinds": {
+      "core.project": {
+        "statuses": [
+          "blocked",
+          "ready",
+          "in_progress",
+          "verified",
+          "done"
+        ],
+        "promoteTo": "ready"
+      },
+      "core.epic": {
+        "statuses": [
+          "blocked",
+          "ready",
+          "in_progress",
+          "verified",
+          "done"
+        ],
+        "promoteTo": "ready"
+      },
+      "core.gate": {
+        "statuses": [
+          "blocked",
+          "ready",
+          "in_progress",
+          "verified",
+          "done"
+        ],
+        "promoteTo": "ready"
+      },
+      "core.decision": {
+        "statuses": [
+          "blocked",
+          "ready",
+          "in_progress",
+          "verified",
+          "done"
+        ],
+        "promoteTo": "ready"
+      },
       "core.design": {
         "statuses": [
           "blocked",
@@ -85,13 +129,18 @@
         "blocked",
         "ready",
         "in_progress",
-        "verified",
+        "in_review",
+        "merged",
         "done"
       ],
       "promoteTo": "ready"
     },
     "requiresResponse": [
       "answered"
+    ],
+    "derived": [
+      "in_review",
+      "merged"
     ]
   }
 }

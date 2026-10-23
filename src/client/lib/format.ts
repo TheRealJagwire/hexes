@@ -5,6 +5,7 @@ export const PILL: Record<Status, string> = {
   ready: "text-ready bg-ready-bg",
   blessed: "text-blessed bg-blessed-bg",
   in_progress: "text-accent bg-accent-bg",
+  in_review: "text-accent bg-accent-bg",
   verified: "text-verified bg-verified-bg",
   blocked: "text-blocked bg-blocked-bg",
   done: "text-muted bg-line-soft",

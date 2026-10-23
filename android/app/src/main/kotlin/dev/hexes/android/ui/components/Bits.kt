@@ -68,7 +68,7 @@ fun statusColors(status: Status): Pair<Color, Color> {
     val c = Hexes.colors
     return when (status) {
         Status.Ready -> c.ready to c.readyBg
-        Status.InProgress -> c.accent to c.accentBg
+        Status.InProgress, Status.InReview -> c.accent to c.accentBg
         Status.Verified -> c.verified to c.verifiedBg
         Status.Blocked -> c.blocked to c.blockedBg
         Status.Blessed -> c.blessed to c.blessedBg

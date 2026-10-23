@@ -20,7 +20,13 @@ import {
   reconcileReadiness,
   summarize,
 } from "../../shared/graph.ts";
-import { allowedStatuses, REQUIRES_RESPONSE, roleOf, satisfies } from "../../shared/constants.ts";
+import {
+  allowedStatuses,
+  DERIVED,
+  REQUIRES_RESPONSE,
+  roleOf,
+  satisfies,
+} from "../../shared/constants.ts";
 import {
   type CreateHexRequest,
   type CreateProjectRequest,
@@ -431,6 +437,7 @@ export class HexService {
         this.require(idx, ref);
       }
       assertAllowed(req.kind, req.status);
+      assertNotDerived(req.status);
       if (REQUIRES_RESPONSE.includes(req.status)) {
         throw new DomainError(`Create it first, then set ${req.status} with a response`, 422);
       }
@@ -498,12 +505,10 @@ export class HexService {
           throw new DomainError("A pull request changes status by being merged or closed", 409);
         }
         assertAllowed(hex.kind, status);
-        if (
-          status === "done" && hex.meta?.git_branch &&
-          !pullRequestsOf(buildIndex(hexes), id).some((p) => p.status === "merged")
-        ) {
+        assertNotDerived(status);
+        if (status === "done" && hex.meta?.git_branch) {
           throw new DomainError(
-            `Merge its pull request first: the work on ${hex.meta.git_branch} is not on main yet`,
+            `Work on a branch finishes by merging its pull request (${hex.meta.git_branch})`,
             409,
           );
         }
@@ -695,6 +700,9 @@ export class HexService {
     if (!isWorkKind(work.kind)) {
       throw new DomainError(`A ${work.kind} does not get pull requests`, 422);
     }
+    if (roleOf(work.status) === "terminal") {
+      throw new DomainError(`${workId} is already ${work.status}`, 409);
+    }
     const branch = work.meta?.git_branch;
     if (!branch) throw new DomainError("Start work on a branch first", 409);
     const git = await this.git();
@@ -734,6 +742,7 @@ export class HexService {
           },
         });
         w.dependsOn = unique([...(w.dependsOn ?? []), pr.id]);
+        w.status = "in_review";
         w.lastUpdatedAtTimeInMs = t;
         reconcileReadiness(hexes, [workId], t);
         return pr;
@@ -812,7 +821,15 @@ export class HexService {
           merged_at: new Date(t).toISOString(),
         };
         p.lastUpdatedAtTimeInMs = t;
-        reconcileReadiness(hexes, dependentsOf(buildIndex(hexes), id).map((d) => d.id), t);
+        // The work is on main: it is finished, and what waits on it can start.
+        const idx = buildIndex(hexes);
+        const w = p.meta.work_hex ? idx.byId.get(p.meta.work_hex) : undefined;
+        if (w && roleOf(w.status) !== "terminal") {
+          w.status = "merged";
+          w.lastUpdatedAtTimeInMs = t;
+        }
+        const waiting = [id, ...(w ? [w.id] : [])].flatMap((d) => dependentsOf(idx, d));
+        reconcileReadiness(hexes, waiting.map((d) => d.id), t);
         return p;
       });
     });
@@ -828,6 +845,12 @@ export class HexService {
       pr.meta = { ...pr.meta, closed_at: new Date(t).toISOString() };
       pr.lastUpdatedAtTimeInMs = t;
       const work = pr.meta.work_hex ? idx.byId.get(pr.meta.work_hex) : undefined;
+      const stillOpen = work &&
+        pullRequestsOf(idx, work.id).some((p) => p.id !== id && p.status === "pull_requested");
+      if (work?.status === "in_review" && !stillOpen) {
+        work.status = "in_progress";
+        work.lastUpdatedAtTimeInMs = t;
+      }
       if (work?.dependsOn?.includes(id)) {
         const rest = work.dependsOn.filter((d) => d !== id);
         if (rest.length) work.dependsOn = rest;
@@ -1005,6 +1028,17 @@ function unique<T>(items: readonly T[]): T[] {
 }
 
 /** Refuses a status the hex's kind does not use, naming the ones it does. */
+/** `in_review` and `merged` follow a hex's pull requests; nobody sets them by hand. */
+function assertNotDerived(status: Status): void {
+  if (!DERIVED.includes(status)) return;
+  throw new DomainError(
+    status === "in_review"
+      ? "in_review is set by opening a pull request"
+      : "merged is set by merging its pull request",
+    409,
+  );
+}
+
 function assertAllowed(kind: string, status: Status): void {
   const allowed = allowedStatuses(kind);
   if (allowed.includes(status)) return;
