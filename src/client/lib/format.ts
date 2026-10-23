@@ -1,4 +1,9 @@
-import { allowedStatuses, REQUIRES_RESPONSE, type Status } from "../../shared/constants.ts";
+import {
+  allowedStatuses,
+  DERIVED,
+  REQUIRES_RESPONSE,
+  type Status,
+} from "../../shared/constants.ts";
 
 /** Full class strings so Tailwind can see them. */
 export const PILL: Record<Status, string> = {
@@ -15,18 +20,23 @@ export const PILL: Record<Status, string> = {
   closed: "text-muted bg-line-soft",
 };
 
+/** What a person can pick for `kind`: pull requests set `in_review` and `merged`, not people. */
+function pickable(kind: string): Status[] {
+  return allowedStatuses(kind).filter((s) => !DERIVED.includes(s));
+}
+
 /**
- * The statuses a person can pick for a hex of `kind`. `current` stays listed even when the kind
- * no longer allows it (data from before a workflow changed), so the picker can show it.
+ * The statuses a person can pick for a hex of `kind`. `current` stays listed even when it can't
+ * be picked (set by a pull request, or from before a workflow changed), so the picker can show it.
  */
 export function statusOptions(kind: string, current?: Status): readonly Status[] {
-  const allowed = allowedStatuses(kind);
-  return current && !allowed.includes(current) ? [current, ...allowed] : allowed;
+  const options = pickable(kind);
+  return current && !options.includes(current) ? [current, ...options] : options;
 }
 
 /** Statuses a new hex can start in: those that need a response are set after creating it. */
 export function createStatusOptions(kind: string): readonly Status[] {
-  return allowedStatuses(kind).filter((s) => !REQUIRES_RESPONSE.includes(s));
+  return pickable(kind).filter((s) => !REQUIRES_RESPONSE.includes(s));
 }
 
 export function relativeTime(ms: number, now = Date.now()): string {
