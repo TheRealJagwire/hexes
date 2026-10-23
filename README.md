@@ -20,11 +20,13 @@ deno task dev     # watch CSS, client and server
 ## Statuses
 
 Each kind has its own lifecycle (`KIND_WORKFLOWS` in `src/shared/constants.ts`, served at
-`GET /api/statuses`). Most go `blocked` → `ready` → `in_progress` → `verified` → `done`. Designs and
-specs are `blessed` instead of `ready`: a person has approved them, and that unblocks what depends
-on them (a design's specs and decisions, a spec's stories). A question is `answered` instead of
-`done`: answering needs a response, which is recorded as a new decision hex. Data from before these
-workflows is migrated the first time a workspace is opened.
+`GET /api/statuses`). Work (stories, substories, bugs and custom kinds) goes `blocked` → `ready` →
+`in_progress` → `in_review` → `merged`, following its pull requests (below); `done` is for work that
+never had a branch. Projects, epics, gates and decisions go `blocked` → `ready` → `in_progress` →
+`verified` → `done`. Designs and specs are `blessed` instead of `ready`: a person has approved them,
+and that unblocks what depends on them (a design's specs and decisions, a spec's stories). A
+question is `answered` instead of `done`: answering needs a response, which is recorded as a new
+decision hex. Data from before these workflows is migrated the first time a workspace is opened.
 
 ## Per-user state
 
@@ -39,10 +41,14 @@ so switching to one in another folder takes a single click.
 Work hexes (stories, bugs, …) are built on their own branch and reach main through a pull request.
 Studio's "Branch & pull requests" panel, the app and the MCP tools all drive the same steps: start
 work (Hexes creates `hx/<id>-<slug>` off main and switches to it), commit, open a pull request (a
-`core.pull_request` hex the work then waits on), and merge it with a merge commit. Hexes runs git in
-the project's own working tree, so `.hx/` must be in `.gitignore` and uncommitted changes block a
-switch or merge. After a merge, the work hex links to a diff view of what landed; the diff is also
-saved under `.hx/diffs/` in case the commits disappear.
+`core.pull_request` hex the work then waits on), and merge it with a merge commit. The work hex's
+own status shows where it stands: opening a pull request makes it `in_review`, merging makes it
+`merged` (and unblocks what waits on it), and closing an unmerged one puts it back to `in_progress`.
+Only pull requests set `in_review` and `merged`; the status menus don't offer them, and a hex with a
+branch can't be marked `done` by hand. Each epic on the project page counts its stories in review.
+Hexes runs git in the project's own working tree, so `.hx/` must be in `.gitignore` and uncommitted
+changes block a switch or merge. After a merge, the work hex links to a diff view of what landed;
+the diff is also saved under `.hx/diffs/` in case the commits disappear.
 
 ## Hex search
 
