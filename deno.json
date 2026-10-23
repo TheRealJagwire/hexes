@@ -5,6 +5,7 @@
     "dev": "deno task css:watch & deno task bundle:watch & deno run -A --watch src/server/main.ts",
     "start": "deno run -A src/server/main.ts",
     "mcp": "deno run --allow-read --allow-write --allow-env --allow-run=git src/mcp/server.ts",
+    "channel": "deno run --allow-read --allow-write --allow-env src/mcp/channel.ts",
     "css": "deno run -A zuke.ts css",
     "css:watch": "deno run -A npm:@tailwindcss/cli -i src/client/styles/app.css -o static/app.css --watch",
     "bundle": "deno run -A zuke.ts bundle",
