@@ -69,6 +69,7 @@ class ContractParsingTest {
         assertEquals(table.allowed("core.design"), table.allowed("core.spec"))
         assertEquals(listOf(Status.Answered), table.requiresResponse)
         assertEquals(listOf(Status.InReview, Status.Merged), table.derived)
+        assertEquals(listOf(Status.Blocked, Status.Ready, Status.InProgress, Status.Done), table.options("core.story", Status.Ready))
         assertEquals(
             listOf(Status.Blocked, Status.Ready, Status.InProgress, Status.InReview, Status.Merged, Status.Done),
             table.allowed("core.story"),

@@ -34,7 +34,7 @@ data class CreateHexForm(
      * need a response (answering a question) are set after creating it.
      */
     fun statusOptions(table: StatusTable): List<Status> =
-        table.allowed(effectiveKind).filter { it !in table.requiresResponse }
+        table.pickable(effectiveKind).filter { it !in table.requiresResponse }
 
     /** The chosen status, or `blocked` when switching kind made it unavailable. */
     fun effectiveStatus(table: StatusTable): Status = status.takeIf { it in statusOptions(table) } ?: Status.Blocked
