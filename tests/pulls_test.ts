@@ -78,7 +78,7 @@ Deno.test("start work: a branch off main, recorded on the hex, safe to repeat", 
   }
 });
 
-Deno.test("open, merge and finish: the work waits on its pull request", async () => {
+Deno.test("open, merge and finish: the work goes in_review, then merged", async () => {
   const f = await repoFixture();
   try {
     const s = f.service;
@@ -94,6 +94,7 @@ Deno.test("open, merge and finish: the work waits on its pull request", async ()
       "PR: Draw the Grid!",
     ]);
     assertEquals(pr.meta?.work_hex, f.storyId);
+    assertEquals((await s.getHex(f.storyId)).status, "in_review");
     assertEquals(pr.meta?.target_branch, "main");
     assertEquals(pr.meta?.base_sha, await git(f.dir, "rev-parse", "main"));
     await assertRejects(() => s.openPullRequest(f.storyId), DomainError, "already has an open");
@@ -113,7 +114,7 @@ Deno.test("open, merge and finish: the work waits on its pull request", async ()
     await assertRejects(
       () => s.updateHex(f.storyId, { status: "done" }),
       DomainError,
-      "Merge its pull request first",
+      "finishes by merging its pull request",
     );
 
     const open = await s.pullRequestDiff(pr.id);
@@ -122,6 +123,7 @@ Deno.test("open, merge and finish: the work waits on its pull request", async ()
 
     const merged = await s.mergePullRequest(pr.id);
     assertEquals(merged.status, "merged");
+    assertEquals((await s.getHex(f.storyId)).status, "merged");
     assertEquals(await git(f.dir, "branch", "--show-current"), "main");
     assertEquals(merged.meta?.merge_sha, await git(f.dir, "rev-parse", "main"));
     assertEquals(
@@ -136,7 +138,6 @@ Deno.test("open, merge and finish: the work waits on its pull request", async ()
       { kind: "add", oldNo: null, newNo: 1, text: "export const size = 3;" },
     ]);
     assertEquals((await s.hexView(f.storyId)).pullRequests[0]?.mergeSha, merged.meta?.merge_sha);
-    assertEquals((await s.updateHex(f.storyId, { status: "done" })).status, "done");
 
     // Once the commits are gone, the patch saved at merge time stands in.
     await s.setMeta(pr.id, "merge_sha", "0".repeat(40));
@@ -180,17 +181,19 @@ Deno.test("closing a pull request keeps it and lets the work go on without it", 
     const pr = await s.openPullRequest(f.storyId);
     const closed = await s.closePullRequest(pr.id);
     assertEquals(closed.status, "closed");
+    assertEquals((await s.getHex(f.storyId)).status, "in_progress");
     assert(closed.meta?.closed_at);
     assertEquals((await s.getHex(f.storyId)).dependsOn, undefined);
     await assertRejects(() => s.mergePullRequest(pr.id), DomainError, "already closed");
     await assertRejects(
       () => s.updateHex(f.storyId, { status: "done" }),
       DomainError,
-      "Merge its pull request first",
+      "finishes by merging its pull request",
     );
     // A new pull request can be opened for the same branch once the old one is closed.
     const again = await s.openPullRequest(f.storyId, { title: "Second try" });
     assertEquals((await s.hexView(f.storyId)).pullRequests.map((p) => p.id), [again.id, pr.id]);
+    assertEquals((await s.getHex(f.storyId)).status, "in_review");
   } finally {
     await f.cleanup();
   }
@@ -334,10 +337,77 @@ Deno.test("the pull-request flow over MCP", async () => {
     }]);
     assertEquals(diff.patch, "--- a.txt\n+++ a.txt\n@@ -0,0 +1,2 @@\n+a\n+b");
     assertEquals((await call("merge_pull_request", { id: pr.id })).status, "merged");
-    assertEquals((await call("update_hex_status", { id, status: "done" })).status, "done");
+    assertEquals((await call("get_hex_by_id", { id })).status, "merged");
     assert((await call("close_pull_request", { id: pr.id })).error.includes("already merged"));
   } finally {
     await client.close();
+    await f.cleanup();
+  }
+});
+
+Deno.test("merging unblocks what waits on the work, with no status change by hand", async () => {
+  const f = await repoFixture();
+  try {
+    const s = f.service;
+    const next = await s.createHex({
+      ...base,
+      projectId: f.projectId,
+      kind: "core.story",
+      title: "Next",
+      status: "blocked",
+      dependsOn: [f.storyId],
+    });
+    await s.startWork(f.storyId);
+    await commitFile(f.dir, "a.txt", "a\n");
+    const pr = await s.openPullRequest(f.storyId);
+    assertEquals((await s.getHex(next.id)).status, "blocked");
+    await s.mergePullRequest(pr.id);
+    assertEquals((await s.getHex(f.storyId)).status, "merged");
+    assertEquals((await s.getHex(next.id)).status, "ready");
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("in_review and merged follow pull requests only", async () => {
+  const f = await repoFixture();
+  try {
+    const s = f.service;
+    await assertRejects(
+      () => s.updateHex(f.storyId, { status: "in_review" }),
+      DomainError,
+      "in_review is set by opening a pull request",
+    );
+    await assertRejects(
+      () =>
+        s.createHex({
+          ...base,
+          projectId: f.projectId,
+          kind: "core.bug",
+          title: "B",
+          status: "merged",
+        }),
+      DomainError,
+      "merged is set by merging",
+    );
+
+    // Closing one of two open pull requests leaves the work in review.
+    const { meta } = await s.startWork(f.storyId);
+    await commitFile(f.dir, "a.txt", "a\n");
+    const first = await s.openPullRequest(f.storyId);
+    await git(f.dir, "switch", "-q", "-c", "other", meta!.git_branch!);
+    await s.setMeta(f.storyId, "git_branch", "other");
+    await commitFile(f.dir, "b.txt", "b\n");
+    const second = await s.openPullRequest(f.storyId);
+    await s.closePullRequest(first.id);
+    assertEquals((await s.getHex(f.storyId)).status, "in_review");
+
+    // Merged work is finished: it takes no new pull request until someone reopens it.
+    await git(f.dir, "switch", "-q", "main");
+    await s.mergePullRequest(second.id);
+    await assertRejects(() => s.openPullRequest(f.storyId), DomainError, "already merged");
+    assertEquals((await s.updateHex(f.storyId, { status: "in_progress" })).status, "in_progress");
+  } finally {
     await f.cleanup();
   }
 });

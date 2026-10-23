@@ -29,6 +29,7 @@ const STATUS_TEXT: Record<Status, string> = {
   done: "text-muted",
   answered: "text-muted",
   pull_requested: "text-accent",
+  in_review: "text-accent",
   merged: "text-verified",
   closed: "text-muted",
 };

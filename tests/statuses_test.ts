@@ -1,7 +1,9 @@
 import { assert, assertEquals } from "@std/assert";
 import {
   DEFAULT_WORKFLOW,
+  DERIVED,
   KIND_WORKFLOWS,
+  type Status,
   STATUS_INFO,
   STATUSES,
   workflowOf,
@@ -36,18 +38,28 @@ Deno.test("only finished or approved statuses satisfy dependents", () => {
   assertEquals(STATUS_INFO.merged, { role: "terminal", satisfies: true });
 });
 
-Deno.test("pull-request statuses belong to pull requests only", () => {
+Deno.test("pull-request statuses belong to pull requests, and merged to work too", () => {
   const pr = workflowOf("core.pull_request").statuses;
   assertEquals(pr, ["pull_requested", "merged", "closed"]);
   for (const [kind, wf] of workflows()) {
     if (kind === "core.pull_request") continue;
-    for (const s of pr) assert(!wf.statuses.includes(s), `${kind} must not allow ${s}`);
+    for (const s of ["pull_requested", "closed"] as const) {
+      assert(!wf.statuses.includes(s), `${kind} must not allow ${s}`);
+    }
   }
+  assertEquals(DERIVED, ["in_review", "merged"]);
+  assertEquals(STATUS_INFO.in_review, { role: "active", satisfies: false });
 });
 
-Deno.test("kinds without a workflow use the default", () => {
-  assertEquals(workflowOf("core.story"), DEFAULT_WORKFLOW);
-  assertEquals(workflowOf("custom.thing"), DEFAULT_WORKFLOW);
+Deno.test("work kinds follow pull requests; planning kinds are checked by hand", () => {
+  const work: Status[] = ["blocked", "ready", "in_progress", "in_review", "merged", "done"];
+  const planning: Status[] = ["blocked", "ready", "in_progress", "verified", "done"];
+  for (const kind of ["core.story", "core.substory", "core.bug", "x.task"]) {
+    assertEquals(workflowOf(kind).statuses, work, kind);
+  }
+  for (const kind of ["core.project", "core.epic", "core.gate", "core.decision"]) {
+    assertEquals(workflowOf(kind).statuses, planning, kind);
+  }
 });
 
 Deno.test("GET /api/statuses serves the status table", async () => {
@@ -62,6 +74,7 @@ Deno.test("GET /api/statuses serves the status table", async () => {
     assertEquals(table.kinds, KIND_WORKFLOWS);
     assertEquals(table.default, DEFAULT_WORKFLOW);
     assertEquals(table.requiresResponse, ["answered"]);
+    assertEquals(table.derived, ["in_review", "merged"]);
   } finally {
     await f.cleanup();
   }

@@ -126,16 +126,17 @@ export function projectHexes(idx: HexIndex, prefix: string): Hex[] {
 }
 
 const STORY_ORDER: Record<Status, number> = {
-  in_progress: 0,
-  verified: 1,
-  ready: 2,
-  blessed: 2,
-  pull_requested: 1,
-  blocked: 3,
-  done: 4,
-  answered: 4,
-  merged: 4,
-  closed: 5,
+  in_review: 0,
+  in_progress: 1,
+  verified: 2,
+  pull_requested: 2,
+  ready: 3,
+  blessed: 3,
+  blocked: 4,
+  done: 5,
+  answered: 5,
+  merged: 5,
+  closed: 6,
 };
 
 export function sortStories(stories: readonly Hex[]): Hex[] {
@@ -161,11 +162,12 @@ const SUMMARY_ORDER: Record<Status, number> = {
   merged: 2,
   closed: 3,
   verified: 4,
-  pull_requested: 5,
-  in_progress: 6,
-  blessed: 7,
-  ready: 8,
-  blocked: 9,
+  in_review: 5,
+  pull_requested: 6,
+  in_progress: 7,
+  blessed: 8,
+  ready: 9,
+  blocked: 10,
 };
 
 /** "2 done · 1 in progress", in status-lifecycle order. */

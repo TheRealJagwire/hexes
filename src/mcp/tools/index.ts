@@ -26,7 +26,9 @@ function refusePeopleOnly(status: Status): void {
 }
 
 const STATUS_RULES = "Statuses depend on the kind: designs and specs use blessed (set only by a " +
-  "person in Studio) instead of ready; questions use answered instead of done, which needs a response.";
+  "person in Studio) instead of ready; questions use answered instead of done, which needs a response; " +
+  "work (story, substory, bug, custom kinds) goes in_progress → in_review when a pull request is " +
+  "opened → merged when it is merged, and in_review and merged are never set by hand.";
 
 /**
  * Every Studio action as an MCP tool. The names called out in SPEC.md keep their exact
@@ -113,8 +115,8 @@ export function buildTools(s: HexService) {
       name: "get_project",
       description:
         "The project screen as data: the project hex, its designs, specs, decisions, questions and epics. Each epic " +
-        "has its gate, progress {done,total,pct} and its stories sorted in_progress → verified → " +
-        "ready → blocked → done.",
+        "has its gate, progress {done,total,pct} and its stories sorted in_review → in_progress → " +
+        "ready → blocked → merged/done.",
       kind: "read",
       input: z.object({ project_id: id }),
       run: ({ project_id }) => s.projectView(project_id),
@@ -251,8 +253,9 @@ export function buildTools(s: HexService) {
       name: "open_pull_request",
       description:
         "Open a pull request (a core.pull_request hex, status pull_requested) for a work hex's " +
-        "branch once it has commits. The work hex then depends on it and cannot be done until it " +
-        "is merged. Next: the user reviews; merge_pull_request only when they say so.",
+        "branch once it has commits. It moves the work hex to in_review; the work hex depends on " +
+        "the pull request until it is merged. Next: the user reviews; merge_pull_request only when " +
+        "they say so.",
       kind: "write",
       input: z.object({
         id: id.describe("The work hex"),
@@ -266,7 +269,8 @@ export function buildTools(s: HexService) {
       description:
         "Merge a pull request into main with a merge commit, in the working tree (main stays " +
         "checked out). Only when the user asks. A conflict changes nothing and names the files: " +
-        "merge main into the branch, resolve, commit, and try again. Then mark the work hex done.",
+        "merge main into the branch, resolve, commit, and try again. It moves the work hex to " +
+        "merged; no further status change is needed.",
       kind: "write",
       input: z.object({ id: id.describe("The pull request") }),
       run: ({ id }) => s.mergePullRequest(id),
@@ -275,7 +279,7 @@ export function buildTools(s: HexService) {
       name: "close_pull_request",
       description:
         "Abandon a pull request without merging. It is kept (status closed) and its work hex no " +
-        "longer waits on it; the branch is kept too.",
+        "longer waits on it; the branch is kept too. A work hex in_review goes back to in_progress.",
       kind: "write",
       input: z.object({ id: id.describe("The pull request") }),
       run: ({ id }) => s.closePullRequest(id),

@@ -493,6 +493,21 @@ Deno.test("pull requests are only opened, never created directly", async () => {
     await assertRejects(
       () => f.service.updateHex(story.id, { status: "merged" }),
       DomainError,
+      "merged is set by merging its pull request",
+    );
+    const epic = await f.service.createHex({
+      projectId: f.projectId,
+      kind: "core.epic",
+      title: "E",
+      description: "",
+      status: "blocked",
+      requiredBy: [],
+      dependsOn: [],
+      meta: {},
+    });
+    await assertRejects(
+      () => f.service.updateHex(epic.id, { status: "merged" }),
+      DomainError,
       "cannot be merged",
     );
   } finally {

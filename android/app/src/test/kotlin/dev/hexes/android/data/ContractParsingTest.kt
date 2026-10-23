@@ -68,10 +68,17 @@ class ContractParsingTest {
         assertEquals(listOf(Status.Blocked, Status.InProgress, Status.Blessed, Status.Done), table.allowed("core.design"))
         assertEquals(table.allowed("core.design"), table.allowed("core.spec"))
         assertEquals(listOf(Status.Answered), table.requiresResponse)
+        assertEquals(listOf(Status.InReview, Status.Merged), table.derived)
+        assertEquals(
+            listOf(Status.Blocked, Status.Ready, Status.InProgress, Status.InReview, Status.Merged, Status.Done),
+            table.allowed("core.story"),
+        )
+        assertEquals(listOf(Status.Blocked, Status.Ready, Status.InProgress, Status.Verified, Status.Done), table.allowed("core.epic"))
         assertEquals("terminal", table.statuses.getValue("answered").role)
         // Every status the server names is one this build knows.
         table.statuses.keys.forEach { assertTrue("unknown status $it", Status.fromWire(it) != Status.Unknown) }
-        assertEquals(StatusTable.LEGACY.default, table.default)
+        // A Studio from before /api/statuses used today's planning workflow for every kind.
+        assertEquals(StatusTable.LEGACY.default, table.kinds.getValue("core.epic"))
         // A design still marked ready keeps showing it.
         assertEquals(listOf(Status.Ready, Status.Blocked, Status.InProgress, Status.Blessed, Status.Done), table.options("core.design", Status.Ready))
         assertEquals(listOf(Status.Blocked, Status.Ready, Status.InProgress, Status.Answered), table.options("core.question", Status.Ready))

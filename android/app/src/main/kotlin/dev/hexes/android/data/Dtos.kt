@@ -19,6 +19,7 @@ enum class Status(val wire: String, val finished: Boolean = false) {
     Blocked("blocked"),
     Ready("ready"),
     InProgress("in_progress"),
+    InReview("in_review"),
     Verified("verified"),
     Done("done", finished = true),
     Blessed("blessed"),
@@ -53,6 +54,8 @@ data class StatusTable(
     val kinds: Map<String, KindWorkflow>,
     val default: KindWorkflow,
     val requiresResponse: List<Status> = emptyList(),
+    /** Statuses only pull requests set (`in_review`, `merged`); empty from an older Studio. */
+    val derived: List<Status> = emptyList(),
 ) {
     fun allowed(kind: String): List<Status> = (kinds[kind] ?: default).statuses.filter { it != Status.Unknown }
 

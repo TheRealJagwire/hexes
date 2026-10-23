@@ -147,6 +147,8 @@ export interface StatusTable {
   default: KindWorkflow;
   /** Statuses that are only set together with a `response` (answering a question). */
   requiresResponse: readonly Status[];
+  /** Statuses only pull requests set (`in_review`, `merged`): never offered in a status menu. */
+  derived: readonly Status[];
 }
 
 export interface DiffLine {
