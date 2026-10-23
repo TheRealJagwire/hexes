@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { migrateStatuses } from "../src/server/core/migrate.ts";
+import { migrateStatuses, migrateWorkStatuses } from "../src/server/core/migrate.ts";
 import type { Hex, Status } from "../src/shared/schemas.ts";
 import { HexService } from "../src/server/core/service.ts";
 import { Workspace } from "../src/server/core/workspace.ts";
@@ -85,4 +85,66 @@ Deno.test("a workspace's data file is migrated on disk the first time it is used
   } finally {
     await Deno.remove(root, { recursive: true });
   }
+});
+
+function pr(id: string, workHex: string, status: Status): Hex {
+  return { ...hex(id, "core.pull_request", status), meta: { work_hex: workHex } };
+}
+
+Deno.test("work follows its pull requests: merged, in_review, or back in progress", () => {
+  const hexes = [
+    hex("hx-p-0a1", "core.story", "done"), // merged PR → merged
+    pr("hx-p-0f1", "hx-p-0a1", "merged"),
+    hex("hx-p-0a2", "core.bug", "verified"), // merged PR → merged
+    pr("hx-p-0f2", "hx-p-0a2", "merged"),
+    hex("hx-p-0a3", "core.story", "in_progress"), // open PR → in_review
+    pr("hx-p-0f3", "hx-p-0a3", "pull_requested"),
+    hex("hx-p-0a4", "x.task", "verified"), // open PR → in_review
+    pr("hx-p-0f4", "hx-p-0a4", "pull_requested"),
+    hex("hx-p-0a5", "core.substory", "verified"), // no PR → in_progress
+    hex("hx-p-0a6", "core.story", "done"), // no PR: stays done
+    hex("hx-p-0a7", "core.story", "in_progress"), // closed PR only: unchanged
+    pr("hx-p-0f7", "hx-p-0a7", "closed"),
+    hex("hx-p-0e1", "core.epic", "verified"), // planning keeps verified
+  ];
+  assertEquals(migrateWorkStatuses(hexes, 9), [
+    "hx-p-0a1",
+    "hx-p-0a2",
+    "hx-p-0a3",
+    "hx-p-0a4",
+    "hx-p-0a5",
+  ]);
+  const status = Object.fromEntries(hexes.map((h) => [h.id, h.status]));
+  assertEquals(
+    [
+      status["hx-p-0a1"],
+      status["hx-p-0a2"],
+      status["hx-p-0a3"],
+      status["hx-p-0a4"],
+      status["hx-p-0a5"],
+      status["hx-p-0a6"],
+      status["hx-p-0a7"],
+      status["hx-p-0e1"],
+    ],
+    [
+      "merged",
+      "merged",
+      "in_review",
+      "in_review",
+      "in_progress",
+      "done",
+      "in_progress",
+      "verified",
+    ],
+  );
+  assertEquals(migrateWorkStatuses(hexes, 10), [], "a second run changes nothing");
+});
+
+Deno.test("migrating work re-checks what waits on it", () => {
+  const waiting = { ...hex("hx-p-0b1", "core.story", "ready"), dependsOn: ["hx-p-0a1"] };
+  const hexes = [hex("hx-p-0a1", "core.story", "verified"), waiting];
+  // `verified` never satisfied, so a ready dependent was already wrong; it drops back to blocked.
+  migrateWorkStatuses(hexes, 9);
+  assertEquals(hexes[0]!.status, "in_progress");
+  assertEquals(hexes[1]!.status, "blocked");
 });
