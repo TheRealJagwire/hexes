@@ -122,6 +122,7 @@ function EpicAccordion({ epic, defaultOpen }: { epic: EpicView; defaultOpen: boo
   const [open, setOpen] = useState(defaultOpen);
   const [openStory, setOpenStory] = useState<string | null>(null);
   const { done, total, pct } = epic.progress;
+  const inReview = epic.stories.filter((s) => s.status === "in_review").length;
   return (
     <div
       class={`overflow-hidden rounded-[14px] border bg-panel ${
@@ -145,7 +146,10 @@ function EpicAccordion({ epic, defaultOpen }: { epic: EpicView; defaultOpen: boo
         <div class="flex items-center gap-3.5">
           <div class="flex flex-col items-end gap-0.5">
             <span class="text-xl font-bold tabular-nums">{pct}%</span>
-            <span class="font-mono text-xs text-muted">{done}/{total} done</span>
+            <span class="font-mono text-xs text-muted">
+              {inReview > 0 && <span class="text-accent">{inReview} in review ·</span>}{" "}
+              {done}/{total} done
+            </span>
           </div>
           <ProgressRing done={done} total={total} pct={pct} />
         </div>
