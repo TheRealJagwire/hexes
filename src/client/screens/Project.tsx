@@ -273,7 +273,7 @@ export function ProjectScreen({ id }: { id: string }) {
     );
   }
 
-  const { project, designs, specs, decisions, questions, epics } = res.data;
+  const { project, ideas, designs, specs, decisions, questions, epics } = res.data;
   const meta = Object.entries(project.meta ?? {});
   return (
     <Page
@@ -317,6 +317,7 @@ export function ProjectScreen({ id }: { id: string }) {
       </section>
 
       <div class="flex flex-col gap-2.5">
+        <HexGroup label="Ideas" items={ideas} />
         <HexGroup label="Designs" items={designs} />
         <HexGroup label="Specs" items={specs} />
         <HexGroup label="Decisions" items={decisions} />
