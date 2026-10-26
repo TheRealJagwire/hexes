@@ -151,9 +151,46 @@ Deno.test("formatEvent: lines and meta", () => {
   for (const key of Object.keys(meta)) assertEquals(/^\w+$/.test(key), true, key);
 });
 
+Deno.test("a published idea is reported on its own, first, and again after a redraft", () => {
+  const draft = [
+    hex("hx-p-001", "core.project", "done"),
+    hex("hx-p-1d1", "core.idea", "draft", ["hx-p-001"]),
+  ];
+  const published = change(draft, { "hx-p-1d1": "published" });
+  const found = diffUnblocked(draft, published);
+  assertEquals(found.map((u) => [u.projectId, ids(u.published), u.ready]), [
+    ["hx-p-001", ["hx-p-1d1"], []],
+  ]);
+  const { content, meta } = formatEvent(found[0]!);
+  assertEquals(content.split("\n"), [
+    'Published: idea hx-p-1d1 "Title hx-p-1d1"',
+    "Now ready: none yet",
+  ]);
+  assertEquals(meta, { project: "hx-p-001", event: "unblocked", published: "hx-p-1d1" });
+
+  // Editing a published idea says nothing; publishing it again after a redraft does.
+  const edited = published.map((h) => h.id === "hx-p-1d1" ? { ...h, title: "Better" } : h);
+  assertEquals(diffUnblocked(published, edited), []);
+  assertEquals(diffUnblocked(published, change(published, { "hx-p-1d1": "draft" })), []);
+  assertEquals(diffUnblocked(change(published, { "hx-p-1d1": "draft" }), published).length, 1);
+
+  // With a blessing in the same burst, Published comes first.
+  const both = formatEvent(
+    diffUnblocked([...draft, ...project().slice(1)], [
+      ...published,
+      ...change(project().slice(1), { "hx-p-0d1": "blessed" }),
+    ])[0]!,
+  );
+  assertEquals(both.content.split("\n").slice(0, 2), [
+    'Published: idea hx-p-1d1 "Title hx-p-1d1"',
+    'Blessed: design hx-p-0d1 "Title hx-p-0d1"',
+  ]);
+});
+
 Deno.test("formatEvent: empty lists and a long, multi-line answer", () => {
   const blessedOnly = formatEvent({
     projectId: "hx-p-001",
+    published: [],
     blessed: [hex("hx-p-0d1", "core.design", "blessed")],
     answered: [],
     ready: [],
@@ -167,6 +204,7 @@ Deno.test("formatEvent: empty lists and a long, multi-line answer", () => {
   const long = `${"word ".repeat(40)}\nsecond line`;
   const answered = formatEvent({
     projectId: "hx-p-001",
+    published: [],
     blessed: [],
     answered: [{
       question: hex("hx-p-0c9", "core.question", "answered"),

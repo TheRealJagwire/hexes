@@ -1,9 +1,19 @@
-import { buildIndex, byCreated, findProject, isReady, kindQualifier, prefixOf } from "./graph.ts";
+import {
+  buildIndex,
+  byCreated,
+  findProject,
+  IDEA_KIND,
+  isReady,
+  kindQualifier,
+  prefixOf,
+} from "./graph.ts";
 import type { Hex } from "./schemas.ts";
 
 /** What a person unblocked in one project between two snapshots. */
 export interface Unblocked {
   projectId: string;
+  /** Ideas that are published in `after` and were not in `before`: a person wants them designed. */
+  published: Hex[];
   /** Designs and specs that are blessed in `after` and were not in `before`. */
   blessed: Hex[];
   /** Questions that are answered in `after` and were not in `before`. */
@@ -33,7 +43,7 @@ export function diffUnblocked(before: readonly Hex[], after: readonly Hex[]): Un
     if (!project) return null;
     let u = byProject.get(project.id);
     if (!u) {
-      u = { projectId: project.id, blessed: [], answered: [], ready: [] };
+      u = { projectId: project.id, published: [], blessed: [], answered: [], ready: [] };
       byProject.set(project.id, u);
     }
     return u;
@@ -43,7 +53,10 @@ export function diffUnblocked(before: readonly Hex[], after: readonly Hex[]): Un
   const moved = new Set<string>();
   for (const h of hexes) {
     const old = was.byId.get(h.id);
-    if (BLESSABLE.has(h.kind) && became(old, h, "blessed")) {
+    if (h.kind === IDEA_KIND && became(old, h, "published")) {
+      entry(h)?.published.push(h);
+      moved.add(h.id);
+    } else if (BLESSABLE.has(h.kind) && became(old, h, "blessed")) {
       entry(h)?.blessed.push(h);
       moved.add(h.id);
     } else if (h.kind === "core.question" && became(old, h, "answered")) {
@@ -62,7 +75,7 @@ export function diffUnblocked(before: readonly Hex[], after: readonly Hex[]): Un
   }
 
   return [...byProject.values()]
-    .filter((u) => u.blessed.length || u.answered.length)
+    .filter((u) => u.published.length || u.blessed.length || u.answered.length)
     .sort((a, b) => a.projectId.localeCompare(b.projectId));
 }
 
@@ -79,6 +92,9 @@ const named = (h: Hex) => `${h.id} (${kindQualifier(h.kind)}) "${h.title}"`;
 /** The channel notification for one project: a few readable lines plus ids as tag attributes. */
 export function formatEvent(u: Unblocked): { content: string; meta: Record<string, string> } {
   const lines: string[] = [];
+  if (u.published.length) {
+    lines.push(`Published: ${u.published.map((h) => `idea ${h.id} "${h.title}"`).join(", ")}`);
+  }
   if (u.blessed.length) {
     lines.push(
       `Blessed: ${
@@ -94,6 +110,7 @@ export function formatEvent(u: Unblocked): { content: string; meta: Record<strin
 
   const meta: Record<string, string> = { project: u.projectId, event: "unblocked" };
   const ids = {
+    published: u.published.map((h) => h.id),
     blessed: u.blessed.map((h) => h.id),
     answered: u.answered.map((a) => a.question.id),
     ready: u.ready.map((h) => h.id),

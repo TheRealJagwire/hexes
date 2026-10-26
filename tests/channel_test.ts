@@ -58,6 +58,31 @@ Deno.test("blessing a design sends one event", async () => {
   }
 });
 
+Deno.test("publishing an idea sends one event", async () => {
+  const f = await fixture();
+  const idea = await f.service.createHex({
+    projectId: f.projectId,
+    kind: "core.idea",
+    title: "Hex rivers",
+    description: "",
+    status: "draft",
+    requiredBy: [],
+    dependsOn: [f.projectId],
+    meta: {},
+  });
+  const { ch, sent, waitFor } = await channel(f);
+  try {
+    await f.service.updateHex(idea.id, { status: "published" });
+    assert(await waitFor(1), "no event");
+    assertEquals(sent.length, 1);
+    assertEquals(sent[0]!.meta.published, idea.id);
+    assert(sent[0]!.content.startsWith(`Published: idea ${idea.id} "Hex rivers"`));
+  } finally {
+    ch.stop();
+    await f.cleanup();
+  }
+});
+
 Deno.test("two blessings inside the settle window send one event", async () => {
   const f = await fixture();
   const a = await design(f.service, f.projectId, "A");

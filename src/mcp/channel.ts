@@ -8,6 +8,8 @@ import { Workspace } from "../server/core/workspace.ts";
 export const CHANNEL_INSTRUCTIONS =
   "Events from hexes-channel mean a person just unblocked work in Hexes. Act only on the " +
   "project from get_selected_project. If you are mid-task, finish the current step first. For a " +
+  "published idea, run hexes-plan-work to write one core.design that depends on the project and " +
+  "on the idea (emerged_from the idea), ask the user to bless it, and stop. For a " +
   "blessed design, run hexes-plan-work to break it down. For a blessed spec or an answered " +
   "question, run hexes-next-task on the newly ready hexes. Merging stays a person's call. Ignore " +
   "answers you gave yourself.";
@@ -26,8 +28,8 @@ export interface HexesChannelOptions {
 }
 
 /**
- * Watches the active workspace and sends one event per project whenever a person blesses a
- * design or spec or answers a question. Starts from what is there now, so nothing is replayed.
+ * Watches the active workspace and sends one event per project whenever a person publishes an
+ * idea, blesses a design or spec, or answers a question. Starts from what is there now, so nothing is replayed.
  */
 export class HexesChannel {
   /** What was last seen; null until a read succeeds, so a failed first read replays nothing. */
