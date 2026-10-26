@@ -4,6 +4,7 @@ import {
   REQUIRES_RESPONSE,
   type Status,
 } from "../../shared/constants.ts";
+import { IDEA_KIND } from "../../shared/graph.ts";
 
 /** Full class strings so Tailwind can see them. */
 export const PILL: Record<Status, string> = {
@@ -18,8 +19,8 @@ export const PILL: Record<Status, string> = {
   pull_requested: "text-accent bg-accent-bg",
   merged: "text-verified bg-verified-bg",
   closed: "text-muted bg-line-soft",
-  draft: "text-muted bg-line-soft",
-  published: "text-ready bg-ready-bg",
+  draft: "text-draft bg-draft-bg",
+  published: "text-published bg-published-bg",
 };
 
 /** What a person can pick for `kind`: pull requests set `in_review` and `merged`, not people. */
@@ -36,8 +37,12 @@ export function statusOptions(kind: string, current?: Status): readonly Status[]
   return current && !options.includes(current) ? [current, ...options] : options;
 }
 
-/** Statuses a new hex can start in: those that need a response are set after creating it. */
+/**
+ * Statuses a new hex can start in: those that need a response are set after creating it, and an
+ * idea always starts as a draft.
+ */
 export function createStatusOptions(kind: string): readonly Status[] {
+  if (kind === IDEA_KIND) return ["draft"];
   return pickable(kind).filter((s) => !REQUIRES_RESPONSE.includes(s));
 }
 

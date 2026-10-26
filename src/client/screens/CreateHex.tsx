@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { CORE_KINDS, type Status } from "../../shared/constants.ts";
-import { kindQualifier, prefixOf } from "../../shared/graph.ts";
+import { IDEA_KIND, kindQualifier, prefixOf } from "../../shared/graph.ts";
 import type { HexSummary } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
 import { createStatusOptions } from "../lib/format.ts";
@@ -146,7 +146,13 @@ export function CreateHex(
         status: effectiveStatus,
         ...(emerged ? { emergedFrom: emerged } : {}),
         requiredBy: requiredBy.map((h) => h.id),
-        dependsOn: dependsOn.map((h) => h.id),
+        // An idea always hangs off its project, so it shows on the project screen.
+        dependsOn: [
+          ...new Set([
+            ...(effectiveKind === IDEA_KIND ? [projectId] : []),
+            ...dependsOn.map((h) => h.id),
+          ]),
+        ],
         meta: metaMap,
       });
       navigate(`/h/${hex.id}`);

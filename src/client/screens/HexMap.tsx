@@ -36,11 +36,12 @@ const COLOURS: Record<Status, [string, string]> = {
   in_review: ["--accent", "--accent-bg"],
   merged: ["--verified", "--verified-bg"],
   closed: ["--muted", "--line-soft"],
-  draft: ["--muted", "--line-soft"],
-  published: ["--ready", "--ready-bg"],
+  draft: ["--draft", "--draft-bg"],
+  published: ["--published", "--published-bg"],
 };
 
 const KIND_LABELS: Record<string, string> = {
+  "core.idea": "I",
   "core.project": "P",
   "core.design": "D",
   "core.spec": "Sp",

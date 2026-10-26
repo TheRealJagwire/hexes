@@ -21,3 +21,8 @@ Deno.test("a new hex never starts in review or merged", () => {
   assertEquals(createStatusOptions("x.task"), ["blocked", "ready", "in_progress", "done"]);
   assertEquals(createStatusOptions("core.question"), ["blocked", "ready", "in_progress"]);
 });
+
+Deno.test("an idea is created as a draft and then moves freely between its statuses", () => {
+  assertEquals(createStatusOptions("core.idea"), ["draft"]);
+  assertEquals(statusOptions("core.idea", "draft"), ["draft", "published", "done"]);
+});
