@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { PEOPLE_ONLY, type Status } from "../../shared/constants.ts";
 import { DomainError } from "../../server/core/errors.ts";
+import { IDEA_KIND } from "../../shared/graph.ts";
 import {
   CORE_KINDS,
   HexIdSchema,
@@ -22,6 +23,15 @@ function refusePeopleOnly(status: Status): void {
       `Only a person can set ${status}. Ask the user to do it in Studio.`,
       403,
     );
+  }
+}
+
+/** Ideas are a person's words: agents read them and build on them, but never change them. */
+async function refuseIdeas(s: HexService, ids: readonly string[]): Promise<void> {
+  for (const id of ids) {
+    if ((await s.getHex(id)).kind === IDEA_KIND) {
+      throw new DomainError("Ideas belong to people: ask the user to change it in Studio", 403);
+    }
   }
 }
 
@@ -165,8 +175,9 @@ export function buildTools(s: HexService) {
       name: "create_hex",
       description:
         `Create a hex in a project. Kinds are <category>.<qualifier>; core kinds: ${
-          CORE_KINDS.filter((k) => k !== "pull_request").map((k) => `core.${k}`).join(", ")
-        } (pull requests come from open_pull_request). Conventions: designs depend on the project; specs and decisions depend on a design; ` +
+          CORE_KINDS.filter((k) => k !== "pull_request" && k !== "idea").map((k) => `core.${k}`)
+            .join(", ")
+        } (pull requests come from open_pull_request; ideas, core.idea, only from people). Conventions: designs depend on the project, and on the idea they design when there is one; specs and decisions depend on a design; ` +
         "epics depend on designs, specs and stories; gates depend on epics. Status defaults to blocked; " +
         "'ready' needs every dependency done. The id is hashed from title, kind and createdAt. " +
         STATUS_RULES,
@@ -182,9 +193,16 @@ export function buildTools(s: HexService) {
         emerged_from: id.optional().describe("The hex being worked on when this was discovered"),
         meta: MetaSchema.default({}),
       }),
-      run: (a) => {
+      run: async (a) => {
+        if (a.kind === IDEA_KIND) {
+          throw new DomainError(
+            "Ideas come from people: ask the user to write it in Studio",
+            403,
+          );
+        }
         refusePeopleOnly(a.status);
-        return s.createHex({
+        await refuseIdeas(s, a.required_by);
+        return await s.createHex({
           projectId: a.project_id,
           kind: a.kind,
           title: a.title,
@@ -206,7 +224,10 @@ export function buildTools(s: HexService) {
         title: z.string().min(1).optional(),
         description: z.string().optional(),
       }),
-      run: ({ id, title, description }) => s.updateHex(id, { title, description }),
+      run: async ({ id, title, description }) => {
+        await refuseIdeas(s, [id]);
+        return await s.updateHex(id, { title, description });
+      },
     }),
     defineTool({
       name: "update_hex_status",
@@ -223,9 +244,10 @@ export function buildTools(s: HexService) {
           "Required when setting a question to answered: the answer, in markdown",
         ),
       }),
-      run: ({ id, status, response }) => {
+      run: async ({ id, status, response }) => {
         refusePeopleOnly(status);
-        return s.updateHex(id, { status, response });
+        await refuseIdeas(s, [id]);
+        return await s.updateHex(id, { status, response });
       },
     }),
     defineTool({
@@ -235,7 +257,10 @@ export function buildTools(s: HexService) {
         "hex in that project. Mirrors Studio's double confirmation: pass confirm=true.",
       kind: "destructive",
       input: z.object({ id, confirm: z.literal(true).describe("Must be true") }),
-      run: async ({ id }) => ({ deleted: await s.deleteHex(id) }),
+      run: async ({ id }) => {
+        await refuseIdeas(s, [id]);
+        return { deleted: await s.deleteHex(id) };
+      },
     }),
 
     // ── branches & pull requests ──────────────────────────────────────────
@@ -354,14 +379,20 @@ export function buildTools(s: HexService) {
       description: "Make `id` depend on `depends_on_id`. Cycles are refused.",
       kind: "write",
       input: z.object({ id, depends_on_id: id }),
-      run: ({ id, depends_on_id }) => s.addDependency(id, depends_on_id),
+      run: async ({ id, depends_on_id }) => {
+        await refuseIdeas(s, [id]);
+        return await s.addDependency(id, depends_on_id);
+      },
     }),
     defineTool({
       name: "remove_dependency",
       description: "Remove `depends_on_id` from `id`'s dependencies.",
       kind: "write",
       input: z.object({ id, depends_on_id: id }),
-      run: ({ id, depends_on_id }) => s.removeDependency(id, depends_on_id),
+      run: async ({ id, depends_on_id }) => {
+        await refuseIdeas(s, [id]);
+        return await s.removeDependency(id, depends_on_id);
+      },
     }),
 
     // ── meta ──────────────────────────────────────────────────────────────
@@ -370,21 +401,30 @@ export function buildTools(s: HexService) {
       description: "Add a new meta key/value to a hex. Fails if the key already exists.",
       kind: "write",
       input: z.object({ id, key, value }),
-      run: ({ id, key, value }) => s.setMeta(id, key, value, "add"),
+      run: async ({ id, key, value }) => {
+        await refuseIdeas(s, [id]);
+        return await s.setMeta(id, key, value, "add");
+      },
     }),
     defineTool({
       name: "update_meta_state_to_hex_with_id",
       description: "Change the value of an existing meta key. Fails if the key does not exist.",
       kind: "write",
       input: z.object({ id, key, value }),
-      run: ({ id, key, value }) => s.setMeta(id, key, value, "update"),
+      run: async ({ id, key, value }) => {
+        await refuseIdeas(s, [id]);
+        return await s.setMeta(id, key, value, "update");
+      },
     }),
     defineTool({
       name: "remove_meta_state_from_hex_with_id",
       description: "Remove a meta key from a hex.",
       kind: "write",
       input: z.object({ id, key }),
-      run: ({ id, key }) => s.removeMeta(id, key),
+      run: async ({ id, key }) => {
+        await refuseIdeas(s, [id]);
+        return await s.removeMeta(id, key);
+      },
     }),
   ];
 }

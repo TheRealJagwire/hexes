@@ -161,3 +161,89 @@ Deno.test("mcp answers questions with a response and leaves blessing to people",
     await f.cleanup();
   }
 });
+
+Deno.test("mcp reads and builds on ideas but never writes or moves one", async () => {
+  const f = await fixture();
+  const { client, call } = await connect(f);
+  try {
+    const s = f.service;
+    const base = { description: "", requiredBy: [], meta: {}, projectId: f.projectId };
+    const idea = await s.createHex({
+      ...base,
+      kind: "core.idea",
+      title: "Hex rivers",
+      status: "draft",
+      dependsOn: [f.projectId],
+    });
+    const refused = (r: { isError: boolean; body: string }, text: string) =>
+      assert(r.isError && r.body.includes(text), r.body);
+    const belongs = "Ideas belong to people";
+
+    refused(
+      await call("create_hex", { project_id: f.projectId, kind: "core.idea", title: "Mine" }),
+      "Ideas come from people",
+    );
+    for (const status of ["draft", "published"]) {
+      refused(await call("update_hex_status", { id: idea.id, status }), "Only a person");
+    }
+    refused(await call("update_hex_status", { id: idea.id, status: "done" }), belongs);
+    refused(await call("update_hex", { id: idea.id, title: "Better rivers" }), belongs);
+    refused(await call("delete_hex", { id: idea.id, confirm: true }), belongs);
+    refused(
+      await call("add_dependency", { id: idea.id, depends_on_id: f.projectId }),
+      belongs,
+    );
+    refused(
+      await call("remove_dependency", { id: idea.id, depends_on_id: f.projectId }),
+      belongs,
+    );
+    refused(
+      await call("add_meta_state_to_hex_with_id", { id: idea.id, key: "k", value: "v" }),
+      belongs,
+    );
+    refused(
+      await call("update_meta_state_to_hex_with_id", { id: idea.id, key: "k", value: "v" }),
+      belongs,
+    );
+    refused(await call("remove_meta_state_from_hex_with_id", { id: idea.id, key: "k" }), belongs);
+    refused(
+      await call("create_hex", {
+        project_id: f.projectId,
+        kind: "core.story",
+        title: "Sneaky",
+        required_by: [idea.id],
+      }),
+      belongs,
+    );
+    const story = (await call("create_hex", {
+      project_id: f.projectId,
+      kind: "core.story",
+      title: "Story",
+    })).json;
+    refused(await call("update_hex_status", { id: story.id, status: "draft" }), "Only a person");
+    assertEquals((await s.getHex(idea.id)).title, "Hex rivers", "the idea is untouched");
+
+    // Reading, building on and linking to an idea is fine.
+    await s.updateHex(idea.id, { status: "published" });
+    const ready = (await call("get_ready_hexes_for_project", { project_id: f.projectId })).json;
+    assertEquals(ready.map((h: { id: string }) => h.id), [idea.id]);
+    assertEquals((await call("get_hex_view", { id: idea.id })).json.hex.status, "published");
+    const design = (await call("create_hex", {
+      project_id: f.projectId,
+      kind: "core.design",
+      title: "Design rivers",
+      status: "in_progress",
+      depends_on: [f.projectId, idea.id],
+      emerged_from: idea.id,
+    })).json;
+    assertEquals(design.dependsOn, [f.projectId, idea.id]);
+    assert(!(await call("add_dependency", { id: story.id, depends_on_id: idea.id })).isError);
+
+    // Deleting the whole project still takes its ideas with it.
+    const gone = await call("delete_hex", { id: f.projectId, confirm: true });
+    assert(gone.json.deleted.includes(idea.id), gone.body);
+  } finally {
+    await client.close();
+    await f.cleanup();
+  }
+});
