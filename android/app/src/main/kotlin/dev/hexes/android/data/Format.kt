@@ -10,9 +10,12 @@ fun kindQualifier(kind: String): String = kind.split(".").getOrNull(1) ?: kind
 
 const val PULL_REQUEST_KIND = "core.pull_request"
 
+/** Written and moved only by people; publishing one asks an agent for a design. */
+const val IDEA_KIND = "core.idea"
+
 private val NOT_WORK = setOf(
     "core.project", "core.design", "core.spec", "core.decision", "core.gate", "core.epic", "core.question",
-    PULL_REQUEST_KIND,
+    IDEA_KIND, PULL_REQUEST_KIND,
 )
 
 /** Kinds worked on a branch and merged through a pull request (story, bug, …). Mirrors graph.ts. */

@@ -139,4 +139,16 @@ class CreateHexFormTest {
         assertEquals(1, searchHexes(options, "", emptySet(), limit = 1).size)
         assertTrue(searchHexes(options, "zzz", emptySet()).isEmpty())
     }
+
+    @Test
+    fun anIdeaStartsAsADraftAndHangsOffItsProject() {
+        val form = CreateHexForm(kind = "core.idea", title = "Hex rivers", status = Status.Ready)
+        assertEquals(listOf(Status.Draft), form.statusOptions(StatusTable.LEGACY))
+        val req = form.toRequest("hx-a-000")
+        assertEquals(Status.Draft, req.status)
+        assertEquals(listOf("hx-a-000"), req.dependsOn)
+        val linked = form.copy(dependsOn = listOf(hex("hx-a-000"), hex("hx-a-003"))).toRequest("hx-a-000")
+        assertEquals(listOf("hx-a-000", "hx-a-003"), linked.dependsOn)
+        assertEquals("core.idea", CREATE_KINDS.first())
+    }
 }
