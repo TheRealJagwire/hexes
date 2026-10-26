@@ -26,12 +26,12 @@ from where it belongs.
 
 **Waking the agent (optional).** `hexes-channel` is a one-way Claude Code channel
 (`deno task
-channel`, registered in `.mcp.json`). When a person blesses a design or spec, or answers
-a question, it pushes an event into the session naming what was blessed or answered and what became
-ready. Channels are a research preview, so opt in per session with
-`claude
---dangerously-load-development-channels server:hexes-channel`; without the flag the events
-are dropped. Use one such session per working tree. An event arrives as:
+channel`, registered in `.mcp.json`). When a person publishes an idea, blesses a design
+or spec, or answers a question, it pushes an event into the session naming what was published,
+blessed or answered and what became ready. Channels are a research preview, so opt in per session
+with `claude
+--dangerously-load-development-channels server:hexes-channel`; without the flag the
+events are dropped. Use one such session per working tree. An event arrives as:
 
 ```text
 <channel source="hexes-channel" project="hx-hexes-f1a" event="unblocked" blessed="hx-hexes-775" ready="hx-hexes-1a4">
@@ -40,9 +40,18 @@ Now ready: hx-hexes-1a4 (story) "Detect unblocking transitions between two snaps
 </channel>
 ```
 
+or, for an idea:
+
+```text
+<channel source="hexes-channel" project="hx-hexes-f1a" event="unblocked" published="hx-hexes-3c2">
+Published: idea hx-hexes-3c2 "Let people write ideas"
+Now ready: none yet
+</channel>
+```
+
 Act on it only for the selected project. Finish the step you are on, then run `hexes-plan-work` for
-a blessed design, or `hexes-next-task` for a blessed spec or an answered question. Ignore an answer
-you gave yourself.
+a published idea (one design built on it, then stop for a blessing) or a blessed design, or
+`hexes-next-task` for a blessed spec or an answered question. Ignore an answer you gave yourself.
 
 In Claude Code the tools appear as `mcp__hexes__<tool_name>`. Every tool returns JSON text; domain
 failures (cycle, unknown id, `ready` with unfinished dependencies, a status the kind doesn't use, …)
@@ -56,8 +65,8 @@ retrying blindly.
 - **Ids** look like `hx-<prefix>-<hex>` (e.g. `hx-studio-4a1`). The suffix is 3 hex characters and
   grows by one character when a new hex collides with an existing id (e.g. `hx-realtime-a925`), so
   never assume a fixed length; ids are opaque.
-- **Kinds** are `<category>.<qualifier>`. Core kinds: `core.project`, `core.design`, `core.spec`,
-  `core.decision`, `core.gate`, `core.epic`, `core.story`, `core.substory`, `core.bug`,
+- **Kinds** are `<category>.<qualifier>`. Core kinds: `core.idea`, `core.project`, `core.design`,
+  `core.spec`, `core.decision`, `core.gate`, `core.epic`, `core.story`, `core.substory`, `core.bug`,
   `core.question`. Custom kinds are allowed. `studio.selected_project` is internal.
 - **Statuses** depend on the kind. Projects, epics, gates and decisions go `blocked` → `ready` →
   `in_progress` → `verified` → `done`. These kinds differ:
@@ -74,9 +83,17 @@ retrying blindly.
     needs a `response`. Answering stores the response on the question (`meta.answer`) and creates a
     `done` `core.decision` holding it (`meta.decision` is its id); whatever depended on the question
     then depends on the decision too. A question is answered once; revise the decision instead.
-  - A dependency is satisfied by `done`, `merged`, `answered` or `blessed`. `ready` is refused while
-    any dependency is unsatisfied, and satisfying the last one auto-promotes blocked dependents to
-    `ready` (designs and specs excepted: they wait for a person).
+  - **Ideas** (`core.idea`): `draft` → `published` → `done`. A person writes an idea in Studio or
+    the app and publishes it when they want it designed; only they move it, back to `draft` or on to
+    `done`. Over MCP you can read ideas, list a published one in `get_ready_hexes`, and depend on
+    one, but every write to an idea is refused (create, edit, status, delete, dependencies, meta,
+    naming it in `required_by`), and so are `draft` and `published` on any hex. A published idea is
+    yours to design: write one `core.design` that depends on the project and the idea, with
+    `emerged_from` the idea, and ask the user to bless it. Ideas never wait on dependencies (they
+    have no `blocked`).
+  - A dependency is satisfied by `done`, `merged`, `answered`, `blessed` or `published`. `ready` is
+    refused while any dependency is unsatisfied, and satisfying the last one auto-promotes blocked
+    dependents to `ready` (designs and specs excepted: they wait for a person).
   - **Pull requests** (`core.pull_request`): `pull_requested` → `merged` or `closed`. They are only
     created by `open_pull_request` and only move by `merge_pull_request` / `close_pull_request`.
   - `GET /api/statuses` returns the full table: each status's role and each kind's statuses.
@@ -97,9 +114,10 @@ retrying blindly.
     work stops waiting on it and goes back to `in_progress`); open a new one later from the same
     branch.
   - After a merge, the work hex's page in Studio and the app has a diff view of what landed.
-- **Conventions**: projects own designs, gates and bugs; designs own decisions and specs; gates
-  depend on epics; epics depend on designs, specs and stories; stories may have substories. A
-  _dependency_ means "must be done first".
+- **Conventions**: projects own ideas, designs, gates and bugs; a design written for an idea also
+  depends on that idea; designs own decisions and specs; gates depend on epics; epics depend on
+  designs, specs and stories; stories may have substories. A _dependency_ means "must be done
+  first".
 
 ## Part 1: Tool definitions
 
@@ -131,6 +149,9 @@ Annotations: **R** = read-only (safe to auto-approve), **W** = write, **D** = de
 | `update_hex`        | W    | `id`, `title?`, `description?`                                                                                                     | Edit title/description.                                                                                                                                                                  |
 | `update_hex_status` | W    | `id`, `status`, `response?`                                                                                                        | Move a hex through its kind's lifecycle; finishing it unblocks dependents. `response` is required to set a question `answered`; the result's `meta.decision` is the decision it created. |
 | `delete_hex`        | D    | `id`, `confirm: true`                                                                                                              | Permanently delete and scrub references. Deleting a `core.project` deletes the whole project.                                                                                            |
+
+Ideas are read-only here: `create_hex` refuses `core.idea`, and every write tool refuses a target
+that is an idea (403, "Ideas belong to people"). Ask the user to change it in Studio instead.
 
 ### Readiness & dependency graph
 
@@ -215,8 +236,9 @@ description: Get oriented in a Hexes workspace — find the open project, its st
    `list_recent_projects` and `open_recent_project` switch to it in one step.
 3. `get_project` for the overview: designs, decisions, epic progress.
 4. `get_ready_hexes_for_project` for the actionable queue.
-5. Summarize: project statement, epic progress, and the ready hexes (id, kind, title). The user can
-   watch changes land in Studio as you make them.
+5. Summarize: project statement, epic progress, and the ready hexes (id, kind, title), calling out
+   any published ideas waiting for a design. The user can watch changes land in Studio as you make
+   them.
 
 Read-only except for selecting a project. Never create or change hexes while orienting.
 ```
@@ -233,11 +255,12 @@ description: Pick up and execute the next ready hex, then close it out and repor
 
 1. Pick a hex: `get_ready_hexes_for_project`. Prefer `core.bug` first, then
    `core.story`/`core.substory`, then others; within a kind, take the one that unblocks the most
-   (`get_hexes_that_depend_on_hex_with_id`). A blessed `core.design` in the list is ready to be
-   broken down: use `hexes-plan-work` for it. A blessed `core.spec` is approved: build the work that
-   depends on it, and mark the spec `done` once that work is. A ready `core.question` needs the
-   user: ask it, then answer it with their words (`update_hex_status` → `answered` with `response`),
-   and report the decision it created.
+   (`get_hexes_that_depend_on_hex_with_id`). A published `core.idea` in the list wants a design: use
+   `hexes-plan-work` to write one, then stop until it is blessed. A blessed `core.design` in the
+   list is ready to be broken down: use `hexes-plan-work` for it. A blessed `core.spec` is approved:
+   build the work that depends on it, and mark the spec `done` once that work is. A ready
+   `core.question` needs the user: ask it, then answer it with their words (`update_hex_status` →
+   `answered` with `response`), and report the decision it created.
 2. Load context: `get_hex_view` (description, breadcrumbs, dependencies). Read the linked
    design/spec/ decision hexes with `get_hex_by_id` when the description is not self-sufficient.
 3. Claim it on its own branch: `start_work_branch` (story, substory, bug, …; it also sets
@@ -255,7 +278,8 @@ Rules:
 
 - Only work on hexes that are `ready` (or blessed designs and specs). If something you need is
   blocked, surface it; do not force it.
-- Never bless a design or spec, or invent an answer: these belong to a person.
+- Never bless a design or spec, or invent an answer: these belong to a person. Never create, edit or
+  move an idea: ideas belong to a person too.
 - Do not mark `done` without the user's or CI's confirmation unless told you may. Never set
   `in_review` or `merged`: pull requests set them.
 - Never commit work hexes' changes straight to main, and never merge a pull request unasked.
@@ -277,7 +301,10 @@ description: Break a goal into hexes (design → spec/decision → epic → stor
 1. Orient (`hexes-orient`). `search_hexes` for existing hexes covering the goal — never duplicate.
 2. Create top-down, capturing each returned id:
    - `core.design` (depends_on: [project_id]), left `blocked` (or `in_progress` while you draft it).
-     Ask the user to bless it in Studio; you cannot. Break down only designs that are `blessed`.
+     Ask the user to bless it in Studio; you cannot. Break down only designs that are `blessed`. For
+     a published `core.idea`, write exactly one design that depends on the project **and** the idea,
+     with `emerged_from` the idea, write it in full, ask for a blessing, and stop: nothing below the
+     design until it is blessed. Never change the idea itself.
    - `core.spec` / `core.decision` (depends_on: [design]); they stay `blocked` until it is blessed.
      Write each spec in full in its `description`, then ask the user to bless it too; work that
      depends on a spec stays `blocked` until they do.
@@ -365,7 +392,8 @@ description: Audit the graph for stale, mis-wired or stuck hexes and propose fix
    work whose pull request has waited a long time: each needs a review, a merge or a close.
 4. Flag `core.question` hexes not yet `answered`, and `core.design` / `core.spec` hexes not yet
    `blessed` whose dependencies are all satisfied: they need a human. Flag any design or spec still
-   marked `ready` (data from before blessing existed).
+   marked `ready` (data from before blessing existed). Flag published `core.idea` hexes that no
+   design depends on yet: they are waiting for one.
 5. Present findings as a list with a proposed action each. Apply only what the user approves, using
    `update_hex_status`, `add_dependency`, `remove_dependency`, `update_hex`.
 ```

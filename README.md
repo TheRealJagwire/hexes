@@ -28,6 +28,14 @@ and that unblocks what depends on them (a design's specs and decisions, a spec's
 question is `answered` instead of `done`: answering needs a response, which is recorded as a new
 decision hex. Data from before these workflows is migrated the first time a workspace is opened.
 
+Ideas (`core.idea`) are where work starts, and they belong to people. Someone writes one in Studio
+or the app as a `draft`, then sets it `published` when they want it designed; it goes back to
+`draft` or on to `done` only when they say so. Agents can read ideas and build on them, but every
+MCP write to an idea is refused, and so are `draft` and `published` on any hex. An idea has no
+`blocked`, so it never waits on its project: a published idea is always ready to be designed.
+Publishing one wakes the agent (below), which writes a design that depends on the idea and stops
+there until you bless it.
+
 ## Per-user state
 
 Studio remembers, per user, the folder it last opened, recent folders and recently opened projects
@@ -64,10 +72,10 @@ open one; Esc closes the list, then clears the box.
 
 **Hex map** on a project's page (`/p/:id/map`) shows every hex in the project as a cell on a
 hexagonal grid. A cell's colour is its status, the same as the status pills, and its label is its
-kind (P project, D design, Sp spec, Dec decision, Q question, E epic, St story, Sub substory, B bug,
-G gate, PR pull request). Hover or focus a cell for its details and to highlight the hexes it links
-to; click it, or press Enter, to open it. Drag to pan, scroll or pinch to zoom, and **Fit** frames
-the whole map.
+kind (I idea, P project, D design, Sp spec, Dec decision, Q question, E epic, St story, Sub
+substory, B bug, G gate, PR pull request). Hover or focus a cell for its details and to highlight
+the hexes it links to; click it, or press Enter, to open it. Drag to pan, scroll or pinch to zoom,
+and **Fit** frames the whole map.
 
 The project sits in the centre and every other hex goes in the free cell closest to the hexes it
 links to, so related hexes cluster together (`hexLayout` in `src/shared/hexmap.ts`). The layout is
@@ -83,24 +91,32 @@ clients that need a spawned process.
 
 ## Waking the agent
 
-Blessing a design or spec, or answering a question, unblocks work. `hexes-channel` tells a waiting
-Claude Code session about it, so the agent picks the work up without you typing "please continue".
-It is a one-way [Claude Code channel](https://code.claude.com/docs/en/channels-reference): a small
-stdio MCP server (`src/mcp/channel.ts`, `deno task channel`) with no tools. It watches the active
-workspace, like Studio does, and doesn't need Studio running.
+Publishing an idea, blessing a design or spec, or answering a question, unblocks work.
+`hexes-channel` tells a waiting Claude Code session about it, so the agent picks the work up without
+you typing "please continue". It is a one-way
+[Claude Code channel](https://code.claude.com/docs/en/channels-reference): a small stdio MCP server
+(`src/mcp/channel.ts`, `deno task channel`) with no tools. It watches the active workspace, like
+Studio does, and doesn't need Studio running.
 
-After changes settle (1.5 s), it sends one event per project that names what was blessed or answered
-and what became ready:
+After changes settle (1.5 s), it sends one event per project that names what was published, blessed
+or answered and what became ready:
 
 ```
 Blessed: spec hx-hexes-775 "Spec the hexes-channel events and server"
 Now ready: hx-hexes-1a4 (story) "Detect unblocking transitions between two snapshots"
 ```
 
-The agent then breaks down a blessed design with `hexes-plan-work`, or starts the newly ready hexes
-with `hexes-next-task`. It finishes its current step first and still leaves merging to you. Changes
-that only move readiness, like an agent finishing a story, send nothing. Nothing is replayed when
-the channel starts.
+```
+Published: idea hx-hexes-3c2 "Let people write ideas"
+Now ready: none yet
+```
+
+For a published idea the agent runs `hexes-plan-work` to write one design that depends on the
+project and the idea, asks you to bless it, and stops. It breaks down a blessed design with
+`hexes-plan-work`, and starts the newly ready hexes of a blessed spec or answered question with
+`hexes-next-task`. Publishing an idea again after a trip back to `draft` sends a new event. It
+finishes its current step first and still leaves merging to you. Changes that only move readiness,
+like an agent finishing a story, send nothing. Nothing is replayed when the channel starts.
 
 `.mcp.json` registers it. Channels are a Claude Code research preview and custom channels aren't on
 its allowlist, so opt in per session with the development flag:
