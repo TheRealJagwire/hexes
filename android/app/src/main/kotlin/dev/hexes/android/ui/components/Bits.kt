@@ -67,14 +67,16 @@ val Mono = FontFamily.Monospace
 fun statusColors(status: Status): Pair<Color, Color> {
     val c = Hexes.colors
     return when (status) {
-        Status.Ready, Status.Published -> c.ready to c.readyBg
+        Status.Ready -> c.ready to c.readyBg
+        Status.Published -> c.published to c.publishedBg
+        Status.Draft -> c.draft to c.draftBg
         Status.InProgress, Status.InReview -> c.accent to c.accentBg
         Status.Verified -> c.verified to c.verifiedBg
         Status.Blocked -> c.blocked to c.blockedBg
         Status.Blessed -> c.blessed to c.blessedBg
         Status.PullRequested -> c.accent to c.accentBg
         Status.Merged -> c.verified to c.verifiedBg
-        Status.Done, Status.Answered, Status.Closed, Status.Draft, Status.Unknown -> c.muted to c.lineSoft
+        Status.Done, Status.Answered, Status.Closed, Status.Unknown -> c.muted to c.lineSoft
     }
 }
 

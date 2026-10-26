@@ -99,6 +99,7 @@ private fun ProjectContent(view: ProjectView, onBack: () -> Unit, onOpenHex: (St
             }
         }
         item { Statement(project, onOpenHex) }
+        item { HexGroup("Ideas", view.ideas, onOpenHex) }
         item { HexGroup("Designs", view.designs, onOpenHex) }
         item { HexGroup("Specs", view.specs, onOpenHex) }
         item { HexGroup("Decisions", view.decisions, onOpenHex) }
