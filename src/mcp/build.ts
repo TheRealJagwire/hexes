@@ -8,10 +8,11 @@ export function buildServer(service: HexService): McpServer {
     { name: "hexes", version: "0.1.0" },
     {
       instructions:
-        "Hexes tracks project state as atomic hexes (project, design, spec, decision, gate, epic, " +
-        "story, substory, bug). Start with get_workspace / get_selected_project, then " +
+        "Hexes tracks project state as atomic hexes (idea, project, design, spec, decision, gate, " +
+        "epic, story, substory, bug). Start with get_workspace / get_selected_project, then " +
         "get_ready_hexes_for_project to find work. Mark hexes done with update_hex_status; " +
-        "dependents unblock automatically.",
+        "dependents unblock automatically. Ideas are written and moved only by people; read " +
+        "them, never change them. A published idea is ready to be designed.",
     },
   );
   for (const tool of buildTools(service)) registerTool(server, tool);
