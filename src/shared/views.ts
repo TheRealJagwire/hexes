@@ -65,6 +65,8 @@ export interface ProjectView {
   specs: HexSummary[];
   decisions: HexSummary[];
   questions: HexSummary[];
+  /** Ideas, newest first. */
+  ideas: HexSummary[];
   epics: EpicView[];
 }
 

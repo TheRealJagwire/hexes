@@ -220,6 +220,63 @@ Deno.test("project view groups designs, specs, decisions, questions and epics", 
   }
 });
 
+Deno.test("ideas start as drafts, are published by people and list newest first", async () => {
+  const f = await fixture();
+  try {
+    const s = f.service;
+    const base = { description: "", requiredBy: [], meta: {}, projectId: f.projectId };
+    const idea = (title: string, status: "draft" | "published" | "done" = "draft") =>
+      s.createHex({ ...base, kind: "core.idea", title, status, dependsOn: [f.projectId] });
+    await assertRejects(() => idea("Too soon", "published"), DomainError, "starts as a draft");
+    await assertRejects(() => idea("Too late", "done"), DomainError, "starts as a draft");
+    await assertRejects(
+      () =>
+        s.createHex({ ...base, kind: "core.story", title: "x", status: "draft", dependsOn: [] }),
+      DomainError,
+      "cannot be draft",
+    );
+
+    // The project is still in progress: that doesn't hold an idea back.
+    await s.updateHex(f.projectId, { status: "in_progress" });
+    const first = await idea("First");
+    const second = await idea("Second");
+    assertEquals((await s.ready(f.projectId)).map((h) => h.id), []);
+    await assertRejects(
+      () => s.updateHex(first.id, { status: "ready" }),
+      DomainError,
+      "cannot be ready; use published",
+    );
+    await s.updateHex(first.id, { status: "published" });
+    assertEquals((await s.ready(f.projectId)).map((h) => h.id), [first.id]);
+    await s.updateHex(f.projectId, { status: "blocked" });
+    assertEquals((await s.getHex(first.id)).status, "published", "never demoted");
+
+    // A design built on a published idea is held back only by the project.
+    await s.updateHex(f.projectId, { status: "done" });
+    const design = await s.createHex({
+      ...base,
+      kind: "core.design",
+      title: "Design it",
+      status: "blocked",
+      dependsOn: [f.projectId, first.id],
+      emergedFrom: first.id,
+    });
+    await s.updateHex(design.id, { status: "blessed" });
+
+    // Back to draft, then closed: both are free moves.
+    await s.updateHex(first.id, { status: "draft" });
+    await s.updateHex(first.id, { status: "done" });
+    await s.updateHex(first.id, { status: "published" });
+    assertEquals(
+      (await s.projectView(f.projectId)).ideas.map((x) => [x.title, x.status]),
+      [["Second", "draft"], ["First", "published"]],
+    );
+    assertEquals(second.status, "draft");
+  } finally {
+    await f.cleanup();
+  }
+});
+
 Deno.test("blurb is a plain-text first sentence, without markdown", () => {
   assertEquals(blurb("A vision."), "A vision.");
   assertEquals(

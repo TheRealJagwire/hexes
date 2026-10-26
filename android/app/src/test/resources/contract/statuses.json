@@ -45,6 +45,14 @@
       "closed": {
         "role": "terminal",
         "satisfies": false
+      },
+      "draft": {
+        "role": "waiting",
+        "satisfies": false
+      },
+      "published": {
+        "role": "actionable",
+        "satisfies": true
       }
     },
     "kinds": {
@@ -114,6 +122,14 @@
           "answered"
         ],
         "promoteTo": "ready"
+      },
+      "core.idea": {
+        "statuses": [
+          "draft",
+          "published",
+          "done"
+        ],
+        "promoteTo": null
       },
       "core.pull_request": {
         "statuses": [

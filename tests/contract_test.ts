@@ -51,6 +51,19 @@ Deno.test("api responses match the contract fixtures", async () => {
     await make({ kind: "core.question", title: "Wrap edges?", emergedFrom: design.id });
     await call("PATCH", `/hexes/${design.id}`, { status: "done" });
     const question = await make({ kind: "core.question", title: "Snap to grid?" });
+    await make({
+      kind: "core.idea",
+      title: "Fog of war",
+      status: "draft",
+      dependsOn: [f.projectId],
+    });
+    const idea = await make({
+      kind: "core.idea",
+      title: "Hex rivers",
+      status: "draft",
+      dependsOn: [f.projectId],
+    });
+    await call("PATCH", `/hexes/${idea.id}`, { status: "published" });
 
     const checks: Record<string, { status: number; body: unknown }> = {
       state: await call("GET", "/state"),

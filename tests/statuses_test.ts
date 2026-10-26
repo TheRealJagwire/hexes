@@ -3,9 +3,11 @@ import {
   DEFAULT_WORKFLOW,
   DERIVED,
   KIND_WORKFLOWS,
+  PEOPLE_ONLY,
   type Status,
   STATUS_INFO,
   STATUSES,
+  waitsOnDependencies,
   workflowOf,
 } from "../src/shared/constants.ts";
 import { createApp } from "../src/server/app.ts";
@@ -15,8 +17,12 @@ const workflows = () => [["default", DEFAULT_WORKFLOW] as const, ...Object.entri
 
 Deno.test("every workflow ends terminal, promotes within itself and can block what waits", () => {
   for (const [kind, wf] of workflows()) {
-    // An actionable hex drops back to blocked when a dependency reopens.
-    if (wf.statuses.some((s) => STATUS_INFO[s].role === "actionable")) {
+    // An actionable hex drops back to blocked when a dependency reopens, unless its kind never
+    // waits on dependencies (an idea, which has no blocked).
+    if (
+      wf.statuses.some((s) => STATUS_INFO[s].role === "actionable") &&
+      waitsOnDependencies(kind === "default" ? "x.task" : kind)
+    ) {
       assert(wf.statuses.includes("blocked"), `${kind} can be blocked`);
     }
     assert(
@@ -59,6 +65,22 @@ Deno.test("work kinds follow pull requests; planning kinds are checked by hand",
   }
   for (const kind of ["core.project", "core.epic", "core.gate", "core.decision"]) {
     assertEquals(workflowOf(kind).statuses, planning, kind);
+  }
+});
+
+Deno.test("ideas are drafted and published by people, and never wait on dependencies", () => {
+  const idea = workflowOf("core.idea");
+  assertEquals(idea, { statuses: ["draft", "published", "done"], promoteTo: null });
+  assertEquals(STATUS_INFO.draft, { role: "waiting", satisfies: false });
+  assertEquals(STATUS_INFO.published, { role: "actionable", satisfies: true });
+  assertEquals(PEOPLE_ONLY, ["blessed", "draft", "published"]);
+  assert(!waitsOnDependencies("core.idea"));
+  for (const [kind, wf] of workflows()) {
+    if (kind === "core.idea") continue;
+    assert(!wf.statuses.includes("draft") && !wf.statuses.includes("published"), kind);
+    assert(
+      waitsOnDependencies(kind === "default" ? "x.task" : kind) || kind === "core.pull_request",
+    );
   }
 });
 

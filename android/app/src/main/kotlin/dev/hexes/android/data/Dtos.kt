@@ -27,6 +27,8 @@ enum class Status(val wire: String, val finished: Boolean = false) {
     PullRequested("pull_requested"),
     Merged("merged", finished = true),
     Closed("closed", finished = true),
+    Draft("draft"),
+    Published("published"),
     Unknown("unknown"),
     ;
 
@@ -175,6 +177,8 @@ data class ProjectView(
     val specs: List<HexSummary> = emptyList(),
     val decisions: List<HexSummary>,
     val questions: List<HexSummary>,
+    /** Newest first. Absent from servers older than ideas. */
+    val ideas: List<HexSummary> = emptyList(),
     val epics: List<EpicView>,
 )
 

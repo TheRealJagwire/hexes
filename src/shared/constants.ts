@@ -12,6 +12,8 @@ export const STATUSES = [
   "pull_requested",
   "merged",
   "closed",
+  "draft",
+  "published",
 ] as const;
 export type Status = (typeof STATUSES)[number];
 
@@ -44,10 +46,13 @@ export const STATUS_INFO: Record<Status, StatusInfo> = {
   pull_requested: { role: "active", satisfies: false },
   merged: { role: "terminal", satisfies: true },
   closed: { role: "terminal", satisfies: false },
+  // Ideas: a person is still writing it, or wants it designed. Both are a person's call.
+  draft: { role: "waiting", satisfies: false },
+  published: { role: "actionable", satisfies: true },
 };
 
-/** Statuses that are a person's approval, so agents (over MCP) may not set them. */
-export const PEOPLE_ONLY: readonly Status[] = ["blessed"];
+/** Statuses that are a person's approval or a person's idea, so agents (over MCP) may not set them. */
+export const PEOPLE_ONLY: readonly Status[] = ["blessed", "draft", "published"];
 
 /** Statuses that only pull requests set: opening one, or merging it. Never set by hand. */
 export const DERIVED: readonly Status[] = ["in_review", "merged"];
@@ -90,6 +95,8 @@ export const KIND_WORKFLOWS: Readonly<Record<string, KindWorkflow>> = {
     statuses: ["blocked", "ready", "in_progress", "answered"],
     promoteTo: "ready",
   },
+  // Written and moved only by people: drafted, published to be designed, closed.
+  "core.idea": { statuses: ["draft", "published", "done"], promoteTo: null },
   // Only ever created by opening a PR, so never blocked or promoted.
   "core.pull_request": { statuses: ["pull_requested", "merged", "closed"], promoteTo: null },
 };
@@ -102,6 +109,14 @@ export function allowedStatuses(kind: string): readonly Status[] {
   return workflowOf(kind).statuses;
 }
 
+/**
+ * Whether a kind waits on its dependencies. A kind with no `blocked` status (an idea) is never
+ * held back by them: it can't be demoted, so it is actionable whatever they are.
+ */
+export function waitsOnDependencies(kind: string): boolean {
+  return workflowOf(kind).statuses.includes("blocked");
+}
+
 export function roleOf(status: Status): StatusRole {
   return STATUS_INFO[status].role;
 }
@@ -112,6 +127,7 @@ export function satisfies(status: Status): boolean {
 
 /** `core.*` kinds that Studio knows how to lay out. Custom kinds are allowed too. */
 export const CORE_KINDS = [
+  "idea",
   "project",
   "design",
   "spec",

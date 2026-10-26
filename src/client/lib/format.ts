@@ -18,6 +18,8 @@ export const PILL: Record<Status, string> = {
   pull_requested: "text-accent bg-accent-bg",
   merged: "text-verified bg-verified-bg",
   closed: "text-muted bg-line-soft",
+  draft: "text-muted bg-line-soft",
+  published: "text-ready bg-ready-bg",
 };
 
 /** What a person can pick for `kind`: pull requests set `in_review` and `merged`, not people. */

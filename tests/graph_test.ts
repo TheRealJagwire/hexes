@@ -136,9 +136,37 @@ Deno.test("work kinds are the ones worked on a branch", () => {
   for (const k of ["core.story", "core.substory", "core.bug", "custom.task"]) {
     assertEquals(isWorkKind(k), true, k);
   }
-  for (const k of ["core.design", "core.epic", "core.question", "core.pull_request", "studio.x"]) {
+  for (
+    const k of [
+      "core.design",
+      "core.epic",
+      "core.question",
+      "core.idea",
+      "core.pull_request",
+      "studio.x",
+    ]
+  ) {
     assertEquals(isWorkKind(k), false, k);
   }
+});
+
+Deno.test("a published idea is ready whatever its project is, and is never demoted", () => {
+  const hexes = [
+    hex("hx-p-001", "core.project", "in_progress"),
+    hex("hx-p-1d1", "core.idea", "published", ["hx-p-001"]),
+    hex("hx-p-1d2", "core.idea", "draft", ["hx-p-001"]),
+    hex("hx-p-0d1", "core.design", "blocked", ["hx-p-001", "hx-p-1d1"]),
+  ];
+  const idx = buildIndex(hexes);
+  assertEquals(isReady(idx, hexes[1]!), true);
+  assertEquals(isReady(idx, hexes[2]!), false);
+  assertEquals(readyHexes(idx).map((h) => h.id), ["hx-p-1d1"]);
+  assertEquals(reconcileReadiness(hexes, ["hx-p-1d1", "hx-p-1d2"], 9), []);
+  assertEquals(hexes[1]!.status, "published");
+  // A published idea satisfies what is built on it; only the project holds the design back.
+  hexes[0]!.status = "done";
+  assertEquals(reconcileReadiness(hexes, ["hx-p-0d1"], 10), []);
+  assertEquals(isReady(buildIndex(hexes), { ...hexes[3]!, status: "blessed" }), true);
 });
 
 Deno.test("a work hex's pull requests are found through meta.work_hex, newest first", () => {
