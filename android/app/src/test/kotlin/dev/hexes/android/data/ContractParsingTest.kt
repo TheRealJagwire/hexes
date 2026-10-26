@@ -63,11 +63,21 @@ class ContractParsingTest {
     }
 
     @Test
+    fun projectViewListsIdeasNewestFirstAndOlderServersHaveNone() {
+        val view = parse("project_view", ProjectView.serializer())
+        assertEquals(listOf("Hex rivers" to Status.Published, "Fog of war" to Status.Draft), view.ideas.map { it.title to it.status })
+        val body = strict.parseToJsonElement(fixture("project_view").second).jsonObject
+        val older = JsonObject(body - "ideas").toString()
+        assertEquals(emptyList<HexSummary>(), strict.decodeFromString(ProjectView.serializer(), older).ideas)
+    }
+
+    @Test
     fun statuses() {
         val table = parse("statuses", StatusTable.serializer())
         assertEquals(listOf(Status.Blocked, Status.InProgress, Status.Blessed, Status.Done), table.allowed("core.design"))
         assertEquals(table.allowed("core.design"), table.allowed("core.spec"))
         assertEquals(listOf(Status.Answered), table.requiresResponse)
+        assertEquals(listOf(Status.Draft, Status.Published, Status.Done), table.allowed("core.idea"))
         assertEquals(listOf(Status.InReview, Status.Merged), table.derived)
         assertEquals(listOf(Status.Blocked, Status.Ready, Status.InProgress, Status.Done), table.options("core.story", Status.Ready))
         assertEquals(

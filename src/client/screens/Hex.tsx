@@ -32,6 +32,8 @@ const STATUS_TEXT: Record<Status, string> = {
   in_review: "text-accent",
   merged: "text-verified",
   closed: "text-muted",
+  draft: "text-muted",
+  published: "text-ready",
 };
 
 /** Project crumbs go to the project screen; everything else to its hex screen. */

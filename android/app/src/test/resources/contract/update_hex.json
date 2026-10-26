@@ -6,7 +6,7 @@
     "description": "",
     "kind": "core.epic",
     "createdAtTimeInMs": 1700000006000,
-    "lastUpdatedAtTimeInMs": 1700000010000,
+    "lastUpdatedAtTimeInMs": 1700000013000,
     "status": "blocked",
     "dependsOn": [
       "hx-contract-6a4",

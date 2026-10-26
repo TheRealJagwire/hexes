@@ -36,6 +36,8 @@ const COLOURS: Record<Status, [string, string]> = {
   in_review: ["--accent", "--accent-bg"],
   merged: ["--verified", "--verified-bg"],
   closed: ["--muted", "--line-soft"],
+  draft: ["--muted", "--line-soft"],
+  published: ["--ready", "--ready-bg"],
 };
 
 const KIND_LABELS: Record<string, string> = {

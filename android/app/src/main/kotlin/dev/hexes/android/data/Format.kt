@@ -47,7 +47,7 @@ fun statusSummary(statuses: List<Status>): String {
     val order = listOf(
         Status.Done, Status.Answered, Status.Merged, Status.Closed, Status.Verified, Status.InReview,
         Status.PullRequested,
-        Status.InProgress, Status.Blessed, Status.Ready, Status.Blocked,
+        Status.InProgress, Status.Blessed, Status.Published, Status.Ready, Status.Draft, Status.Blocked,
         Status.Unknown,
     )
     return order.mapNotNull { status ->

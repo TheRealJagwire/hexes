@@ -5,6 +5,7 @@ import {
   SELECTED_PROJECT_KIND,
   type Status,
   STATUSES,
+  waitsOnDependencies,
   workflowOf,
 } from "./constants.ts";
 import type { Hex } from "./schemas.ts";
@@ -75,9 +76,13 @@ export function dependenciesDone(idx: HexIndex, hex: Hex): boolean {
   });
 }
 
-/** Ready = in an actionable status (`ready`, …) and every dependency is satisfied. */
+/**
+ * Ready = in an actionable status (`ready`, …) and every dependency is satisfied, or for a kind
+ * that doesn't wait on its dependencies (an idea), just actionable.
+ */
 export function isReady(idx: HexIndex, hex: Hex): boolean {
-  return roleOf(hex.status) === "actionable" && dependenciesDone(idx, hex);
+  return roleOf(hex.status) === "actionable" &&
+    (!waitsOnDependencies(hex.kind) || dependenciesDone(idx, hex));
 }
 
 export function readyHexes(idx: HexIndex, prefix?: string): Hex[] {
@@ -93,6 +98,9 @@ export function findProject(idx: HexIndex, prefix: string): Hex | undefined {
 
 export const PULL_REQUEST_KIND = "core.pull_request";
 
+/** Written and moved only by people; publishing one asks an agent for a design. */
+export const IDEA_KIND = "core.idea";
+
 /** Planning and structure, not work: these kinds are never worked on a branch. */
 const NOT_WORK = new Set([
   "core.project",
@@ -102,6 +110,7 @@ const NOT_WORK = new Set([
   "core.gate",
   "core.epic",
   "core.question",
+  IDEA_KIND,
   PULL_REQUEST_KIND,
 ]);
 
@@ -132,7 +141,9 @@ const STORY_ORDER: Record<Status, number> = {
   pull_requested: 2,
   ready: 3,
   blessed: 3,
+  published: 3,
   blocked: 4,
+  draft: 4,
   done: 5,
   answered: 5,
   merged: 5,
@@ -166,8 +177,10 @@ const SUMMARY_ORDER: Record<Status, number> = {
   pull_requested: 6,
   in_progress: 7,
   blessed: 8,
-  ready: 9,
-  blocked: 10,
+  published: 9,
+  ready: 10,
+  draft: 11,
+  blocked: 12,
 };
 
 /** "2 done · 1 in progress", in status-lifecycle order. */
@@ -271,6 +284,7 @@ export function reconcileReadiness(hexes: Hex[], ids: Iterable<string>, now: num
   for (const id of new Set(ids)) {
     const hex = idx.byId.get(id);
     if (!hex || hex.kind.startsWith("studio.") || !hex.dependsOn?.length) continue;
+    if (!waitsOnDependencies(hex.kind)) continue;
     const done = dependenciesDone(idx, hex);
     const next = hex.status === "blocked" && done
       ? workflowOf(hex.kind).promoteTo

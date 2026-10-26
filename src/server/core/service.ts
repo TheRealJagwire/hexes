@@ -9,6 +9,7 @@ import {
   findCycle,
   findProject,
   type HexIndex,
+  IDEA_KIND,
   isWorkKind,
   prefixOf,
   progressOf,
@@ -26,6 +27,7 @@ import {
   REQUIRES_RESPONSE,
   roleOf,
   satisfies,
+  waitsOnDependencies,
 } from "../../shared/constants.ts";
 import {
   type CreateHexRequest,
@@ -291,6 +293,7 @@ export class HexService {
       specs: own.filter((h) => h.kind === "core.spec").map(summarize),
       decisions: own.filter((h) => h.kind === "core.decision").map(summarize),
       questions: own.filter((h) => h.kind === "core.question").map(summarize),
+      ideas: own.filter((h) => h.kind === IDEA_KIND).reverse().map(summarize),
       epics,
     };
   }
@@ -438,11 +441,14 @@ export class HexService {
       }
       assertAllowed(req.kind, req.status);
       assertNotDerived(req.status);
+      if (req.kind === IDEA_KIND && req.status !== "draft") {
+        throw new DomainError("An idea starts as a draft", 422);
+      }
       if (REQUIRES_RESPONSE.includes(req.status)) {
         throw new DomainError(`Create it first, then set ${req.status} with a response`, 422);
       }
       if (
-        roleOf(req.status) === "actionable" &&
+        roleOf(req.status) === "actionable" && waitsOnDependencies(req.kind) &&
         !dependsOn.every((d) => {
           const dep = idx.byId.get(d);
           return dep !== undefined && satisfies(dep.status);
@@ -512,7 +518,10 @@ export class HexService {
             409,
           );
         }
-        if (roleOf(status) === "actionable" && !dependenciesDone(buildIndex(hexes), hex)) {
+        if (
+          roleOf(status) === "actionable" && waitsOnDependencies(hex.kind) &&
+          !dependenciesDone(buildIndex(hexes), hex)
+        ) {
           throw notReady(status);
         }
         if (REQUIRES_RESPONSE.includes(status) && !response) {

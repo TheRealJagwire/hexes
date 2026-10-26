@@ -34,6 +34,20 @@
         "status": "blocked"
       }
     ],
+    "ideas": [
+      {
+        "id": "hx-contract-ea9",
+        "title": "Hex rivers",
+        "kind": "core.idea",
+        "status": "published"
+      },
+      {
+        "id": "hx-contract-1be",
+        "title": "Fog of war",
+        "kind": "core.idea",
+        "status": "draft"
+      }
+    ],
     "epics": [
       {
         "hex": {
