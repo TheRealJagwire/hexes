@@ -82,6 +82,8 @@ export const api = {
   openPullRequest: (id: string, opts: { title?: string; description?: string } = {}) =>
     request<Hex>("POST", `/hexes/${id}/pull-requests`, opts),
   mergePullRequest: (id: string) => request<Hex>("POST", `/hexes/${id}/merge`, {}),
+  /** Merges a work hex's open pull request. */
+  mergeWork: (id: string) => request<Hex>("POST", `/hexes/${id}/merge-work`, {}),
   closePullRequest: (id: string) => request<Hex>("POST", `/hexes/${id}/close`, {}),
   pullRequestDiff: (id: string) => request<PullRequestDiff>("GET", `/hexes/${id}/diff`),
 };

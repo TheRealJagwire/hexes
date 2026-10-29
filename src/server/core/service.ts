@@ -844,6 +844,28 @@ export class HexService {
     });
   }
 
+  /**
+   * Merges the open pull request of a work hex, so the work can be finished from its own page.
+   * Everything else, including the hex statuses that follow, is `mergePullRequest`.
+   */
+  async mergeWork(workId: string): Promise<Hex> {
+    const idx = await this.index();
+    const work = this.require(idx, workId);
+    if (!isWorkKind(work.kind)) {
+      throw new DomainError(`A ${work.kind} does not get pull requests`, 422);
+    }
+    const open = pullRequestsOf(idx, workId).filter((p) => p.status === "pull_requested");
+    if (open.length === 0) throw new DomainError(`${workId} has no open pull request`, 409);
+    if (open.length > 1) {
+      throw new DomainError(
+        `${workId} has ${open.length} open pull requests (${open.map((p) => p.id).join(", ")}). ` +
+          "Merge one from its own page.",
+        409,
+      );
+    }
+    return await this.mergePullRequest(open[0]!.id);
+  }
+
   /** Abandons a pull request: it is kept as a record, and its work hex no longer waits on it. */
   closePullRequest(id: string): Promise<Hex> {
     return this.mutate((hexes) => {

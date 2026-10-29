@@ -39,6 +39,7 @@ function useAction(onChange: () => void) {
 /** On a work hex: its branch, its pull requests, and the actions that move it along. */
 export function WorkPanel({ view, onChange }: { view: HexView; onChange: () => void }) {
   const { busy, error, run } = useAction(onChange);
+  const [confirmMerge, setConfirmMerge] = useState(false);
   const id = view.hex.id;
   const open = view.pullRequests.find((p) => p.status === "pull_requested");
   return (
@@ -76,7 +77,45 @@ export function WorkPanel({ view, onChange }: { view: HexView; onChange: () => v
             Open pull request
           </button>
         )}
+        {open && !confirmMerge && (
+          <button
+            type="button"
+            class="btn-primary"
+            disabled={busy}
+            onClick={() => setConfirmMerge(true)}
+          >
+            Merge into {open.targetBranch}…
+          </button>
+        )}
       </div>
+      {open && confirmMerge && (
+        <div class="flex flex-col gap-3 rounded-lg border border-line-strong p-4">
+          <p class="m-0 text-[13px] leading-normal text-ink">
+            Merge {open.sourceBranch} into {open.targetBranch}{" "}
+            with a merge commit. This switches the working tree to{" "}
+            {open.targetBranch}, marks this hex and its pull request merged, and readies what was
+            waiting on them.
+          </p>
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="btn"
+              disabled={busy}
+              onClick={() => setConfirmMerge(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn-primary"
+              disabled={busy}
+              onClick={() => run(() => api.mergeWork(id)).then(() => setConfirmMerge(false))}
+            >
+              {busy ? "Merging…" : "Merge"}
+            </button>
+          </div>
+        </div>
+      )}
       {error && <span role="alert" class="text-[13px] text-blocked">{error}</span>}
       {view.pullRequests.length > 0 && (
         <ul class="m-0 flex list-none flex-col gap-2 p-0">

@@ -167,6 +167,10 @@ export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
     async (c) => c.json(await service.mergePullRequest(c.req.param("id"))),
   );
   api.post(
+    "/hexes/:id/merge-work",
+    async (c) => c.json(await service.mergeWork(c.req.param("id"))),
+  );
+  api.post(
     "/hexes/:id/close",
     async (c) => c.json(await service.closePullRequest(c.req.param("id"))),
   );

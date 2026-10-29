@@ -369,6 +369,81 @@ Deno.test("merging unblocks what waits on the work, with no status change by han
   }
 });
 
+Deno.test("merging from the work hex merges its open pull request and does the housekeeping", async () => {
+  const f = await repoFixture();
+  try {
+    const s = f.service;
+    const design = await s.createHex({
+      ...base,
+      projectId: f.projectId,
+      kind: "core.design",
+      title: "D",
+      status: "blocked",
+    });
+    const next = await s.createHex({
+      ...base,
+      projectId: f.projectId,
+      kind: "core.story",
+      title: "Next",
+      status: "blocked",
+      dependsOn: [f.storyId],
+    });
+    await assertRejects(() => s.mergeWork(design.id), DomainError, "does not get pull requests");
+    await assertRejects(() => s.mergeWork(f.storyId), DomainError, "has no open pull request");
+
+    await s.startWork(f.storyId);
+    await commitFile(f.dir, "a.txt", "a\n");
+    const pr = await s.openPullRequest(f.storyId);
+    const merged = await s.mergeWork(f.storyId);
+
+    assertEquals([merged.id, merged.status], [pr.id, "merged"]);
+    assertEquals((await s.getHex(f.storyId)).status, "merged");
+    assertEquals((await s.getHex(next.id)).status, "ready");
+    assertEquals(await git(f.dir, "branch", "--show-current"), "main");
+    assertEquals(merged.meta?.merge_sha, await git(f.dir, "rev-parse", "main"));
+    assert((await Deno.readTextFile(`${f.dir}/.hx/diffs/${pr.id}.patch`)).includes("a.txt"));
+    await assertRejects(() => s.mergeWork(f.storyId), DomainError, "has no open pull request");
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("merging from the work hex over REST, and a conflict leaves it in review", async () => {
+  const f = await repoFixture();
+  try {
+    const app = createApp(f.service);
+    const call = async (path: string) => {
+      const res = await app.request(`/api${path}`, {
+        method: "POST",
+        headers: { host: "localhost:8000", "content-type": "application/json" },
+        body: "{}",
+      });
+      return { status: res.status, json: await res.json() };
+    };
+    const s = f.service;
+    const { meta } = await s.startWork(f.storyId);
+    await commitFile(f.dir, "README.md", "from the branch\n");
+    const pr = await s.openPullRequest(f.storyId);
+    await git(f.dir, "switch", "-q", "main");
+    await commitFile(f.dir, "README.md", "from main\n");
+
+    const conflict = await call(`/hexes/${f.storyId}/merge-work`);
+    assertEquals(conflict.status, 409);
+    assert(conflict.json.error.includes("README.md"));
+    assertEquals((await s.getHex(f.storyId)).status, "in_review");
+    assertEquals((await s.getHex(pr.id)).status, "pull_requested");
+
+    await git(f.dir, "switch", "-q", meta!.git_branch!);
+    await git(f.dir, "merge", "-q", "-X", "ours", "main", "-m", "Merge main");
+    await git(f.dir, "switch", "-q", "main");
+    const merged = await call(`/hexes/${f.storyId}/merge-work`);
+    assertEquals([merged.status, merged.json.id, merged.json.status], [200, pr.id, "merged"]);
+    assertEquals((await s.getHex(f.storyId)).status, "merged");
+  } finally {
+    await f.cleanup();
+  }
+});
+
 Deno.test("in_review and merged follow pull requests only", async () => {
   const f = await repoFixture();
   try {
