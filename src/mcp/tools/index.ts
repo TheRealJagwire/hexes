@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PEOPLE_ONLY, type Status } from "../../shared/constants.ts";
+import { defaultStatus, PEOPLE_ONLY, type Status } from "../../shared/constants.ts";
 import { DomainError } from "../../server/core/errors.ts";
 import { IDEA_KIND } from "../../shared/graph.ts";
 import {
@@ -178,8 +178,11 @@ export function buildTools(s: HexService) {
           CORE_KINDS.filter((k) => k !== "pull_request" && k !== "idea").map((k) => `core.${k}`)
             .join(", ")
         } (pull requests come from open_pull_request; ideas, core.idea, only from people). Conventions: designs depend on the project, and on the idea they design when there is one; specs and decisions depend on a design; ` +
-        "epics depend on designs, specs and stories; gates depend on epics. Status defaults to blocked; " +
-        "'ready' needs every dependency done. The id is hashed from title, kind and createdAt. " +
+        "epics depend on designs, specs and stories; gates depend on epics. A fact (core.fact) is one " +
+        "durable sentence about the project as its title, depending on the project and the hexes it " +
+        "is about; it starts known, and to replace one, set the old one retired with " +
+        "meta.superseded_by. Status defaults to blocked, or to the kind's first status when it has " +
+        "no blocked (a fact: known); 'ready' needs every dependency done. The id is hashed from title, kind and createdAt. " +
         STATUS_RULES,
       kind: "write",
       input: z.object({
@@ -187,7 +190,7 @@ export function buildTools(s: HexService) {
         kind: KindSchema,
         title: z.string().min(1),
         description: z.string().default(""),
-        status: StatusSchema.default("blocked"),
+        status: StatusSchema.optional().describe("Defaults to the kind's starting status"),
         depends_on: z.array(id).default([]).describe("Hexes that must be done first"),
         required_by: z.array(id).default([]).describe("Hexes that will depend on this one"),
         emerged_from: id.optional().describe("The hex being worked on when this was discovered"),
@@ -200,14 +203,15 @@ export function buildTools(s: HexService) {
             403,
           );
         }
-        refusePeopleOnly(a.status);
+        const status = a.status ?? defaultStatus(a.kind);
+        refusePeopleOnly(status);
         await refuseIdeas(s, a.required_by);
         return await s.createHex({
           projectId: a.project_id,
           kind: a.kind,
           title: a.title,
           description: a.description,
-          status: a.status,
+          status,
           dependsOn: a.depends_on,
           requiredBy: a.required_by,
           emergedFrom: a.emerged_from,

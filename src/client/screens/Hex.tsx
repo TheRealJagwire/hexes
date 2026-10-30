@@ -27,11 +27,13 @@ const STATUS_TEXT: Record<Status, string> = {
   verified: "text-verified",
   blocked: "text-blocked",
   done: "text-muted",
+  known: "text-muted",
   answered: "text-muted",
   pull_requested: "text-accent",
   in_review: "text-accent",
   merged: "text-verified",
   closed: "text-muted",
+  retired: "text-muted",
   draft: "text-draft",
   published: "text-published",
 };

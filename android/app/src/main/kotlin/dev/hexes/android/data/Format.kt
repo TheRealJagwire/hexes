@@ -48,7 +48,8 @@ fun plural(n: Int, word: String): String = when {
 /** "2 done · 1 in progress", in status-lifecycle order. */
 fun statusSummary(statuses: List<Status>): String {
     val order = listOf(
-        Status.Done, Status.Answered, Status.Merged, Status.Closed, Status.Verified, Status.InReview,
+        Status.Done, Status.Answered, Status.Known, Status.Merged, Status.Closed, Status.Retired,
+        Status.Verified, Status.InReview,
         Status.PullRequested,
         Status.InProgress, Status.Blessed, Status.Published, Status.Ready, Status.Draft, Status.Blocked,
         Status.Unknown,

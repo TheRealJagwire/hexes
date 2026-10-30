@@ -101,6 +101,9 @@ export const PULL_REQUEST_KIND = "core.pull_request";
 /** Written and moved only by people; publishing one asks an agent for a design. */
 export const IDEA_KIND = "core.idea";
 
+/** A durable statement about the project, linked to the hexes it is about. */
+export const FACT_KIND = "core.fact";
+
 /** Planning and structure, not work: these kinds are never worked on a branch. */
 const NOT_WORK = new Set([
   "core.project",
@@ -111,6 +114,7 @@ const NOT_WORK = new Set([
   "core.epic",
   "core.question",
   IDEA_KIND,
+  FACT_KIND,
   PULL_REQUEST_KIND,
 ]);
 
@@ -147,7 +151,9 @@ const STORY_ORDER: Record<Status, number> = {
   done: 5,
   answered: 5,
   merged: 5,
+  known: 5,
   closed: 6,
+  retired: 6,
 };
 
 export function sortStories(stories: readonly Hex[]): Hex[] {
@@ -170,8 +176,10 @@ export function progressOf(stories: readonly Hex[]): Progress {
 const SUMMARY_ORDER: Record<Status, number> = {
   done: 0,
   answered: 1,
+  known: 1,
   merged: 2,
   closed: 3,
+  retired: 3,
   verified: 4,
   in_review: 5,
   pull_requested: 6,

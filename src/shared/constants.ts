@@ -14,6 +14,8 @@ export const STATUSES = [
   "closed",
   "draft",
   "published",
+  "known",
+  "retired",
 ] as const;
 export type Status = (typeof STATUSES)[number];
 
@@ -49,6 +51,9 @@ export const STATUS_INFO: Record<Status, StatusInfo> = {
   // Ideas: a person is still writing it, or wants it designed. Both are a person's call.
   draft: { role: "waiting", satisfies: false },
   published: { role: "actionable", satisfies: true },
+  // Facts: the statement holds, or it no longer does (kept for the record). Neither is work.
+  known: { role: "terminal", satisfies: true },
+  retired: { role: "terminal", satisfies: false },
 };
 
 /** Statuses that are a person's approval or a person's idea, so agents (over MCP) may not set them. */
@@ -97,6 +102,8 @@ export const KIND_WORKFLOWS: Readonly<Record<string, KindWorkflow>> = {
   },
   // Written and moved only by people: drafted, published to be designed, closed.
   "core.idea": { statuses: ["draft", "published", "done"], promoteTo: null },
+  // No `blocked`: a fact is never held back by the hexes it is about.
+  "core.fact": { statuses: ["known", "retired"], promoteTo: null },
   // Only ever created by opening a PR, so never blocked or promoted.
   "core.pull_request": { statuses: ["pull_requested", "merged", "closed"], promoteTo: null },
 };
@@ -107,6 +114,12 @@ export function workflowOf(kind: string): KindWorkflow {
 
 export function allowedStatuses(kind: string): readonly Status[] {
   return workflowOf(kind).statuses;
+}
+
+/** The status a new hex gets when none is given: `blocked` if its kind has it, else its first. */
+export function defaultStatus(kind: string): Status {
+  const statuses = allowedStatuses(kind);
+  return statuses.includes("blocked") ? "blocked" : statuses[0]!;
 }
 
 /**
@@ -138,6 +151,7 @@ export const CORE_KINDS = [
   "substory",
   "bug",
   "question",
+  "fact",
   "pull_request",
 ] as const;
 

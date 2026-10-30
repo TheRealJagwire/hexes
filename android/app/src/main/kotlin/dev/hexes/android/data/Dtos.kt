@@ -29,6 +29,8 @@ enum class Status(val wire: String, val finished: Boolean = false) {
     Closed("closed", finished = true),
     Draft("draft"),
     Published("published"),
+    Known("known", finished = true),
+    Retired("retired", finished = true),
     Unknown("unknown"),
     ;
 
@@ -179,6 +181,8 @@ data class ProjectView(
     val questions: List<HexSummary>,
     /** Newest first. Absent from servers older than ideas. */
     val ideas: List<HexSummary> = emptyList(),
+    /** Newest first, retired ones included. Absent from servers older than facts. */
+    val facts: List<HexSummary> = emptyList(),
     val epics: List<EpicView>,
 )
 
@@ -201,6 +205,8 @@ data class PullRequestSummary(
     val sourceBranch: String,
     val targetBranch: String,
     val mergeSha: String? = null,
+    /** Open only: files the branch was last found to conflict in with its target. */
+    val conflicts: List<String> = emptyList(),
 )
 
 @Serializable
@@ -218,6 +224,8 @@ data class HexView(
     val pullRequests: List<PullRequestSummary> = emptyList(),
     /** For a pull request: the work hex it was opened for. */
     val workHex: HexSummary? = null,
+    /** Facts about this hex, newest first; the server leaves them out of `dependedOnBy`. */
+    val facts: List<HexSummary> = emptyList(),
     val deleteImpact: DeleteImpact,
 )
 

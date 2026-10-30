@@ -72,12 +72,24 @@ class ContractParsingTest {
     }
 
     @Test
+    fun factsDecodeAndOlderServersHaveNone() {
+        val project = strict.parseToJsonElement(fixture("project_view").second).jsonObject
+        assertEquals(emptyList<HexSummary>(), parse("project_view", ProjectView.serializer()).facts)
+        assertEquals(emptyList<HexSummary>(), strict.decodeFromString(ProjectView.serializer(), JsonObject(project - "facts").toString()).facts)
+        val hex = strict.parseToJsonElement(fixture("hex_view").second).jsonObject
+        assertEquals(emptyList<HexSummary>(), strict.decodeFromString(HexView.serializer(), JsonObject(hex - "facts").toString()).facts)
+        assertEquals(Status.Known, Status.fromWire("known"))
+        assertEquals(Status.Retired, Status.fromWire("retired"))
+    }
+
+    @Test
     fun statuses() {
         val table = parse("statuses", StatusTable.serializer())
         assertEquals(listOf(Status.Blocked, Status.InProgress, Status.Blessed, Status.Done), table.allowed("core.design"))
         assertEquals(table.allowed("core.design"), table.allowed("core.spec"))
         assertEquals(listOf(Status.Answered), table.requiresResponse)
         assertEquals(listOf(Status.Draft, Status.Published, Status.Done), table.allowed("core.idea"))
+        assertEquals(listOf(Status.Known, Status.Retired), table.allowed("core.fact"))
         assertEquals(listOf(Status.InReview, Status.Merged), table.derived)
         assertEquals(listOf(Status.Blocked, Status.Ready, Status.InProgress, Status.Done), table.options("core.story", Status.Ready))
         assertEquals(

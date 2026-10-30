@@ -220,3 +220,10 @@ Deno.test("formatEvent: empty lists and a long, multi-line answer", () => {
   assertEquals(line.includes("second line"), false);
   assertEquals(line.includes("→"), false, "no decision, no arrow");
 });
+
+Deno.test("facts never wake anyone: creating or retiring one says nothing", () => {
+  const before = project();
+  const created = [...before, hex("hx-p-0f1", "core.fact", "known", ["hx-p-001", "hx-p-0d1"])];
+  assertEquals(diffUnblocked(before, created), []);
+  assertEquals(diffUnblocked(created, change(created, { "hx-p-0f1": "retired" })), []);
+});

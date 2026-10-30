@@ -15,10 +15,12 @@ export const PILL: Record<Status, string> = {
   verified: "text-verified bg-verified-bg",
   blocked: "text-blocked bg-blocked-bg",
   done: "text-muted bg-line-soft",
+  known: "text-muted bg-line-soft",
   answered: "text-muted bg-line-soft",
   pull_requested: "text-accent bg-accent-bg",
   merged: "text-verified bg-verified-bg",
   closed: "text-muted bg-line-soft",
+  retired: "text-muted bg-line-soft",
   draft: "text-draft bg-draft-bg",
   published: "text-published bg-published-bg",
 };

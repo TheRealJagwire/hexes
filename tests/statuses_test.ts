@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import {
   DEFAULT_WORKFLOW,
+  defaultStatus,
   DERIVED,
   KIND_WORKFLOWS,
   PEOPLE_ONLY,
@@ -79,7 +80,8 @@ Deno.test("ideas are drafted and published by people, and never wait on dependen
     if (kind === "core.idea") continue;
     assert(!wf.statuses.includes("draft") && !wf.statuses.includes("published"), kind);
     assert(
-      waitsOnDependencies(kind === "default" ? "x.task" : kind) || kind === "core.pull_request",
+      waitsOnDependencies(kind === "default" ? "x.task" : kind) ||
+        kind === "core.pull_request" || kind === "core.fact",
     );
   }
 });
@@ -129,4 +131,23 @@ Deno.test("PATCH /api/hexes/:id answers a question only with a response", async 
   } finally {
     await f.cleanup();
   }
+});
+
+Deno.test("facts are known or retired, by anyone, and never wait on what they are about", () => {
+  assertEquals(workflowOf("core.fact"), { statuses: ["known", "retired"], promoteTo: null });
+  assertEquals(STATUS_INFO.known, { role: "terminal", satisfies: true });
+  assertEquals(STATUS_INFO.retired, { role: "terminal", satisfies: false });
+  assert(!waitsOnDependencies("core.fact"));
+  for (const s of ["known", "retired"] as const) {
+    assert(!PEOPLE_ONLY.includes(s) && !DERIVED.includes(s), s);
+  }
+  for (const [kind, wf] of workflows()) {
+    if (kind === "core.fact") continue;
+    assert(!wf.statuses.includes("known") && !wf.statuses.includes("retired"), kind);
+  }
+  // A new hex starts blocked, unless its kind has no blocked.
+  assertEquals(defaultStatus("core.story"), "blocked");
+  assertEquals(defaultStatus("core.design"), "blocked");
+  assertEquals(defaultStatus("core.fact"), "known");
+  assertEquals(defaultStatus("core.idea"), "draft");
 });

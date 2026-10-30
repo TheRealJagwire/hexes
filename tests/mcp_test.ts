@@ -247,3 +247,50 @@ Deno.test("mcp reads and builds on ideas but never writes or moves one", async (
     await f.cleanup();
   }
 });
+
+Deno.test("mcp writes facts: known by default, retired and restored by agents", async () => {
+  const f = await fixture();
+  const { client, call } = await connect(f);
+  try {
+    const made = await call("create_hex", {
+      project_id: f.projectId,
+      kind: "core.fact",
+      title: "Channels must be stdio",
+      depends_on: [f.projectId],
+      meta: { files: "src/mcp/channel.ts" },
+    });
+    assert(!made.isError, made.body);
+    assertEquals(made.json.status, "known");
+    // Other kinds still default to blocked.
+    const story = await call("create_hex", {
+      project_id: f.projectId,
+      kind: "core.story",
+      title: "S",
+    });
+    assertEquals(story.json.status, "blocked");
+
+    const retired = await call("update_hex_status", { id: made.json.id, status: "retired" });
+    assertEquals(retired.json.status, "retired");
+    const meta = await call("add_meta_state_to_hex_with_id", {
+      id: made.json.id,
+      key: "superseded_by",
+      value: story.json.id,
+    });
+    assert(!meta.isError, meta.body);
+    assertEquals(
+      (await call("update_hex_status", { id: made.json.id, status: "known" })).json.status,
+      "known",
+    );
+
+    const refused = await call("create_hex", {
+      project_id: f.projectId,
+      kind: "core.fact",
+      title: "x",
+      status: "retired",
+    });
+    assert(refused.isError && refused.body.includes("starts as known"), refused.body);
+  } finally {
+    await client.close();
+    await f.cleanup();
+  }
+});

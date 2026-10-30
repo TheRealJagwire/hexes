@@ -48,6 +48,7 @@
         "status": "draft"
       }
     ],
+    "facts": [],
     "epics": [
       {
         "hex": {
