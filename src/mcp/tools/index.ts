@@ -292,13 +292,28 @@ export function buildTools(s: HexService) {
     defineTool({
       name: "merge_pull_request",
       description:
-        "Merge a pull request into main with a merge commit, in the working tree (main stays " +
-        "checked out). Only when the user asks. A conflict changes nothing and names the files: " +
-        "merge main into the branch, resolve, commit, and try again. It moves the work hex to " +
-        "merged; no further status change is needed.",
+        "Merge a pull request into main with a merge commit, without switching branches (if main " +
+        "is checked out it merges there, and that tree must be clean). Only when the user asks. " +
+        "A conflict changes nothing in git, is recorded as meta.merge_conflicts and names the " +
+        "files: update_pull_request_branch, or merge main into the branch, resolve, commit, and " +
+        "try again. It moves the work hex to merged; no further status change is needed. Other " +
+        "open pull requests that now conflict with main get meta.merge_conflicts; the rest need " +
+        "no update.",
       kind: "write",
       input: z.object({ id: id.describe("The pull request") }),
       run: ({ id }) => s.mergePullRequest(id),
+    }),
+    defineTool({
+      name: "update_pull_request_branch",
+      description:
+        "Bring an open pull request's branch up to date by merging main into it, without " +
+        "switching branches (a branch checked out somewhere must be clean). Only needed when " +
+        "meta.merge_conflicts is set or the user asks: a branch merely behind main merges fine. " +
+        "A conflict changes nothing and names the files: switch to the branch, merge main, " +
+        "resolve and commit, then call this again to clear the flag.",
+      kind: "write",
+      input: z.object({ id: id.describe("The pull request") }),
+      run: ({ id }) => s.updatePullRequestBranch(id),
     }),
     defineTool({
       name: "close_pull_request",

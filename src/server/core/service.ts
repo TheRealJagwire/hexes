@@ -361,6 +361,7 @@ export class HexService {
         sourceBranch: pr.meta?.source_branch ?? "",
         targetBranch: pr.meta?.target_branch ?? "",
         mergeSha: pr.meta?.merge_sha ?? null,
+        conflicts: conflictsOf(pr),
       })),
       workHex: workHex ? summarize(workHex) : null,
       deleteImpact: {
@@ -725,6 +726,7 @@ export class HexService {
       }
       const base = await git.mergeBase(main, branch);
       const head = await git.revParse(branch);
+      const { conflicts } = await git.mergeTree(main, branch);
       return await this.mutate(async (hexes) => {
         const idx = buildIndex(hexes);
         const w = this.require(idx, workId);
@@ -750,6 +752,7 @@ export class HexService {
             head_sha: head,
           },
         });
+        markConflicts(pr, conflicts, t);
         w.dependsOn = unique([...(w.dependsOn ?? []), pr.id]);
         w.status = "in_review";
         w.lastUpdatedAtTimeInMs = t;
@@ -760,9 +763,11 @@ export class HexService {
   }
 
   /**
-   * Merges a pull request into its target branch with a merge commit, in the working tree (the
-   * target stays checked out). A conflict is aborted, the previous branch restored, and nothing
-   * recorded. The diff is also saved to `.hx/diffs/<id>.patch` for when the commits are gone.
+   * Merges a pull request into its target branch with a merge commit, without switching branches:
+   * in place only when the target is checked out (see `Git.merge`). A conflict changes nothing in
+   * git and is recorded on the pull request. Afterwards every other open pull request into the same
+   * target is checked, so only the ones that now conflict are flagged. The diff is also saved to
+   * `.hx/diffs/<id>.patch` for when the commits are gone.
    */
   async mergePullRequest(id: string): Promise<Hex> {
     const idx = await this.index();
@@ -772,42 +777,23 @@ export class HexService {
     const target = pr.meta?.target_branch ?? "";
     const git = await this.git();
     return await git.serial(async () => {
-      await git.assertClean();
-      for (const b of [branch, target]) {
-        if (!await git.branchExists(b)) {
-          throw new DomainError(`The branch ${b} no longer exists`, 409);
-        }
-      }
+      await this.requireBranches(git, branch, target);
       if (await git.aheadOf(target, branch) === 0) {
         throw new DomainError(`${target} already has everything on ${branch}`, 409);
       }
-      const previous = await git.currentBranch();
-      if (previous !== target) await git.run("switch", "-q", target);
       const label = work ? `${work.title} (${work.id})` : id;
-      const merge = await git.try(
-        "merge",
-        "--no-ff",
-        "--no-edit",
-        "-m",
-        `Merge ${branch}: ${label}`,
-        branch,
-      );
-      if (!merge.ok) {
-        const conflicts = (await git.try("diff", "--name-only", "--diff-filter=U")).stdout;
-        await git.try("merge", "--abort");
-        if (previous && previous !== target) await git.try("switch", "-q", previous);
+      const head = await git.revParse(branch);
+      const merge = await git.merge(target, branch, `Merge ${branch}: ${label}`);
+      if (merge.sha === null) {
+        await this.recordConflicts(new Map([[id, merge.conflicts]]));
         throw new DomainError(
-          conflicts
-            ? `Merging ${branch} into ${target} conflicts in ${
-              conflicts.split("\n").join(", ")
-            }. ` +
-              `Merge ${target} into ${branch}, resolve and commit, then merge again.`
-            : `git merge failed: ${merge.stderr || merge.stdout}`,
+          `Merging ${branch} into ${target} conflicts in ${merge.conflicts.join(", ")}. ` +
+            `Update the branch from ${target}, or merge ${target} into ${branch}, resolve and ` +
+            "commit, then merge again.",
           409,
         );
       }
-      const mergeSha = await git.revParse("HEAD");
-      const head = await git.revParse(branch);
+      const mergeSha = merge.sha;
       const patch = await git.run(
         "diff",
         "--no-color",
@@ -819,8 +805,10 @@ export class HexService {
       const diffs = `${git.dir}/.hx/diffs`;
       await Deno.mkdir(diffs, { recursive: true });
       await Deno.writeTextFile(`${diffs}/${id}.patch`, patch + "\n");
+      const others = await this.conflictsOfOpenPullRequests(git, target, id);
       return await this.mutate((hexes) => {
-        const p = this.require(buildIndex(hexes), id);
+        const idx = buildIndex(hexes);
+        const p = this.require(idx, id);
         const t = this.now();
         p.status = "merged";
         p.meta = {
@@ -829,9 +817,13 @@ export class HexService {
           merge_sha: mergeSha,
           merged_at: new Date(t).toISOString(),
         };
+        markConflicts(p, [], t);
         p.lastUpdatedAtTimeInMs = t;
+        for (const [otherId, files] of others) {
+          const other = idx.byId.get(otherId);
+          if (other) markConflicts(other, files, t);
+        }
         // The work is on main: it is finished, and what waits on it can start.
-        const idx = buildIndex(hexes);
         const w = p.meta.work_hex ? idx.byId.get(p.meta.work_hex) : undefined;
         if (w && roleOf(w.status) !== "terminal") {
           w.status = "merged";
@@ -841,6 +833,83 @@ export class HexService {
         reconcileReadiness(hexes, waiting.map((d) => d.id), t);
         return p;
       });
+    });
+  }
+
+  /**
+   * Brings an open pull request's branch up to date by merging its target into it, without
+   * switching branches (see `Git.merge`): a branch checked out somewhere must be clean. A conflict
+   * changes nothing in git; it is recorded on the pull request and named, for someone to resolve on
+   * the branch. Already up to date is fine and clears any recorded conflict.
+   */
+  async updatePullRequestBranch(id: string): Promise<Hex> {
+    const idx = await this.index();
+    const pr = this.requirePullRequest(idx, id);
+    const branch = pr.meta?.source_branch ?? "";
+    const target = pr.meta?.target_branch ?? "";
+    const git = await this.git();
+    return await git.serial(async () => {
+      await this.requireBranches(git, branch, target);
+      const conflicts = await git.aheadOf(branch, target) === 0
+        ? []
+        : (await git.merge(branch, target, `Merge ${target} into ${branch}`)).conflicts;
+      const head = await git.revParse(branch);
+      const base = await git.mergeBase(target, branch);
+      const updated = await this.mutate((hexes) => {
+        const p = this.require(buildIndex(hexes), id);
+        const t = this.now();
+        markConflicts(p, conflicts, t);
+        if (p.meta?.head_sha !== head) {
+          p.meta = { ...p.meta, base_sha: base, head_sha: head };
+          p.lastUpdatedAtTimeInMs = t;
+        }
+        return p;
+      });
+      if (conflicts.length) {
+        throw new DomainError(
+          `Merging ${target} into ${branch} conflicts in ${conflicts.join(", ")}. ` +
+            `Merge ${target} into ${branch} on the branch, resolve and commit.`,
+          409,
+        );
+      }
+      return updated;
+    });
+  }
+
+  private async requireBranches(git: Git, ...branches: string[]): Promise<void> {
+    for (const b of branches) {
+      if (!await git.branchExists(b)) {
+        throw new DomainError(`The branch ${b} no longer exists`, 409);
+      }
+    }
+  }
+
+  /** For each open pull request into `target` (but `except`): the files it would conflict in. */
+  private async conflictsOfOpenPullRequests(
+    git: Git,
+    target: string,
+    except: string,
+  ): Promise<Map<string, string[]>> {
+    const out = new Map<string, string[]>();
+    for (const p of (await this.index()).byId.values()) {
+      const branch = p.meta?.source_branch;
+      if (
+        p.kind !== PULL_REQUEST_KIND || p.status !== "pull_requested" || p.id === except ||
+        p.meta?.target_branch !== target || !branch || !await git.branchExists(branch)
+      ) continue;
+      out.set(p.id, (await git.mergeTree(target, branch)).conflicts);
+    }
+    return out;
+  }
+
+  private recordConflicts(byId: Map<string, string[]>): Promise<void> {
+    return this.mutate((hexes) => {
+      const idx = buildIndex(hexes);
+      const t = this.now();
+      for (const [id, files] of byId) {
+        const hex = idx.byId.get(id);
+        if (hex) markConflicts(hex, files, t);
+      }
     });
   }
 
@@ -1052,6 +1121,20 @@ export function branchName(hex: Hex): string {
   const slug = hex.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
     .slice(0, 40).replace(/-+$/, "");
   return slug ? `hx/${hex.id}-${slug}` : `hx/${hex.id}`;
+}
+
+/** Records on a pull request the files its branch conflicts in with its target, or clears them. */
+function markConflicts(pr: Hex, files: readonly string[], t: number): void {
+  const now = files.join("\n");
+  if ((pr.meta?.merge_conflicts ?? "") === now) return;
+  const { merge_conflicts: _old, ...rest } = pr.meta ?? {};
+  pr.meta = now ? { ...rest, merge_conflicts: now } : rest;
+  pr.lastUpdatedAtTimeInMs = t;
+}
+
+/** The files a pull request's branch was last found to conflict in with its target. */
+export function conflictsOf(pr: Hex): string[] {
+  return pr.meta?.merge_conflicts?.split("\n").filter(Boolean) ?? [];
 }
 
 function unique<T>(items: readonly T[]): T[] {

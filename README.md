@@ -54,9 +54,13 @@ own status shows where it stands: opening a pull request makes it `in_review`, m
 `merged` (and unblocks what waits on it), and closing an unmerged one puts it back to `in_progress`.
 Only pull requests set `in_review` and `merged`; the status menus don't offer them, and a hex with a
 branch can't be marked `done` by hand. Each epic on the project page counts its stories in review.
-Hexes runs git in the project's own working tree, so `.hx/` must be in `.gitignore` and uncommitted
-changes block a switch or merge. After a merge, the work hex links to a diff view of what landed;
-the diff is also saved under `.hx/diffs/` in case the commits disappear.
+Hexes runs git in the project's own repository, so `.hx/` must be in `.gitignore` and uncommitted
+changes block a switch. Merging never switches branches: a branch that is checked out is merged in
+place (and must be clean), any other without touching a working tree. Other open pull requests don't
+need updating after a merge; only those that now conflict with main are flagged, and "Update from
+main" merges main into a pull request's branch the same switch-free way. After a merge, the work hex
+links to a diff view of what landed; the diff is also saved under `.hx/diffs/` in case the commits
+disappear.
 
 ## Hex search
 

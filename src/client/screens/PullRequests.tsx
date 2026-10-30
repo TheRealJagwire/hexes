@@ -17,6 +17,17 @@ import { ProjectHeader } from "./Project.tsx";
 
 const short = (sha: string | null | undefined) => sha?.slice(0, 7) ?? "";
 
+/** Why an open pull request needs its branch updated before it can merge. */
+function ConflictNote({ files, target }: { files: string[]; target: string }) {
+  return (
+    <p role="status" class="m-0 text-[13px] leading-normal text-blocked">
+      Conflicts with {target} in{" "}
+      <span class="break-all font-mono">{files.join(", ")}</span>. Update the branch, or resolve on
+      it, before merging.
+    </p>
+  );
+}
+
 /** Runs a git action, keeping its error for display and reporting whether it worked. */
 function useAction(onChange: () => void) {
   const [busy, setBusy] = useState(false);
@@ -87,14 +98,26 @@ export function WorkPanel({ view, onChange }: { view: HexView; onChange: () => v
             Merge into {open.targetBranch}…
           </button>
         )}
+        {open && (
+          <button
+            type="button"
+            class="btn"
+            disabled={busy}
+            onClick={() => run(() => api.updatePullRequestBranch(open.id))}
+          >
+            Update from {open.targetBranch}
+          </button>
+        )}
       </div>
+      {open && open.conflicts.length > 0 && (
+        <ConflictNote files={open.conflicts} target={open.targetBranch} />
+      )}
       {open && confirmMerge && (
         <div class="flex flex-col gap-3 rounded-lg border border-line-strong p-4">
           <p class="m-0 text-[13px] leading-normal text-ink">
             Merge {open.sourceBranch} into {open.targetBranch}{" "}
-            with a merge commit. This switches the working tree to{" "}
-            {open.targetBranch}, marks this hex and its pull request merged, and readies what was
-            waiting on them.
+            with a merge commit, leaving the checked-out branch alone. This marks this hex and its
+            pull request merged, and readies what was waiting on them.
           </p>
           <div class="flex flex-wrap gap-2">
             <button
@@ -153,6 +176,7 @@ export function PullRequestPanel({ view, onChange }: { view: HexView; onChange: 
   const pr = view.hex;
   const m = pr.meta ?? {};
   const work = view.workHex;
+  const conflicts = m.merge_conflicts?.split("\n").filter(Boolean) ?? [];
   return (
     <section aria-labelledby="pr-h" class="card flex flex-col gap-4 px-7 py-6">
       <h2 id="pr-h" class="m-0 text-[15px] font-semibold tracking-[0.02em] text-muted">
@@ -179,10 +203,21 @@ export function PullRequestPanel({ view, onChange }: { view: HexView; onChange: 
           </>
         )}
       </dl>
+      {pr.status === "pull_requested" && conflicts.length > 0 && (
+        <ConflictNote files={conflicts} target={m.target_branch ?? "main"} />
+      )}
       {pr.status === "pull_requested" && confirm === null && (
         <div class="flex flex-wrap gap-2">
           <button type="button" class="btn-primary" onClick={() => setConfirm("merge")}>
             Merge into {m.target_branch}…
+          </button>
+          <button
+            type="button"
+            class="btn"
+            disabled={busy}
+            onClick={() => run(() => api.updatePullRequestBranch(pr.id))}
+          >
+            Update from {m.target_branch}
           </button>
           <button type="button" class="btn" onClick={() => setConfirm("close")}>
             Close without merging…
@@ -193,7 +228,7 @@ export function PullRequestPanel({ view, onChange }: { view: HexView; onChange: 
         <div class="flex flex-col gap-3 rounded-lg border border-line-strong p-4">
           <p class="m-0 text-[13px] leading-normal text-ink">
             {confirm === "merge"
-              ? `Merge ${m.source_branch} into ${m.target_branch} with a merge commit. This switches the working tree to ${m.target_branch}.`
+              ? `Merge ${m.source_branch} into ${m.target_branch} with a merge commit, leaving the checked-out branch alone.`
               : "Close this pull request? It is kept as a record, and the branch stays."}
           </p>
           <div class="flex flex-wrap gap-2">
