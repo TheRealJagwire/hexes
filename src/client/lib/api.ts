@@ -7,6 +7,8 @@ import type {
 import type {
   ApiError,
   CreateProjectResult,
+  FactsQuery,
+  FactsResult,
   HexSummary,
   HexView,
   InspectResult,
@@ -59,6 +61,16 @@ export const api = {
   projects: () => request<ProjectSummary[]>("GET", "/projects"),
   project: (id: string) => request<ProjectView>("GET", `/projects/${id}`),
   projectGraph: (id: string) => request<ProjectGraph>("GET", `/projects/${id}/graph`),
+  facts: (projectId: string, q: FactsQuery = {}) => {
+    const params = new URLSearchParams();
+    if (q.near) params.set("near", q.near);
+    if (q.depth !== undefined) params.set("depth", String(q.depth));
+    if (q.file) params.set("file", q.file);
+    if (q.query) params.set("query", q.query);
+    if (q.includeRetired) params.set("include_retired", "1");
+    const qs = params.toString();
+    return request<FactsResult>("GET", `/projects/${projectId}/facts${qs ? `?${qs}` : ""}`);
+  },
   selectProject: (id: string) => request<{ ok: true }>("POST", "/selected-project", { id }),
   recentProjects: () => request<RecentProject[]>("GET", "/projects/recent"),
   /** Opens the project's folder when needed and selects it, in one step. */

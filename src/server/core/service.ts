@@ -42,6 +42,10 @@ import {
 import type {
   CreateProjectResult,
   EpicView,
+  FactHit,
+  FactsQuery,
+  FactsResult,
+  GraphNode,
   HexSummary,
   HexView,
   InspectResult,
@@ -54,6 +58,8 @@ import type {
   WorkspaceState,
 } from "../../shared/views.ts";
 import { parseUnifiedDiff } from "../../shared/diff.ts";
+import { factsNear } from "../../shared/facts.ts";
+import { searchHexes } from "../../shared/search.ts";
 import { DomainError } from "./errors.ts";
 import { Git } from "./git.ts";
 import { derivePrefix, generateId } from "./ids.ts";
@@ -313,19 +319,65 @@ export class HexService {
     const ids = new Set(nodes.map((h) => h.id));
     return {
       projectId: id,
-      nodes: nodes.map((h) => ({
-        id: h.id,
-        title: h.title,
-        kind: h.kind,
-        status: h.status,
-        blurb: blurb(h.description),
-        gitBranch: h.meta?.git_branch ?? null,
-        updatedAt: h.lastUpdatedAtTimeInMs,
-      })),
+      nodes: nodes.map(graphNode),
       edges: nodes.flatMap((h) =>
         (h.dependsOn ?? []).filter((to) => ids.has(to)).map((to) => ({ from: h.id, to }))
       ),
     };
+  }
+
+  /**
+   * The project's facts that pass every filter given: near a hex (by hops over links), about a
+   * file (`meta.files`), matching a title search, and known unless retired ones are asked for.
+   */
+  async facts(projectId: string, q: FactsQuery = {}): Promise<FactsResult> {
+    const idx = await this.index();
+    const project = idx.byId.get(projectId);
+    if (!project || project.kind !== "core.project") {
+      throw new DomainError(`No project with id ${projectId}`, 404);
+    }
+    const prefix = prefixOf(projectId) ?? "";
+    const depth = q.depth ?? 2;
+    if (!Number.isInteger(depth) || depth < 1 || depth > 4) {
+      throw new DomainError("depth must be a whole number from 1 to 4", 422);
+    }
+    let candidates = projectHexes(idx, prefix).filter((h) =>
+      h.kind === FACT_KIND && (q.includeRetired || h.status === "known")
+    );
+    let near: Map<string, string[]> | null = null;
+    if (q.near !== undefined) {
+      if (!idx.byId.has(q.near) || prefixOf(q.near) !== prefix) {
+        throw new DomainError(`No hex with id ${q.near} in this project`, 404);
+      }
+      near = factsNear(idx, q.near, depth);
+      candidates = candidates.filter((h) => near!.has(h.id));
+    }
+    if (q.file !== undefined) {
+      const file = normalisePath(q.file);
+      candidates = candidates.filter((h) =>
+        (h.meta?.files ?? "").split(",").some((f) => normalisePath(f) === file)
+      );
+    }
+    if (q.query !== undefined && q.query.trim()) {
+      const matched = new Set(
+        searchHexes(candidates.map(graphNode), q.query, candidates.length).map((m) => m.node.id),
+      );
+      candidates = candidates.filter((h) => matched.has(h.id));
+    }
+    const hits: FactHit[] = candidates.map((fact) => {
+      const path = near?.get(fact.id);
+      return {
+        fact,
+        distance: path ? path.length - 1 : null,
+        path: (path ?? []).map((id) => summarize(idx.byId.get(id)!)),
+      };
+    });
+    hits.sort((a, b) =>
+      (a.distance ?? 0) - (b.distance ?? 0) ||
+      b.fact.lastUpdatedAtTimeInMs - a.fact.lastUpdatedAtTimeInMs ||
+      (a.fact.id < b.fact.id ? -1 : a.fact.id > b.fact.id ? 1 : 0)
+    );
+    return { facts: hits };
   }
 
   // ── reading hexes ────────────────────────────────────────────────────────
@@ -1130,6 +1182,24 @@ export function branchName(hex: Hex): string {
   const slug = hex.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
     .slice(0, 40).replace(/-+$/, "");
   return slug ? `hx/${hex.id}-${slug}` : `hx/${hex.id}`;
+}
+
+/** A hex as a hex-map cell, the shape hex search works over. */
+function graphNode(h: Hex): GraphNode {
+  return {
+    id: h.id,
+    title: h.title,
+    kind: h.kind,
+    status: h.status,
+    blurb: blurb(h.description),
+    gitBranch: h.meta?.git_branch ?? null,
+    updatedAt: h.lastUpdatedAtTimeInMs,
+  };
+}
+
+/** A repo path as `meta.files` lists it: trimmed, without a leading `./`. */
+function normalisePath(path: string): string {
+  return path.trim().replace(/^\.\//, "");
 }
 
 /** Records on a pull request the files its branch conflicts in with its target, or clears them. */
