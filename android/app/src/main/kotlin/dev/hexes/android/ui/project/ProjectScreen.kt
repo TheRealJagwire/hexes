@@ -104,6 +104,7 @@ private fun ProjectContent(view: ProjectView, onBack: () -> Unit, onOpenHex: (St
         item { HexGroup("Specs", view.specs, onOpenHex) }
         item { HexGroup("Decisions", view.decisions, onOpenHex) }
         item { HexGroup("Questions", view.questions, onOpenHex) }
+        item { HexGroup("Facts", view.facts, onOpenHex, hideRetired = true) }
         item { Text("Epics", style = MaterialTheme.typography.titleMedium, color = c.ink2) }
         if (view.epics.isEmpty()) {
             item { Text("No epics yet. Use \"+ Hex\" and pick core.epic.", color = c.muted) }
@@ -160,10 +161,14 @@ private fun Chip(text: String) {
     )
 }
 
+/** With `hideRetired`, retired hexes stay behind a "Show retired (n)" toggle. */
 @Composable
-private fun HexGroup(label: String, items: List<HexSummary>, onOpenHex: (String) -> Unit) {
+private fun HexGroup(label: String, items: List<HexSummary>, onOpenHex: (String) -> Unit, hideRetired: Boolean = false) {
     val c = Hexes.colors
     var open by rememberSaveable(label) { mutableStateOf(false) }
+    var showRetired by rememberSaveable(label + "-retired") { mutableStateOf(false) }
+    val retired = if (hideRetired) items.count { it.status == Status.Retired } else 0
+    val shown = if (retired > 0 && !showRetired) items.filter { it.status != Status.Retired } else items
     Panel(Modifier.fillMaxWidth()) {
         Column {
             Row(
@@ -185,7 +190,12 @@ private fun HexGroup(label: String, items: List<HexSummary>, onOpenHex: (String)
             if (open) {
                 Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (items.isEmpty()) Text("No ${label.lowercase()} yet.", color = c.muted, modifier = Modifier.padding(8.dp))
-                    items.forEach { SummaryRow(it, onOpenHex) }
+                    shown.forEach { SummaryRow(it, onOpenHex) }
+                    if (retired > 0) {
+                        TextButton(onClick = { showRetired = !showRetired }) {
+                            Text(if (showRetired) "Hide retired" else "Show retired ($retired)")
+                        }
+                    }
                 }
             }
         }
