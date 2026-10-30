@@ -63,7 +63,9 @@ import dev.hexes.android.data.PullRequestSummary
 import dev.hexes.android.data.StatusTable
 import dev.hexes.android.data.isWorkKind
 import dev.hexes.android.data.UpdateHexRequest
+import dev.hexes.android.data.canMergeFromWork
 import dev.hexes.android.data.deleteImpactText
+import dev.hexes.android.data.mergeConfirmText
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -159,7 +161,8 @@ class HexViewModel(private val container: AppContainer, private val id: String) 
     /** Branch and pull-request actions; Studio runs git, and a refusal is shown in the snackbar. */
     fun startWork() = launchWrite(::say, { it.startWork(id) })
     fun openPullRequest() = launchWrite(::say, { it.openPullRequest(id) })
-    fun mergePullRequest() = launchWrite(::say, { it.mergePullRequest(id) })
+    /** Merges a pull request by its own id, so the work panel and the pull-request panel share one path. */
+    fun mergePullRequest(prId: String) = launchWrite(::say, { it.mergePullRequest(prId) })
     fun closePullRequest() = launchWrite(::say, { it.closePullRequest(id) })
 
     /**
@@ -333,6 +336,7 @@ private fun WorkPanel(
 ) {
     val c = Hexes.colors
     val open = view.pullRequests.any { it.status == Status.PullRequested }
+    var merging by rememberSaveable { mutableStateOf<String?>(null) }
     Panel(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Branch & pull requests", style = MaterialTheme.typography.titleSmall, color = c.muted)
@@ -350,9 +354,42 @@ private fun WorkPanel(
                     if (!open) Button(onClick = vm::openPullRequest, enabled = !busy) { Text("Open pull request") }
                 }
             }
-            view.pullRequests.forEach { pr -> PullRequestRow(pr, view.hex.id, onOpenHex, onOpenDiff) }
+            view.pullRequests.forEach { pr ->
+                PullRequestRow(
+                    pr,
+                    view.hex.id,
+                    onOpenHex,
+                    onOpenDiff,
+                    onMerge = if (canMergeFromWork(pr)) ({ merging = pr.id }) else null,
+                    busy = busy,
+                )
+            }
         }
     }
+    view.pullRequests.find { it.id == merging }?.let { pr ->
+        MergeDialog(
+            source = pr.sourceBranch,
+            target = pr.targetBranch,
+            busy = busy,
+            onMerge = {
+                merging = null
+                vm.mergePullRequest(pr.id)
+            },
+            onDismiss = { merging = null },
+        )
+    }
+}
+
+/** Confirms a merge; both panels use it so the wording and behaviour can't drift apart. */
+@Composable
+private fun MergeDialog(source: String, target: String, busy: Boolean, onMerge: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Merge into $target?") },
+        text = { Text(mergeConfirmText(source, target)) },
+        confirmButton = { Button(onClick = onMerge, enabled = !busy) { Text("Merge") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable
@@ -361,6 +398,8 @@ private fun PullRequestRow(
     workId: String,
     onOpenHex: (String) -> Unit,
     onOpenDiff: (workId: String, prId: String) -> Unit,
+    onMerge: (() -> Unit)? = null,
+    busy: Boolean = false,
 ) {
     val c = Hexes.colors
     Panel(Modifier.fillMaxWidth(), onClick = { onOpenHex(pr.id) }) {
@@ -375,10 +414,13 @@ private fun PullRequestRow(
                 color = c.muted,
                 style = MaterialTheme.typography.bodySmall,
             )
-            if (pr.status != Status.Closed) {
-                TextButton(onClick = { onOpenDiff(workId, pr.id) }) {
-                    Text(if (pr.status == Status.Merged) "View merged changes" else "View changes")
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (pr.status != Status.Closed) {
+                    TextButton(onClick = { onOpenDiff(workId, pr.id) }) {
+                        Text(if (pr.status == Status.Merged) "View merged changes" else "View changes")
+                    }
                 }
+                if (onMerge != null) Button(onClick = onMerge, enabled = !busy) { Text("Merge…") }
             }
         }
     }
@@ -418,22 +460,26 @@ private fun PullRequestPanel(
             }
         }
     }
-    confirm?.let { action ->
-        val merge = action == "merge"
-        AlertDialog(
-            onDismissRequest = { confirm = null },
-            title = { Text(if (merge) "Merge into ${m["target_branch"]}?" else "Close without merging?") },
-            text = {
-                Text(
-                    if (merge) "Merges ${m["source_branch"]} with a merge commit and switches Studio's working tree to ${m["target_branch"]}."
-                    else "The pull request is kept as a record, and the branch stays.",
-                )
+    when (confirm) {
+        "merge" -> MergeDialog(
+            source = m["source_branch"].orEmpty(),
+            target = m["target_branch"].orEmpty(),
+            busy = busy,
+            onMerge = {
+                confirm = null
+                vm.mergePullRequest(view.hex.id)
             },
+            onDismiss = { confirm = null },
+        )
+        "close" -> AlertDialog(
+            onDismissRequest = { confirm = null },
+            title = { Text("Close without merging?") },
+            text = { Text("The pull request is kept as a record, and the branch stays.") },
             confirmButton = {
                 Button(onClick = {
                     confirm = null
-                    if (merge) vm.mergePullRequest() else vm.closePullRequest()
-                }) { Text(if (merge) "Merge" else "Close") }
+                    vm.closePullRequest()
+                }, enabled = !busy) { Text("Close") }
             },
             dismissButton = { TextButton(onClick = { confirm = null }) { Text("Cancel") } },
         )

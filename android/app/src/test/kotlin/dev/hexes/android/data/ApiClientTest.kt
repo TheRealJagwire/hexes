@@ -153,6 +153,27 @@ class ApiClientTest {
     }
 
     @Test
+    fun mergingPostsToThePullRequestsOwnId() = runBlocking {
+        server.enqueue(ok("""{"id":"hx-a-0p1","title":"PR","description":"","kind":"core.pull_request","createdAtTimeInMs":1,"lastUpdatedAtTimeInMs":2,"status":"merged"}"""))
+        assertEquals(Status.Merged, client().mergePullRequest("hx-a-0p1").status)
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/hexes/hx-a-0p1/merge", request.url.encodedPath)
+    }
+
+    @Test
+    fun aConflictingMergeReportsTheServersMessage() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(409).body("""{"error":"Merging hx/x into main conflicts in README.md."}""").build())
+        try {
+            client().mergePullRequest("hx-a-0p1")
+            fail("expected a conflict")
+        } catch (e: ApiException.Http) {
+            assertEquals(409, e.status)
+            assertTrue(e.message!!.contains("README.md"))
+        }
+    }
+
+    @Test
     fun aStaleEditIsAConflict() = runBlocking {
         server.enqueue(MockResponse.Builder().code(409).body("""{"error":"This hex was changed elsewhere. Reload it and try again."}""").build())
         try {
