@@ -47,6 +47,34 @@ function useAction(onChange: () => void) {
   return { busy, error, run };
 }
 
+/** Asks once more before a merge; both panels use it so the wording and behaviour stay the same. */
+function MergeConfirm({ source, target, also, busy, onMerge, onCancel }: {
+  source: string;
+  target: string;
+  /** What else the merge does, after the shared sentence. */
+  also?: string;
+  busy: boolean;
+  onMerge: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div class="flex flex-col gap-3 rounded-lg border border-line-strong p-4">
+      <p class="m-0 text-[13px] leading-normal text-ink">
+        Merge {source} into {target} with a merge commit, leaving the checked-out branch alone.
+        {also && <>{" "}{also}</>}
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" class="btn" disabled={busy} onClick={onCancel}>
+          Cancel
+        </button>
+        <button type="button" class="btn-primary" disabled={busy} onClick={onMerge}>
+          {busy ? "Merging…" : "Merge"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** On a work hex: its branch, its pull requests, and the actions that move it along. */
 export function WorkPanel({ view, onChange }: { view: HexView; onChange: () => void }) {
   const { busy, error, run } = useAction(onChange);
@@ -113,31 +141,14 @@ export function WorkPanel({ view, onChange }: { view: HexView; onChange: () => v
         <ConflictNote files={open.conflicts} target={open.targetBranch} />
       )}
       {open && confirmMerge && (
-        <div class="flex flex-col gap-3 rounded-lg border border-line-strong p-4">
-          <p class="m-0 text-[13px] leading-normal text-ink">
-            Merge {open.sourceBranch} into {open.targetBranch}{" "}
-            with a merge commit, leaving the checked-out branch alone. This marks this hex and its
-            pull request merged, and readies what was waiting on them.
-          </p>
-          <div class="flex flex-wrap gap-2">
-            <button
-              type="button"
-              class="btn"
-              disabled={busy}
-              onClick={() => setConfirmMerge(false)}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="btn-primary"
-              disabled={busy}
-              onClick={() => run(() => api.mergeWork(id)).then(() => setConfirmMerge(false))}
-            >
-              {busy ? "Merging…" : "Merge"}
-            </button>
-          </div>
-        </div>
+        <MergeConfirm
+          source={open.sourceBranch}
+          target={open.targetBranch}
+          also="This marks this hex and its pull request merged, and readies what was waiting on them."
+          busy={busy}
+          onMerge={() => run(() => api.mergeWork(id)).then(() => setConfirmMerge(false))}
+          onCancel={() => setConfirmMerge(false)}
+        />
       )}
       {error && <span role="alert" class="text-[13px] text-blocked">{error}</span>}
       {view.pullRequests.length > 0 && (
@@ -224,12 +235,19 @@ export function PullRequestPanel({ view, onChange }: { view: HexView; onChange: 
           </button>
         </div>
       )}
-      {confirm && (
+      {confirm === "merge" && (
+        <MergeConfirm
+          source={m.source_branch ?? ""}
+          target={m.target_branch ?? ""}
+          busy={busy}
+          onMerge={() => run(() => api.mergePullRequest(pr.id)).then(() => setConfirm(null))}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+      {confirm === "close" && (
         <div class="flex flex-col gap-3 rounded-lg border border-line-strong p-4">
           <p class="m-0 text-[13px] leading-normal text-ink">
-            {confirm === "merge"
-              ? `Merge ${m.source_branch} into ${m.target_branch} with a merge commit, leaving the checked-out branch alone.`
-              : "Close this pull request? It is kept as a record, and the branch stays."}
+            Close this pull request? It is kept as a record, and the branch stays.
           </p>
           <div class="flex flex-wrap gap-2">
             <button type="button" class="btn" disabled={busy} onClick={() => setConfirm(null)}>
@@ -239,12 +257,9 @@ export function PullRequestPanel({ view, onChange }: { view: HexView; onChange: 
               type="button"
               class="btn-primary"
               disabled={busy}
-              onClick={() =>
-                run(() =>
-                  (confirm === "merge" ? api.mergePullRequest : api.closePullRequest)(pr.id)
-                ).then(() => setConfirm(null))}
+              onClick={() => run(() => api.closePullRequest(pr.id)).then(() => setConfirm(null))}
             >
-              {busy ? "Working…" : confirm === "merge" ? "Merge" : "Close"}
+              {busy ? "Closing…" : "Close"}
             </button>
           </div>
         </div>
