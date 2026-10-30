@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { CORE_KINDS, type Status } from "../../shared/constants.ts";
-import { IDEA_KIND, kindQualifier, prefixOf } from "../../shared/graph.ts";
+import { FACT_KIND, IDEA_KIND, kindQualifier, prefixOf } from "../../shared/graph.ts";
 import type { HexSummary } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
 import { createStatusOptions } from "../lib/format.ts";
@@ -118,6 +118,7 @@ export function CreateHex(
   // Switching kind can leave the chosen status unavailable; fall back to the first (blocked).
   const effectiveStatus = statuses.includes(status) ? status : statuses[0] ?? "blocked";
   const prefix = prefixOf(projectId) ?? "…";
+  const isFact = effectiveKind === FACT_KIND;
 
   if (project.status === "loading" || hexes.status === "loading") return <LoadingState />;
   if (project.status === "error") {
@@ -146,10 +147,10 @@ export function CreateHex(
         status: effectiveStatus,
         ...(emerged ? { emergedFrom: emerged } : {}),
         requiredBy: requiredBy.map((h) => h.id),
-        // An idea always hangs off its project, so it shows on the project screen.
+        // An idea or a fact always hangs off its project, so it shows on the project screen.
         dependsOn: [
           ...new Set([
-            ...(effectiveKind === IDEA_KIND ? [projectId] : []),
+            ...(effectiveKind === IDEA_KIND || isFact ? [projectId] : []),
             ...dependsOn.map((h) => h.id),
           ]),
         ],
@@ -230,7 +231,18 @@ export function CreateHex(
             </fieldset>
 
             <div class="flex flex-col gap-2">
-              <label for="hx-title" class="label">Title</label>
+              <label for="hx-title" class="label">
+                {isFact
+                  ? (
+                    <>
+                      Statement{" "}
+                      <span class="font-normal text-muted">
+                        · one sentence, about 140 characters
+                      </span>
+                    </>
+                  )
+                  : "Title"}
+              </label>
               <input
                 id="hx-title"
                 type="text"
@@ -294,9 +306,9 @@ export function CreateHex(
             />
             <HexPicker
               id="hx-dep"
-              label="Depends on"
-              hint="must be done before this is ready"
-              placeholder="Search substories, specs…"
+              label={isFact ? "About" : "Depends on"}
+              hint={isFact ? "the hexes this fact is about" : "must be done before this is ready"}
+              placeholder={isFact ? "Search designs, decisions…" : "Search substories, specs…"}
               options={options}
               value={dependsOn}
               onChange={setDependsOn}

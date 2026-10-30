@@ -27,8 +27,18 @@ function Chevron({ open, size = 16 }: { open: boolean; size?: number }) {
   );
 }
 
-function HexGroup({ label, items }: { label: string; items: HexSummary[] }) {
+/** `hideRetired` keeps retired hexes behind a "Show retired (n)" toggle. */
+function HexGroup(
+  { label, items, hideRetired = false }: {
+    label: string;
+    items: HexSummary[];
+    hideRetired?: boolean;
+  },
+) {
   const [open, setOpen] = useState(false);
+  const [showRetired, setShowRetired] = useState(false);
+  const retired = hideRetired ? items.filter((h) => h.status === "retired").length : 0;
+  const shown = retired > 0 && !showRetired ? items.filter((h) => h.status !== "retired") : items;
   return (
     <div class="overflow-hidden rounded-xl border border-line bg-panel">
       <button
@@ -49,7 +59,7 @@ function HexGroup({ label, items }: { label: string; items: HexSummary[] }) {
           {items.length === 0 && (
             <li class="px-3.5 py-3 text-sm text-muted">No {label.toLowerCase()} yet.</li>
           )}
-          {items.map((h) => (
+          {shown.map((h) => (
             <li key={h.id}>
               <Link
                 href={`/h/${h.id}`}
@@ -61,6 +71,18 @@ function HexGroup({ label, items }: { label: string; items: HexSummary[] }) {
               </Link>
             </li>
           ))}
+          {retired > 0 && (
+            <li>
+              <button
+                type="button"
+                aria-pressed={showRetired}
+                onClick={() => setShowRetired(!showRetired)}
+                class="inline-flex h-9 items-center rounded-lg border-none bg-transparent px-3.5 text-[13px] text-accent underline-offset-2 hover:underline"
+              >
+                {showRetired ? "Hide retired" : `Show retired (${retired})`}
+              </button>
+            </li>
+          )}
         </ul>
       )}
     </div>
@@ -273,7 +295,7 @@ export function ProjectScreen({ id }: { id: string }) {
     );
   }
 
-  const { project, ideas, designs, specs, decisions, questions, epics } = res.data;
+  const { project, ideas, designs, specs, decisions, questions, facts, epics } = res.data;
   const meta = Object.entries(project.meta ?? {});
   return (
     <Page
@@ -322,6 +344,7 @@ export function ProjectScreen({ id }: { id: string }) {
         <HexGroup label="Specs" items={specs} />
         <HexGroup label="Decisions" items={decisions} />
         <HexGroup label="Questions" items={questions} />
+        <HexGroup label="Facts" items={facts} hideRetired />
       </div>
 
       <div class="flex flex-col gap-3.5">

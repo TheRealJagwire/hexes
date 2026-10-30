@@ -4,7 +4,7 @@ import {
   REQUIRES_RESPONSE,
   type Status,
 } from "../../shared/constants.ts";
-import { IDEA_KIND } from "../../shared/graph.ts";
+import { FACT_KIND, IDEA_KIND } from "../../shared/graph.ts";
 
 /** Full class strings so Tailwind can see them. */
 export const PILL: Record<Status, string> = {
@@ -40,11 +40,12 @@ export function statusOptions(kind: string, current?: Status): readonly Status[]
 }
 
 /**
- * Statuses a new hex can start in: those that need a response are set after creating it, and an
- * idea always starts as a draft.
+ * Statuses a new hex can start in: those that need a response are set after creating it, an idea
+ * always starts as a draft and a fact as known.
  */
 export function createStatusOptions(kind: string): readonly Status[] {
   if (kind === IDEA_KIND) return ["draft"];
+  if (kind === FACT_KIND) return ["known"];
   return pickable(kind).filter((s) => !REQUIRES_RESPONSE.includes(s));
 }
 
