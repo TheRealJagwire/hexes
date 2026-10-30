@@ -66,3 +66,11 @@ fun deleteImpactText(impact: DeleteImpact): String = when {
     else -> "${plural(impact.dependents, "hex")} ${if (impact.dependents == 1) "depends" else "depend"} " +
         "on this one and ${impact.emerged} emerged from it. Their references will be removed."
 } + if (impact.pullRequests > 0) " Its ${plural(impact.pullRequests, "pull request")} will be kept, unlinked." else ""
+
+/** Whether the work panel offers to merge this pull request from its row: only while it is open. */
+fun canMergeFromWork(pr: PullRequestSummary): Boolean = pr.status == Status.PullRequested
+
+/** The merge confirmation, one wording for the work panel and the pull-request panel. */
+fun mergeConfirmText(source: String, target: String): String =
+    "Merges $source into $target with a merge commit. The hex and its pull request are marked " +
+        "merged, and what was waiting on them can start."

@@ -63,4 +63,21 @@ class FormatTest {
         assertEquals("story", kindQualifier("core.story"))
         assertEquals("odd", kindQualifier("odd"))
     }
+
+    @Test
+    fun onlyAnOpenPullRequestCanBeMergedFromTheWorkPanel() {
+        fun pr(status: Status) = PullRequestSummary("hx-a-0p1", "PR", PULL_REQUEST_KIND, status, "hx/x", "main")
+        assertEquals(true, canMergeFromWork(pr(Status.PullRequested)))
+        assertEquals(false, canMergeFromWork(pr(Status.Merged)))
+        assertEquals(false, canMergeFromWork(pr(Status.Closed)))
+    }
+
+    @Test
+    fun theMergeConfirmationNamesBothBranches() {
+        assertEquals(
+            "Merges hx/x into main with a merge commit. The hex and its pull request are marked " +
+                "merged, and what was waiting on them can start.",
+            mergeConfirmText("hx/x", "main"),
+        )
+    }
 }
