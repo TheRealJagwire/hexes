@@ -26,3 +26,8 @@ Deno.test("an idea is created as a draft and then moves freely between its statu
   assertEquals(createStatusOptions("core.idea"), ["draft"]);
   assertEquals(statusOptions("core.idea", "draft"), ["draft", "published", "done"]);
 });
+
+Deno.test("a fact is created known and can be retired and restored", () => {
+  assertEquals(createStatusOptions("core.fact"), ["known"]);
+  assertEquals(statusOptions("core.fact", "known"), ["known", "retired"]);
+});

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { REQUIRES_RESPONSE, type Status } from "../../shared/constants.ts";
-import { isWorkKind, kindQualifier, PULL_REQUEST_KIND } from "../../shared/graph.ts";
+import { FACT_KIND, isWorkKind, kindQualifier, PULL_REQUEST_KIND } from "../../shared/graph.ts";
 import type { HexSummary, HexView } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
 import { dateTime, PILL, plural, statusOptions } from "../lib/format.ts";
@@ -237,6 +237,121 @@ function MetaPanel({ view, onChange }: { view: HexView; onChange: () => void }) 
             </table>
           </div>
         )}
+    </section>
+  );
+}
+
+/**
+ * Retire a fact that no longer holds, optionally naming the fact that replaces it, or restore a
+ * retired one. Restoring clears `superseded_by`, since the fact holds again.
+ */
+function FactPanel({ view, onChange }: { view: HexView; onChange: () => void }) {
+  const [retiring, setRetiring] = useState(false);
+  const [replacement, setReplacement] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { hex } = view;
+  const supersededBy = hex.meta?.superseded_by;
+
+  const run = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+      setRetiring(false);
+      setReplacement("");
+      onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    setBusy(false);
+  };
+
+  const retire = () =>
+    run(async () => {
+      const by = replacement.trim();
+      if (by) {
+        if (by === hex.id) throw new Error("A fact can't replace itself.");
+        const other = await api.hex(by);
+        if (other.hex.kind !== FACT_KIND) throw new Error(`${by} is not a fact.`);
+        await api.setMeta(hex.id, "superseded_by", by);
+      }
+      await api.updateHex(hex.id, { status: "retired" });
+    });
+
+  const restore = () =>
+    run(async () => {
+      await api.updateHex(hex.id, { status: "known" });
+      if (supersededBy !== undefined) await api.removeMeta(hex.id, "superseded_by");
+    });
+
+  return (
+    <section aria-labelledby="fact-h" class="card flex flex-col gap-4 px-7 py-6">
+      <h2 id="fact-h" class="m-0 text-[15px] font-semibold tracking-[0.02em] text-muted">Fact</h2>
+      {hex.status === "retired"
+        ? (
+          <>
+            <p class="m-0 text-sm leading-normal text-ink-2">
+              Retired: this no longer holds.
+              {supersededBy && (
+                <>
+                  {" "}Replaced by{" "}
+                  <Link href={`/h/${supersededBy}`} class="font-mono text-ink">
+                    {supersededBy}
+                  </Link>.
+                </>
+              )}
+            </p>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={restore}
+              class="btn self-start"
+            >
+              {busy ? "Restoring…" : "Restore"}
+            </button>
+          </>
+        )
+        : retiring
+        ? (
+          <form
+            class="flex flex-col gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void retire();
+            }}
+          >
+            <label for="fact-replacement" class="label">
+              Replaced by <span class="font-normal text-muted">· optional fact id</span>
+            </label>
+            <input
+              id="fact-replacement"
+              type="text"
+              value={replacement}
+              placeholder="hx-…"
+              autocomplete="off"
+              onInput={(e) => setReplacement(e.currentTarget.value)}
+              class="field field-mono h-10"
+            />
+            <div class="flex flex-wrap gap-2">
+              <button type="button" class="btn" onClick={() => setRetiring(false)}>Cancel</button>
+              <button type="submit" disabled={busy} class="btn-primary">
+                {busy ? "Retiring…" : "Retire"}
+              </button>
+            </div>
+          </form>
+        )
+        : (
+          <>
+            <p class="m-0 text-sm leading-normal text-ink-2">
+              Known: this holds. Retire it when it stops being true.
+            </p>
+            <button type="button" onClick={() => setRetiring(true)} class="btn self-start">
+              Retire
+            </button>
+          </>
+        )}
+      {error && <span role="alert" class="text-[13px] text-blocked">{error}</span>}
     </section>
   );
 }
@@ -580,6 +695,7 @@ export function HexScreen({ id }: { id: string }) {
         <div class="flex min-w-0 flex-[999_1_520px] flex-col gap-6">
           {isWorkKind(hex.kind) && <WorkPanel view={view} onChange={reload} />}
           {hex.kind === PULL_REQUEST_KIND && <PullRequestPanel view={view} onChange={reload} />}
+          {hex.kind === FACT_KIND && <FactPanel view={view} onChange={reload} />}
           <section aria-labelledby="fields-h" class="card flex flex-col gap-4 px-7 py-6">
             <h2 id="fields-h" class="m-0 text-[15px] font-semibold tracking-[0.02em] text-muted">
               Fields
@@ -620,6 +736,7 @@ export function HexScreen({ id }: { id: string }) {
             items={view.dependedOnBy}
             footer={view.emergedHere}
           />
+          {view.facts.length > 0 && <RelatedPanel id="facts-h" title="Facts" items={view.facts} />}
           <DeletePanel key={hex.id} view={view} />
         </aside>
       </div>

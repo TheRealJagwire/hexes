@@ -49,6 +49,7 @@ const KIND_LABELS: Record<string, string> = {
   "core.spec": "Sp",
   "core.decision": "Dec",
   "core.question": "Q",
+  "core.fact": "F",
   "core.epic": "E",
   "core.story": "St",
   "core.substory": "Sub",
