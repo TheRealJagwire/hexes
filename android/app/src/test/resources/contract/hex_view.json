@@ -58,6 +58,7 @@
     "workBranch": "feat/grid",
     "pullRequests": [],
     "workHex": null,
+    "facts": [],
     "deleteImpact": {
       "dependents": 1,
       "emerged": 0,

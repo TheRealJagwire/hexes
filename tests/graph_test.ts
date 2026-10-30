@@ -142,6 +142,7 @@ Deno.test("work kinds are the ones worked on a branch", () => {
       "core.epic",
       "core.question",
       "core.idea",
+      "core.fact",
       "core.pull_request",
       "studio.x",
     ]
@@ -182,4 +183,27 @@ Deno.test("a work hex's pull requests are found through meta.work_hex, newest fi
   ]);
   assertEquals(pullRequestsOf(idx, "hx-p-0a1").map((h) => h.id), ["hx-p-0b3", "hx-p-0b1"]);
   assertEquals(pullRequestsOf(idx, "hx-p-0zz"), []);
+});
+
+Deno.test("a fact is never ready, never waits, and sits under its project", () => {
+  const hexes = [
+    hex("hx-p-001", "core.project", "in_progress"),
+    hex("hx-p-0d1", "core.design", "blocked", ["hx-p-001"]),
+    hex("hx-p-0e1", "core.epic", "blocked", ["hx-p-001", "hx-p-0d1"]),
+    hex("hx-p-0f1", "core.fact", "known", ["hx-p-001", "hx-p-0d1"]),
+    hex("hx-p-0f2", "core.fact", "retired", ["hx-p-001"]),
+    hex("hx-p-0a1", "core.story", "blocked", ["hx-p-0f1"]),
+    hex("hx-p-0a2", "core.story", "blocked", ["hx-p-0f2"]),
+  ];
+  const idx = buildIndex(hexes);
+  // The design it is about is still blocked; the fact holds regardless, and is never ready.
+  assertEquals(isReady(idx, hexes[3]!), false);
+  assertEquals(readyHexes(idx).map((h) => h.id), []);
+  assertEquals(reconcileReadiness(hexes, ["hx-p-0f1", "hx-p-0f2"], 9), []);
+  assertEquals([hexes[3]!.status, hexes[4]!.status], ["known", "retired"]);
+  // Known satisfies, retired does not; facts aren't meant as prerequisites, but the table holds.
+  assertEquals(reconcileReadiness(hexes, ["hx-p-0a1", "hx-p-0a2"], 10), ["hx-p-0a1"]);
+  // A fact about a design still sits under the project, not the design or an epic.
+  assertEquals(breadcrumbs(idx, hexes[3]!).map((h) => h.id), ["hx-p-001", "hx-p-0f1"]);
+  assertEquals(statusSummary(hexes.slice(3, 5)), "1 known · 1 retired");
 });

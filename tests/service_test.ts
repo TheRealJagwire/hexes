@@ -571,3 +571,70 @@ Deno.test("pull requests are only opened, never created directly", async () => {
     await f.cleanup();
   }
 });
+
+Deno.test("facts start known, list newest first, and sit apart from a hex's dependents", async () => {
+  const f = await fixture();
+  try {
+    const s = f.service;
+    const base = { description: "", requiredBy: [], meta: {}, projectId: f.projectId };
+    const design = await s.createHex({
+      ...base,
+      kind: "core.design",
+      title: "D",
+      status: "blocked",
+      dependsOn: [f.projectId],
+    });
+    const story = await s.createHex({
+      ...base,
+      kind: "core.story",
+      title: "S",
+      status: "blocked",
+      dependsOn: [design.id],
+    });
+    const fact = (title: string, status: "known" | "retired" = "known") =>
+      s.createHex({
+        ...base,
+        kind: "core.fact",
+        title,
+        status,
+        dependsOn: [f.projectId, design.id],
+      });
+    await assertRejects(() => fact("Gone already", "retired"), DomainError, "starts as known");
+    await assertRejects(
+      () =>
+        s.createHex({ ...base, kind: "core.fact", title: "x", status: "blocked", dependsOn: [] }),
+      DomainError,
+      "cannot be blocked",
+    );
+    await assertRejects(
+      () =>
+        s.createHex({ ...base, kind: "core.story", title: "x", status: "known", dependsOn: [] }),
+      DomainError,
+      "cannot be known",
+    );
+
+    const first = await fact("Channels must be stdio");
+    const second = await fact("A gate depends on its epics");
+    // The design it is about is still blocked; the fact holds anyway.
+    assertEquals((await s.getHex(first.id)).status, "known");
+
+    const view = await s.hexView(design.id);
+    assertEquals(view.dependedOnBy.map((h) => h.id), [story.id]);
+    assertEquals(view.facts.map((h) => h.id), [second.id, first.id]);
+    assertEquals(view.deleteImpact.dependents, 3);
+    assertEquals((await s.hexView(first.id)).dependsOn.map((h) => h.id), [f.projectId, design.id]);
+    assertEquals((await s.hexView(first.id)).breadcrumbs.map((h) => h.id), [f.projectId, first.id]);
+
+    // Retired and restored freely; the project view lists both, newest first.
+    await s.updateHex(first.id, { status: "retired" });
+    assertEquals(
+      (await s.projectView(f.projectId)).facts.map((x) => [x.title, x.status]),
+      [["A gate depends on its epics", "known"], ["Channels must be stdio", "retired"]],
+    );
+    assertEquals((await s.updateHex(first.id, { status: "known" })).status, "known");
+    await assertRejects(() => s.startWork(first.id), DomainError, "not worked on a branch");
+    assertEquals((await s.ready(f.projectId)).some((h) => h.kind === "core.fact"), false);
+  } finally {
+    await f.cleanup();
+  }
+});

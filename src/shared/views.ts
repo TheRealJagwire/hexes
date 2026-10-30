@@ -67,6 +67,8 @@ export interface ProjectView {
   questions: HexSummary[];
   /** Ideas, newest first. */
   ideas: HexSummary[];
+  /** Facts, newest first, retired ones included. */
+  facts: HexSummary[];
   epics: EpicView[];
 }
 
@@ -123,6 +125,8 @@ export interface HexView {
   pullRequests: PullRequestSummary[];
   /** For a pull request: the work hex it was opened for, or null. */
   workHex: HexSummary | null;
+  /** Facts about this hex (that depend on it), newest first; left out of `dependedOnBy`. */
+  facts: HexSummary[];
   /** What deleting this hex would touch, for the confirmation copy. */
   deleteImpact: {
     dependents: number;

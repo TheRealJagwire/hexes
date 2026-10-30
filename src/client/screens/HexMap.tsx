@@ -31,11 +31,13 @@ const COLOURS: Record<Status, [string, string]> = {
   verified: ["--verified", "--verified-bg"],
   blocked: ["--blocked", "--blocked-bg"],
   done: ["--muted", "--line-soft"],
+  known: ["--muted", "--line-soft"],
   answered: ["--muted", "--line-soft"],
   pull_requested: ["--accent", "--accent-bg"],
   in_review: ["--accent", "--accent-bg"],
   merged: ["--verified", "--verified-bg"],
   closed: ["--muted", "--line-soft"],
+  retired: ["--muted", "--line-soft"],
   draft: ["--draft", "--draft-bg"],
   published: ["--published", "--published-bg"],
 };

@@ -6,6 +6,7 @@ import {
   dependenciesOf,
   dependentsOf,
   epicStories,
+  FACT_KIND,
   findCycle,
   findProject,
   type HexIndex,
@@ -294,6 +295,7 @@ export class HexService {
       decisions: own.filter((h) => h.kind === "core.decision").map(summarize),
       questions: own.filter((h) => h.kind === "core.question").map(summarize),
       ideas: own.filter((h) => h.kind === IDEA_KIND).reverse().map(summarize),
+      facts: own.filter((h) => h.kind === FACT_KIND).reverse().map(summarize),
       epics,
     };
   }
@@ -352,7 +354,8 @@ export class HexService {
       breadcrumbs: breadcrumbs(idx, hex).map(summarize),
       projectId: (prefix && findProject(idx, prefix)?.id) || null,
       dependsOn: dependenciesOf(idx, hex).map(summarize),
-      dependedOnBy: dependents.map(summarize),
+      // Facts about this hex are listed apart, so they don't read as work waiting on it.
+      dependedOnBy: dependents.filter((d) => d.kind !== FACT_KIND).map(summarize),
       emergedFromHex: emergedFromHex ? summarize(emergedFromHex) : null,
       emergedHere: emergedHere.map(summarize),
       workBranch: hex.meta?.git_branch ?? null,
@@ -364,6 +367,9 @@ export class HexService {
         conflicts: conflictsOf(pr),
       })),
       workHex: workHex ? summarize(workHex) : null,
+      facts: dependents.filter((d) => d.kind === FACT_KIND).sort(byCreated).reverse().map(
+        summarize,
+      ),
       deleteImpact: {
         dependents: dependents.length,
         emerged: emergedHere.length,
@@ -444,6 +450,9 @@ export class HexService {
       assertNotDerived(req.status);
       if (req.kind === IDEA_KIND && req.status !== "draft") {
         throw new DomainError("An idea starts as a draft", 422);
+      }
+      if (req.kind === FACT_KIND && req.status !== "known") {
+        throw new DomainError("A fact starts as known", 422);
       }
       if (REQUIRES_RESPONSE.includes(req.status)) {
         throw new DomainError(`Create it first, then set ${req.status} with a response`, 422);

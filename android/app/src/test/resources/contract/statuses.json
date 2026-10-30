@@ -53,6 +53,14 @@
       "published": {
         "role": "actionable",
         "satisfies": true
+      },
+      "known": {
+        "role": "terminal",
+        "satisfies": true
+      },
+      "retired": {
+        "role": "terminal",
+        "satisfies": false
       }
     },
     "kinds": {
@@ -128,6 +136,13 @@
           "draft",
           "published",
           "done"
+        ],
+        "promoteTo": null
+      },
+      "core.fact": {
+        "statuses": [
+          "known",
+          "retired"
         ],
         "promoteTo": null
       },

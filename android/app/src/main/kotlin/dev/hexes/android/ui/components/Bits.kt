@@ -76,7 +76,8 @@ fun statusColors(status: Status): Pair<Color, Color> {
         Status.Blessed -> c.blessed to c.blessedBg
         Status.PullRequested -> c.accent to c.accentBg
         Status.Merged -> c.verified to c.verifiedBg
-        Status.Done, Status.Answered, Status.Closed, Status.Unknown -> c.muted to c.lineSoft
+        Status.Done, Status.Answered, Status.Known, Status.Closed, Status.Retired, Status.Unknown ->
+            c.muted to c.lineSoft
     }
 }
 
