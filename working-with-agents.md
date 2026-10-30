@@ -105,14 +105,19 @@ retrying blindly.
   3. `open_pull_request`: a `core.pull_request` hex; the work hex now depends on it and is
      `in_review`.
   4. The user reviews (Studio shows the changes, `get_pull_request_diff` too). Only when they say
-     so: `merge_pull_request`. main is then checked out, the PR records its merge commit, and the
-     work hex is `merged`: finished, with its dependents unblocked. No status change follows.
-  - Hexes runs git in the project's own working tree and refuses while tracked files have
-    uncommitted changes (commit or stash them first). `.hx/` must be in `.gitignore`.
-  - A conflicting merge changes nothing and names the files. On the branch, merge main in, resolve,
-    commit, then merge again. To give up on a PR, `close_pull_request` (it is kept as a record, the
-    work stops waiting on it and goes back to `in_progress`); open a new one later from the same
-    branch.
+     so: `merge_pull_request`. The checked-out branch stays as it is, the PR records its merge
+     commit, and the work hex is `merged`: finished, with its dependents unblocked. No status change
+     follows.
+  - Hexes runs git in the project's own repository. Merges never switch branches: a branch that is
+    checked out is merged in place and must have no uncommitted changes to tracked files; any other
+    branch is merged without touching a working tree. `.hx/` must be in `.gitignore`.
+  - Other open PRs do not need updating after a merge: a branch merely behind main merges fine. Each
+    merge checks them, and only those that now conflict get `meta.merge_conflicts` (the files).
+    `update_pull_request_branch` merges main into such a branch; if that conflicts too, switch to
+    the branch, merge main in, resolve, commit, and call it again to clear the flag.
+  - A conflicting merge changes nothing in git and names the files. To give up on a PR,
+    `close_pull_request` (it is kept as a record, the work stops waiting on it and goes back to
+    `in_progress`); open a new one later from the same branch.
   - After a merge, the work hex's page in Studio and the app has a diff view of what landed.
 - **Conventions**: projects own ideas, designs, gates and bugs; a design written for an idea also
   depends on that idea; designs own decisions and specs; gates depend on epics; epics depend on
@@ -166,13 +171,14 @@ that is an idea (403, "Ideas belong to people"). Ask the user to change it in St
 
 ### Branches & pull requests
 
-| Tool                    | Kind | Input                          | Purpose                                                                               |
-| ----------------------- | ---- | ------------------------------ | ------------------------------------------------------------------------------------- |
-| `start_work_branch`     | W    | `id`                           | Put a work hex on `hx/<id>-<slug>` off main and switch to it; safe to repeat.         |
-| `open_pull_request`     | W    | `id`, `title?`, `description?` | Open a PR for the work hex's branch once it has commits. The work is `in_review`.     |
-| `merge_pull_request`    | W    | `id` (the PR)                  | Merge into main with a merge commit. Only when the user asks. The work is `merged`.   |
-| `close_pull_request`    | W    | `id` (the PR)                  | Abandon a PR; it is kept, and the work no longer waits on it (back to `in_progress`). |
-| `get_pull_request_diff` | R    | `id` (the PR)                  | File summaries and a compact patch of what it changes.                                |
+| Tool                         | Kind | Input                          | Purpose                                                                               |
+| ---------------------------- | ---- | ------------------------------ | ------------------------------------------------------------------------------------- |
+| `start_work_branch`          | W    | `id`                           | Put a work hex on `hx/<id>-<slug>` off main and switch to it; safe to repeat.         |
+| `open_pull_request`          | W    | `id`, `title?`, `description?` | Open a PR for the work hex's branch once it has commits. The work is `in_review`.     |
+| `merge_pull_request`         | W    | `id` (the PR)                  | Merge into main with a merge commit. Only when the user asks. The work is `merged`.   |
+| `update_pull_request_branch` | W    | `id` (the PR)                  | Merge main into the PR's branch without switching. Only when it conflicts or asked.   |
+| `close_pull_request`         | W    | `id` (the PR)                  | Abandon a PR; it is kept, and the work no longer waits on it (back to `in_progress`). |
+| `get_pull_request_diff`      | R    | `id` (the PR)                  | File summaries and a compact patch of what it changes.                                |
 
 `get_hex_view` on a work hex includes `workBranch` and `pullRequests`; on a PR, `workHex`.
 

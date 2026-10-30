@@ -124,10 +124,11 @@ Deno.test("open, merge and finish: the work goes in_review, then merged", async 
     const merged = await s.mergePullRequest(pr.id);
     assertEquals(merged.status, "merged");
     assertEquals((await s.getHex(f.storyId)).status, "merged");
-    assertEquals(await git(f.dir, "branch", "--show-current"), "main");
+    // Merging leaves the checked-out branch alone.
+    assertEquals(await git(f.dir, "branch", "--show-current"), pr.meta?.source_branch);
     assertEquals(merged.meta?.merge_sha, await git(f.dir, "rev-parse", "main"));
     assertEquals(
-      await git(f.dir, "log", "-1", "--format=%s"),
+      await git(f.dir, "log", "-1", "--format=%s", "main"),
       `Merge ${pr.meta?.source_branch}: Draw the Grid! (${f.storyId})`,
     );
     assert((await Deno.readTextFile(`${f.dir}/.hx/diffs/${pr.id}.patch`)).includes("grid.ts"));
@@ -167,6 +168,7 @@ Deno.test("a conflicting merge changes nothing and says which files conflict", a
     assertEquals(await git(f.dir, "rev-parse", "main"), mainBefore);
     assertEquals(await git(f.dir, "branch", "--show-current"), meta!.git_branch);
     assertEquals(await git(f.dir, "status", "--porcelain", "--untracked-files=no"), "");
+    assertEquals((await s.hexView(f.storyId)).pullRequests[0]?.conflicts, ["README.md"]);
   } finally {
     await f.cleanup();
   }
@@ -269,9 +271,17 @@ Deno.test("merging refuses uncommitted changes, and a huge diff lists files only
       ["big.txt", 11_000, 0],
     ]);
 
+    // main checked out with uncommitted changes: merging there is refused.
+    await git(f.dir, "switch", "-q", "main");
     await Deno.writeTextFile(`${f.dir}/README.md`, "uncommitted\n");
     await assertRejects(() => s.mergePullRequest(pr.id), DomainError, "README.md");
     assertEquals((await s.getHex(pr.id)).status, "pull_requested");
+
+    // On the branch instead, the same changes are no obstacle and stay put.
+    await git(f.dir, "switch", "-q", pr.meta!.source_branch!);
+    assertEquals((await s.mergePullRequest(pr.id)).status, "merged");
+    assertEquals(await Deno.readTextFile(`${f.dir}/README.md`), "uncommitted\n");
+    assertEquals(await git(f.dir, "branch", "--show-current"), pr.meta!.source_branch);
   } finally {
     await f.cleanup();
   }
@@ -301,6 +311,8 @@ Deno.test("the pull-request flow over REST", async () => {
     const diff = await call("GET", `/hexes/${pr.json.id}/diff`);
     assertEquals(diff.json.files[0].path, "a.txt");
     assertEquals((await call("GET", `/hexes/${id}/diff`)).status, 422);
+    const updated = await call("POST", `/hexes/${pr.json.id}/update-branch`);
+    assertEquals([updated.status, updated.json.id], [200, pr.json.id]);
     const merged = await call("POST", `/hexes/${pr.json.id}/merge`);
     assertEquals([merged.status, merged.json.status], [200, "merged"]);
     const closed = await call("POST", `/hexes/${pr.json.id}/close`);
@@ -336,6 +348,7 @@ Deno.test("the pull-request flow over MCP", async () => {
       binary: false,
     }]);
     assertEquals(diff.patch, "--- a.txt\n+++ a.txt\n@@ -0,0 +1,2 @@\n+a\n+b");
+    assertEquals((await call("update_pull_request_branch", { id: pr.id })).id, pr.id);
     assertEquals((await call("merge_pull_request", { id: pr.id })).status, "merged");
     assertEquals((await call("get_hex_by_id", { id })).status, "merged");
     assert((await call("close_pull_request", { id: pr.id })).error.includes("already merged"));
@@ -399,7 +412,7 @@ Deno.test("merging from the work hex merges its open pull request and does the h
     assertEquals([merged.id, merged.status], [pr.id, "merged"]);
     assertEquals((await s.getHex(f.storyId)).status, "merged");
     assertEquals((await s.getHex(next.id)).status, "ready");
-    assertEquals(await git(f.dir, "branch", "--show-current"), "main");
+    assertEquals(await git(f.dir, "branch", "--show-current"), pr.meta?.source_branch);
     assertEquals(merged.meta?.merge_sha, await git(f.dir, "rev-parse", "main"));
     assert((await Deno.readTextFile(`${f.dir}/.hx/diffs/${pr.id}.patch`)).includes("a.txt"));
     await assertRejects(() => s.mergeWork(f.storyId), DomainError, "has no open pull request");
@@ -483,6 +496,128 @@ Deno.test("in_review and merged follow pull requests only", async () => {
     await assertRejects(() => s.openPullRequest(f.storyId), DomainError, "already merged");
     assertEquals((await s.updateHex(f.storyId, { status: "in_progress" })).status, "in_progress");
   } finally {
+    await f.cleanup();
+  }
+});
+
+/** Two more stories in the repo fixture's project. */
+async function stories(f: Fixture, ...titles: string[]): Promise<string[]> {
+  const ids = [];
+  for (const title of titles) {
+    const h = await f.service.createHex({
+      ...base,
+      projectId: f.projectId,
+      kind: "core.story",
+      title,
+      status: "ready",
+    });
+    ids.push(h.id);
+  }
+  return ids;
+}
+
+/** Starts work on `id`, commits `files` on its branch and opens its pull request. */
+async function openWith(f: Fixture, id: string, files: Record<string, string>) {
+  await f.service.startWork(id);
+  for (const [name, text] of Object.entries(files)) await commitFile(f.dir, name, text);
+  return await f.service.openPullRequest(id);
+}
+
+Deno.test("merging one pull request flags only the open ones that now conflict", async () => {
+  const f = await repoFixture();
+  try {
+    const s = f.service;
+    const [b, c] = await stories(f, "B", "C");
+    const first = await openWith(f, f.storyId, { "a.txt": "a\n", "README.md": "from A\n" });
+    const clean = await openWith(f, b!, { "b.txt": "b\n" });
+    const clashing = await openWith(f, c!, { "README.md": "from C\n" });
+    assertEquals(clashing.meta?.merge_conflicts, undefined);
+
+    const current = await git(f.dir, "branch", "--show-current");
+    await s.mergePullRequest(first.id);
+    assertEquals(await git(f.dir, "branch", "--show-current"), current);
+    assertEquals((await s.getHex(clean.id)).meta?.merge_conflicts, undefined);
+    assertEquals((await s.hexView(c!)).pullRequests[0]?.conflicts, ["README.md"]);
+
+    // Behind main but not conflicting: it merges as it is, with no update.
+    const cleanHead = await git(f.dir, "rev-parse", clean.meta!.source_branch!);
+    assertEquals((await s.mergePullRequest(clean.id)).status, "merged");
+    assertEquals(await git(f.dir, "rev-parse", clean.meta!.source_branch!), cleanHead);
+    assertEquals(await git(f.dir, "show", "main:a.txt"), "a");
+    assertEquals(await git(f.dir, "show", "main:b.txt"), "b");
+
+    // The conflicting one still conflicts, and updating it says so without changing anything.
+    const before = await git(f.dir, "rev-parse", clashing.meta!.source_branch!);
+    await assertRejects(() => s.mergePullRequest(clashing.id), DomainError, "README.md");
+    await assertRejects(() => s.updatePullRequestBranch(clashing.id), DomainError, "README.md");
+    assertEquals(await git(f.dir, "rev-parse", clashing.meta!.source_branch!), before);
+
+    // Resolved by hand on the branch, an update finds it up to date and clears the flag.
+    await git(f.dir, "switch", "-q", clashing.meta!.source_branch!);
+    await git(f.dir, "merge", "-q", "-X", "ours", "main", "-m", "Merge main");
+    const fixed = await s.updatePullRequestBranch(clashing.id);
+    assertEquals(fixed.meta?.merge_conflicts, undefined);
+    assertEquals(fixed.meta?.head_sha, await git(f.dir, "rev-parse", "HEAD"));
+    assertEquals((await s.mergePullRequest(clashing.id)).status, "merged");
+    assertEquals(await git(f.dir, "show", "main:README.md"), "from C");
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("updating a branch merges main in without switching or touching local changes", async () => {
+  const f = await repoFixture();
+  try {
+    const s = f.service;
+    const [b] = await stories(f, "B");
+    const first = await openWith(f, f.storyId, { "a.txt": "a\n" });
+    const second = await openWith(f, b!, { "b.txt": "b\n" });
+    await s.mergePullRequest(first.id);
+
+    // Elsewhere, with uncommitted changes: the branch is updated without a working tree.
+    await git(f.dir, "switch", "-q", first.meta!.source_branch!);
+    await Deno.writeTextFile(`${f.dir}/README.md`, "uncommitted\n");
+    const branch = second.meta!.source_branch!;
+    const updated = await s.updatePullRequestBranch(second.id);
+    assertEquals(await git(f.dir, "branch", "--show-current"), first.meta!.source_branch);
+    assertEquals(await Deno.readTextFile(`${f.dir}/README.md`), "uncommitted\n");
+    assertEquals(await git(f.dir, "log", "-1", "--format=%s", branch), `Merge main into ${branch}`);
+    assertEquals(await git(f.dir, "show", `${branch}:a.txt`), "a");
+    assertEquals(updated.meta?.head_sha, await git(f.dir, "rev-parse", branch));
+    assertEquals(updated.meta?.base_sha, await git(f.dir, "rev-parse", "main"));
+    const diff = await s.pullRequestDiff(second.id);
+    assertEquals(diff.files.map((x) => x.path), ["b.txt"]);
+
+    // Checked out, it is merged in place, but only once the tree is clean.
+    await git(f.dir, "checkout", "--", "README.md");
+    await git(f.dir, "switch", "-q", branch);
+    await git(f.dir, "switch", "-q", "main");
+    await commitFile(f.dir, "m.txt", "m\n");
+    await git(f.dir, "switch", "-q", branch);
+    await Deno.writeTextFile(`${f.dir}/README.md`, "uncommitted\n");
+    await assertRejects(() => s.updatePullRequestBranch(second.id), DomainError, "Commit or stash");
+    await git(f.dir, "checkout", "--", "README.md");
+    await s.updatePullRequestBranch(second.id);
+    assertEquals(await Deno.readTextFile(`${f.dir}/m.txt`), "m\n");
+    assertEquals(await git(f.dir, "status", "--porcelain", "--untracked-files=no"), "");
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("a target checked out in a linked worktree is merged there", async () => {
+  const f = await repoFixture();
+  const wt = `${f.dir}-main`;
+  try {
+    const s = f.service;
+    const pr = await openWith(f, f.storyId, { "a.txt": "a\n" });
+    await git(f.dir, "worktree", "add", "-q", wt, "main");
+    const merged = await s.mergePullRequest(pr.id);
+    assertEquals(merged.meta?.merge_sha, await git(wt, "rev-parse", "HEAD"));
+    assertEquals(await Deno.readTextFile(`${wt}/a.txt`), "a\n");
+    assertEquals(await git(wt, "status", "--porcelain"), "");
+  } finally {
+    await Deno.remove(wt, { recursive: true }).catch(() => {});
     await f.cleanup();
   }
 });

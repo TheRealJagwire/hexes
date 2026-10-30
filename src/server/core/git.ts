@@ -9,6 +9,9 @@ export interface GitResult {
 
 const locks = new Map<string, Promise<unknown>>();
 
+/** The outcome of `Git.merge`: the branch's new commit, or the files that conflict. */
+export type MergeResult = { sha: string; conflicts: [] } | { sha: null; conflicts: string[] };
+
 /**
  * Git in one workspace's working tree. Hexes acts like a developer there: it switches branches
  * and merges, but never forces, resets, rebases, pushes or deletes branches.
@@ -129,5 +132,62 @@ export class Git {
   /** How many commits `branch` has that `base` does not. */
   async aheadOf(base: string, branch: string): Promise<number> {
     return Number(await this.run("rev-list", "--count", `${base}..${branch}`));
+  }
+
+  /** The working tree (this one or a linked `git worktree`) with `branch` checked out, if any. */
+  async worktreeOf(branch: string): Promise<string | null> {
+    let path: string | null = null;
+    for (const line of (await this.run("worktree", "list", "--porcelain")).split("\n")) {
+      if (line.startsWith("worktree ")) path = line.slice("worktree ".length);
+      else if (line === `branch refs/heads/${branch}`) return path;
+    }
+    return null;
+  }
+
+  /** Merges `from` into `into` in the object store only: the merged tree, or the conflicted files. */
+  async mergeTree(into: string, from: string): Promise<{ tree: string; conflicts: string[] }> {
+    const r = await this.try(
+      "merge-tree",
+      "--write-tree",
+      "--name-only",
+      "--no-messages",
+      into,
+      from,
+    );
+    if (r.code !== 0 && r.code !== 1) {
+      throw new DomainError(
+        `git merge-tree failed (Hexes needs git 2.38 or later): ${r.stderr || `exit ${r.code}`}`,
+        501,
+      );
+    }
+    const [tree = "", ...files] = r.stdout.split("\n");
+    return { tree, conflicts: r.ok ? [] : [...new Set(files.filter(Boolean))] };
+  }
+
+  /**
+   * Merges `from` into the branch `into` with a merge commit, without switching anyone's branch.
+   * When `into` is checked out somewhere, git merges in that working tree, which must be clean;
+   * otherwise the commit is made without a working tree and the branch moves only if nobody moved
+   * it meanwhile. A conflict changes nothing.
+   */
+  async merge(into: string, from: string, message: string): Promise<MergeResult> {
+    const old = await this.revParse(into);
+    const theirs = await this.revParse(from);
+    const { tree, conflicts } = await this.mergeTree(old, theirs);
+    if (conflicts.length) return { sha: null, conflicts };
+    const dir = await this.worktreeOf(into);
+    if (dir) {
+      const wt = new Git(dir);
+      await wt.assertClean();
+      const r = await wt.try("merge", "--no-ff", "--no-edit", "-m", message, theirs);
+      if (!r.ok) {
+        await wt.try("merge", "--abort");
+        throw new DomainError(`git merge failed: ${r.stderr || r.stdout}`, 409);
+      }
+    } else {
+      const sha = await this.run("commit-tree", tree, "-p", old, "-p", theirs, "-m", message);
+      await this.run("update-ref", "-m", message, `refs/heads/${into}`, sha, old);
+    }
+    return { sha: await this.revParse(into), conflicts: [] };
   }
 }

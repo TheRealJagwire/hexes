@@ -104,6 +104,8 @@ export interface PullRequestSummary extends HexSummary {
   targetBranch: string;
   /** Set once merged. */
   mergeSha: string | null;
+  /** Open only: files the branch was last found to conflict in with its target (`meta.merge_conflicts`). */
+  conflicts: string[];
 }
 
 export interface HexView {
