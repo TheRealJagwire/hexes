@@ -1,3 +1,4 @@
+import { createApp } from "../src/server/app.ts";
 import { blurb } from "../src/server/core/service.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { generateId, hashHex } from "../src/server/core/ids.ts";
@@ -634,6 +635,125 @@ Deno.test("facts start known, list newest first, and sit apart from a hex's depe
     assertEquals((await s.updateHex(first.id, { status: "known" })).status, "known");
     await assertRejects(() => s.startWork(first.id), DomainError, "not worked on a branch");
     assertEquals((await s.ready(f.projectId)).some((h) => h.kind === "core.fact"), false);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("facts() filters by nearness, file, title and status, and orders the hits", async () => {
+  const f = await fixture();
+  try {
+    const s = f.service;
+    const base = { description: "", requiredBy: [], meta: {}, projectId: f.projectId };
+    const make = (kind: string, title: string, dependsOn: string[], meta = {}) =>
+      s.createHex({
+        ...base,
+        kind,
+        title,
+        status: kind === "core.fact" ? "known" : "blocked",
+        dependsOn,
+        meta,
+      });
+    const design = await make("core.design", "Design", [f.projectId]);
+    const story = await make("core.story", "Story", [design.id]);
+    const aboutDesign = await make(
+      "core.fact",
+      "Channels must be stdio",
+      [f.projectId, design.id],
+      {
+        files: "src/mcp/channel.ts, src/mcp/build.ts",
+      },
+    );
+    const aboutStory = await make("core.fact", "Stories depend on their design", [
+      f.projectId,
+      story.id,
+    ]);
+    const loose = await make("core.fact", "Android must tolerate unknown statuses", [f.projectId]);
+    const old = await make("core.fact", "Channels may use HTTP", [f.projectId, design.id]);
+    await s.updateHex(old.id, { status: "retired" });
+    const ids = async (q: Parameters<typeof s.facts>[1]) =>
+      (await s.facts(f.projectId, q)).facts.map((h) => h.fact.id);
+
+    // Near the story: its own fact first, then the design's, with the path that reached it.
+    const nearStory = await s.facts(f.projectId, { near: story.id });
+    assertEquals(nearStory.facts.map((h) => [h.fact.id, h.distance]), [
+      [aboutStory.id, 1],
+      [aboutDesign.id, 2],
+    ]);
+    assertEquals(nearStory.facts[1]!.path.map((p) => p.id), [story.id, design.id, aboutDesign.id]);
+    assertEquals(await ids({ near: story.id, depth: 1 }), [aboutStory.id]);
+    assertEquals(await ids({ near: story.id, includeRetired: true }), [
+      aboutStory.id,
+      old.id,
+      aboutDesign.id,
+    ]);
+
+    // No near: every known fact, newest first, without distance or path.
+    const all = await s.facts(f.projectId);
+    assertEquals(all.facts.map((h) => h.fact.id), [loose.id, aboutStory.id, aboutDesign.id]);
+    assertEquals([all.facts[0]!.distance, all.facts[0]!.path], [null, []]);
+
+    assertEquals(await ids({ file: "./src/mcp/build.ts" }), [aboutDesign.id]);
+    assertEquals(await ids({ file: "src/mcp" }), []);
+    assertEquals(await ids({ query: "chan" }), [aboutDesign.id]);
+    assertEquals(await ids({ query: "chan", includeRetired: true }), [old.id, aboutDesign.id]);
+    // Filters combine.
+    assertEquals(await ids({ near: story.id, query: "stories" }), [aboutStory.id]);
+    assertEquals(await ids({ near: story.id, file: "src/mcp/channel.ts", depth: 1 }), []);
+
+    await assertRejects(() => s.facts(f.projectId, { depth: 5 }), DomainError, "1 to 4");
+    await assertRejects(() => s.facts(f.projectId, { depth: 0 }), DomainError, "1 to 4");
+    await assertRejects(() => s.facts(f.projectId, { near: "hx-nope-123" }), DomainError, "No hex");
+    await assertRejects(() => s.facts(design.id), DomainError, "No project");
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("GET /api/projects/:id/facts serves facts() with its query parameters", async () => {
+  const f = await fixture();
+  try {
+    const s = f.service;
+    const base = { description: "", requiredBy: [], meta: {}, projectId: f.projectId };
+    const design = await s.createHex({
+      ...base,
+      kind: "core.design",
+      title: "D",
+      status: "blocked",
+      dependsOn: [f.projectId],
+    });
+    const fact = await s.createHex({
+      ...base,
+      kind: "core.fact",
+      title: "Channels must be stdio",
+      status: "known",
+      dependsOn: [f.projectId, design.id],
+      meta: { files: "src/mcp/channel.ts" },
+    });
+    const retired = await s.createHex({
+      ...base,
+      kind: "core.fact",
+      title: "Old",
+      status: "known",
+      dependsOn: [f.projectId],
+    });
+    await s.updateHex(retired.id, { status: "retired" });
+    const app = createApp(s);
+    const get = async (qs: string) => {
+      const res = await app.request(`/api/projects/${f.projectId}/facts${qs}`, {
+        headers: { host: "localhost:8000" },
+      });
+      return { status: res.status, json: await res.json() };
+    };
+    const near = await get(`?near=${design.id}&depth=1`);
+    assertEquals(near.status, 200);
+    assertEquals(near.json.facts.map((h: { fact: { id: string } }) => h.fact.id), [fact.id]);
+    assertEquals(near.json.facts[0].distance, 1);
+    assertEquals((await get("?file=src/mcp/channel.ts&query=stdio")).json.facts.length, 1);
+    assertEquals((await get("")).json.facts.length, 1);
+    assertEquals((await get("?include_retired=1")).json.facts.length, 2);
+    assertEquals((await get("?depth=9")).status, 422);
+    assertEquals((await get("?near=hx-nope-123")).status, 404);
   } finally {
     await f.cleanup();
   }

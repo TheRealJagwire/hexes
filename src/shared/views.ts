@@ -211,3 +211,31 @@ export interface RecentProject {
   /** False when HEXES_DIR pins Studio to another folder. */
   switchable: boolean;
 }
+
+/** Which facts to fetch: every filter given must hold. */
+export interface FactsQuery {
+  /** Only facts within `depth` hops of this hex, over links in both directions. */
+  near?: string | undefined;
+  /** Hops from `near`: 1–4, default 2. */
+  depth?: number | undefined;
+  /** Only facts whose `meta.files` lists this repo path. */
+  file?: string | undefined;
+  /** Only facts whose title matches, as in hex search. */
+  query?: string | undefined;
+  /** Retired facts too; otherwise only known ones. */
+  includeRetired?: boolean | undefined;
+}
+
+/** One fact found by `GET /api/projects/:id/facts` or MCP `get_facts`. */
+export interface FactHit {
+  fact: Hex;
+  /** Hops from `near`, or null when `near` wasn't given. */
+  distance: number | null;
+  /** From `near` to the fact, both ends included; empty when `near` wasn't given. */
+  path: HexSummary[];
+}
+
+export interface FactsResult {
+  /** Nearest first when `near` was given, then newest; otherwise newest first. */
+  facts: FactHit[];
+}

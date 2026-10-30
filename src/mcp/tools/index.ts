@@ -132,6 +132,28 @@ export function buildTools(s: HexService) {
       run: ({ project_id }) => s.projectView(project_id),
     }),
 
+    defineTool({
+      name: "get_facts",
+      description:
+        "Facts (core.fact) recorded about a project: durable statements, each linked to the hexes " +
+        "it is about. Before starting a hex, call this with near set to it: you get the facts " +
+        "within depth hops (default 2, max 4) over links in either direction (never through the " +
+        "project), nearest first, each with the path that reached it. file keeps facts whose " +
+        "meta.files lists that repo path; query matches titles by word prefix. Filters combine. " +
+        "Only known facts unless include_retired.",
+      kind: "read",
+      input: z.object({
+        project_id: id,
+        near: id.optional().describe("A hex in the project to start from"),
+        depth: z.number().int().min(1).max(4).optional().describe("Hops from near; default 2"),
+        file: z.string().optional().describe("A repo path, e.g. src/mcp/channel.ts"),
+        query: z.string().optional(),
+        include_retired: z.boolean().optional(),
+      }),
+      run: ({ project_id, near, depth, file, query, include_retired }) =>
+        s.facts(project_id, { near, depth, file, query, includeRetired: include_retired }),
+    }),
+
     // ── hexes ─────────────────────────────────────────────────────────────
     defineTool({
       name: "get_hex_by_id",

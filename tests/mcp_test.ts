@@ -294,3 +294,34 @@ Deno.test("mcp writes facts: known by default, retired and restored by agents", 
     await f.cleanup();
   }
 });
+
+Deno.test("mcp get_facts finds the facts near a hex", async () => {
+  const f = await fixture();
+  const { client, call } = await connect(f);
+  try {
+    const design = await call("create_hex", {
+      project_id: f.projectId,
+      kind: "core.design",
+      title: "D",
+      depends_on: [f.projectId],
+    });
+    const fact = await call("create_hex", {
+      project_id: f.projectId,
+      kind: "core.fact",
+      title: "Channels must be stdio",
+      depends_on: [f.projectId, design.json.id],
+    });
+    const got = await call("get_facts", { project_id: f.projectId, near: design.json.id });
+    assert(!got.isError, got.body);
+    assertEquals(got.json.facts.map((h: { fact: { id: string } }) => h.fact.id), [fact.json.id]);
+    assertEquals(got.json.facts[0].path.map((p: { id: string }) => p.id), [
+      design.json.id,
+      fact.json.id,
+    ]);
+    const bad = await call("get_facts", { project_id: f.projectId, depth: 7 });
+    assert(bad.isError);
+  } finally {
+    await client.close();
+    await f.cleanup();
+  }
+});

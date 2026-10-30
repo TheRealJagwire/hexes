@@ -122,6 +122,19 @@ export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
     "/projects/:id/graph",
     async (c) => c.json(await service.projectGraph(c.req.param("id"))),
   );
+  api.get("/projects/:id/facts", async (c) => {
+    const q = c.req.query();
+    const depth = q.depth ? Number(q.depth) : undefined;
+    return c.json(
+      await service.facts(c.req.param("id"), {
+        near: q.near || undefined,
+        depth,
+        file: q.file || undefined,
+        query: q.query || undefined,
+        includeRetired: q.include_retired === "1" || q.include_retired === "true",
+      }),
+    );
+  });
   api.post("/selected-project", async (c) => {
     const { id } = SelectSchema.parse(await c.req.json());
     await service.selectProject(id);
