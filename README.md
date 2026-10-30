@@ -1,9 +1,9 @@
 # Hexes Studio
 
 Track a project as **hexes**: atomic tracked things (project, design, spec, decision, gate, epic,
-story, substory, bug…) stored in `.hx/data.json`. Studio is the UI; an MCP server exposes the same
-actions to agents. See `design/SPEC.md` for the product spec and `questions.md` for the decisions
-made along the way.
+story, substory, bug, fact…) stored in `.hx/data.json`. Studio is the UI; an MCP server exposes the
+same actions to agents. See `design/SPEC.md` for the product spec and `questions.md` for the
+decisions made along the way.
 
 Stack: Deno 2, Hono, Preact 11 + signals, Tailwind CSS 4, strict TypeScript, MCP SDK + zod, and
 [Zuke](https://jsr.io/@zuke/core) for the build.
@@ -35,6 +35,37 @@ MCP write to an idea is refused, and so are `draft` and `published` on any hex. 
 `blocked`, so it never waits on its project: a published idea is always ready to be designed.
 Publishing one wakes the agent (below), which writes a design that depends on the idea and stops
 there until you bless it.
+
+## Facts
+
+A fact (`core.fact`) is one short, durable statement that holds true about the project: "Channels
+must be stdio", "A gate depends on its epics". Facts build up into a knowledge base in the same
+graph as the work, so an agent starting a hex can fetch what is already known around it instead of
+rereading designs and code.
+
+- **The title is the fact**: one sentence, about 140 characters. The description is optional and
+  holds the evidence: files, commits, docs, or the hex it came from.
+- **Links say what it is about.** A fact depends on its project and on every hex it concerns (a
+  design, decision, story, another fact); `emergedFrom` is the hex being worked on when it was
+  learned. Optional `meta.files` lists the repo paths it concerns, comma-separated.
+- **Two statuses.** A fact is created `known`; set it `retired` when it no longer holds, which keeps
+  the record. When a new fact replaces an old one, the new fact depends on the old one and the old
+  one gets `meta.superseded_by`. A retired fact can be restored to `known`.
+- **Not work.** A fact never waits on what it is about, never shows as ready, never gets a branch,
+  never wakes the agent, and nothing should depend on it as a prerequisite.
+
+A good fact is durable and non-obvious: a constraint, a gotcha or a convention the next session
+would otherwise have to rediscover. Don't restate what a design or spec already says, and record one
+fact per hex, never a list. People and agents both write facts. In Studio, pick `core.fact` in the
+create form ("Statement", with an "About" picker); the project page has a Facts group with retired
+ones behind a toggle, every hex page lists the facts about it, and a fact's page has Retire and
+Restore.
+
+`GET /api/projects/:id/facts` (MCP `get_facts`) returns the project's `known` facts, newest first.
+`near=<hex id>` keeps those within `depth` links of that hex (default 2, at most 4), followed in
+both directions but never through the project, ordered by distance and each with the path that
+reached it. `file=<repo path>` keeps facts whose `meta.files` lists it, `query=` matches titles as
+hex search does, and `include_retired=1` adds retired facts. Filters combine.
 
 ## Per-user state
 
@@ -76,7 +107,7 @@ open one; Esc closes the list, then clears the box.
 
 **Hex map** on a project's page (`/p/:id/map`) shows every hex in the project as a cell on a
 hexagonal grid. A cell's colour is its status, the same as the status pills, and its label is its
-kind (I idea, P project, D design, Sp spec, Dec decision, Q question, E epic, St story, Sub
+kind (I idea, P project, D design, Sp spec, Dec decision, Q question, F fact, E epic, St story, Sub
 substory, B bug, G gate, PR pull request). Hover or focus a cell for its details and to highlight
 the hexes it links to; click it, or press Enter, to open it. Drag to pan, scroll or pinch to zoom,
 and **Fit** frames the whole map.

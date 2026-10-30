@@ -67,7 +67,7 @@ retrying blindly.
   never assume a fixed length; ids are opaque.
 - **Kinds** are `<category>.<qualifier>`. Core kinds: `core.idea`, `core.project`, `core.design`,
   `core.spec`, `core.decision`, `core.gate`, `core.epic`, `core.story`, `core.substory`, `core.bug`,
-  `core.question`. Custom kinds are allowed. `studio.selected_project` is internal.
+  `core.question`, `core.fact`. Custom kinds are allowed. `studio.selected_project` is internal.
 - **Statuses** depend on the kind. Projects, epics, gates and decisions go `blocked` → `ready` →
   `in_progress` → `verified` → `done`. These kinds differ:
   - **Work** (story, substory, bug, custom kinds): `blocked` → `ready` → `in_progress` → `in_review`
@@ -91,9 +91,19 @@ retrying blindly.
     yours to design: write one `core.design` that depends on the project and the idea, with
     `emerged_from` the idea, and ask the user to bless it. Ideas never wait on dependencies (they
     have no `blocked`).
-  - A dependency is satisfied by `done`, `merged`, `answered`, `blessed` or `published`. `ready` is
-    refused while any dependency is unsatisfied, and satisfying the last one auto-promotes blocked
-    dependents to `ready` (designs and specs excepted: they wait for a person).
+  - **Facts** (`core.fact`): `known` ↔ `retired`. A fact is one short, durable statement that holds
+    true about the project; its title is the statement and its description holds evidence and
+    sources. It is created `known` and depends on the project and on every hex it is _about_ (the
+    links `get_facts` walks); `emerged_from` is the hex you were working on when you learned it.
+    `retired` means it no longer holds; when a new fact replaces it, the new one depends on the old
+    one and the old one gets `meta.superseded_by`. Either status can move to the other, by agents as
+    well as people. A fact is not work: it never waits on dependencies, never shows in
+    `get_ready_hexes`, never gets a branch, and never wakes the channel. Optional `meta.files` is a
+    comma-separated list of repo paths it concerns.
+  - A dependency is satisfied by `done`, `merged`, `answered`, `blessed`, `published` or `known`.
+    `ready` is refused while any dependency is unsatisfied, and satisfying the last one
+    auto-promotes blocked dependents to `ready` (designs and specs excepted: they wait for a
+    person).
   - **Pull requests** (`core.pull_request`): `pull_requested` → `merged` or `closed`. They are only
     created by `open_pull_request` and only move by `merge_pull_request` / `close_pull_request`.
   - `GET /api/statuses` returns the full table: each status's role and each kind's statuses.
@@ -121,8 +131,9 @@ retrying blindly.
   - After a merge, the work hex's page in Studio and the app has a diff view of what landed.
 - **Conventions**: projects own ideas, designs, gates and bugs; a design written for an idea also
   depends on that idea; designs own decisions and specs; gates depend on epics; epics depend on
-  designs, specs and stories; stories may have substories. A _dependency_ means "must be done
-  first".
+  designs, specs and stories; stories may have substories; facts depend on the project and on what
+  they are about. A _dependency_ means "must be done first", except for a fact, whose dependencies
+  say what it is about. Nothing should depend on a fact as a prerequisite.
 
 ## Part 1: Tool definitions
 
@@ -144,16 +155,16 @@ Annotations: **R** = read-only (safe to auto-approve), **W** = write, **D** = de
 
 ### Hexes
 
-| Tool                | Kind | Input                                                                                                                              | Purpose                                                                                                                                                                                  |
-| ------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `get_hex_by_id`     | R    | `id`                                                                                                                               | One hex, all fields.                                                                                                                                                                     |
-| `get_hex_view`      | R    | `id`                                                                                                                               | Hex + breadcrumbs + dependencies + dependents + what emerged from it. Best single call for context on one hex.                                                                           |
-| `get_breadcrumbs`   | R    | `id`                                                                                                                               | Trail from root to the hex (project › gate › epic …).                                                                                                                                    |
-| `search_hexes`      | R    | `project_id?`, `query?`, `kind?`, `status?`, `limit?` (1–200)                                                                      | Find hexes by id/title substring, kind, status.                                                                                                                                          |
-| `create_hex`        | W    | `project_id`, `kind`, `title`, `description=""`, `status="blocked"`, `depends_on=[]`, `required_by=[]`, `emerged_from?`, `meta={}` | Create a hex. `required_by` makes existing hexes depend on the new one.                                                                                                                  |
-| `update_hex`        | W    | `id`, `title?`, `description?`                                                                                                     | Edit title/description.                                                                                                                                                                  |
-| `update_hex_status` | W    | `id`, `status`, `response?`                                                                                                        | Move a hex through its kind's lifecycle; finishing it unblocks dependents. `response` is required to set a question `answered`; the result's `meta.decision` is the decision it created. |
-| `delete_hex`        | D    | `id`, `confirm: true`                                                                                                              | Permanently delete and scrub references. Deleting a `core.project` deletes the whole project.                                                                                            |
+| Tool                | Kind | Input                                                                                                                     | Purpose                                                                                                                                                                                  |
+| ------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_hex_by_id`     | R    | `id`                                                                                                                      | One hex, all fields.                                                                                                                                                                     |
+| `get_hex_view`      | R    | `id`                                                                                                                      | Hex + breadcrumbs + dependencies + dependents + what emerged from it. Best single call for context on one hex.                                                                           |
+| `get_breadcrumbs`   | R    | `id`                                                                                                                      | Trail from root to the hex (project › gate › epic …).                                                                                                                                    |
+| `search_hexes`      | R    | `project_id?`, `query?`, `kind?`, `status?`, `limit?` (1–200)                                                             | Find hexes by id/title substring, kind, status.                                                                                                                                          |
+| `create_hex`        | W    | `project_id`, `kind`, `title`, `description=""`, `status?`, `depends_on=[]`, `required_by=[]`, `emerged_from?`, `meta={}` | Create a hex. `status` defaults to the kind's start (`blocked`, a fact `known`). `required_by` makes existing hexes depend on the new one.                                               |
+| `update_hex`        | W    | `id`, `title?`, `description?`                                                                                            | Edit title/description.                                                                                                                                                                  |
+| `update_hex_status` | W    | `id`, `status`, `response?`                                                                                               | Move a hex through its kind's lifecycle; finishing it unblocks dependents. `response` is required to set a question `answered`; the result's `meta.decision` is the decision it created. |
+| `delete_hex`        | D    | `id`, `confirm: true`                                                                                                     | Permanently delete and scrub references. Deleting a `core.project` deletes the whole project.                                                                                            |
 
 Ideas are read-only here: `create_hex` refuses `core.idea`, and every write tool refuses a target
 that is an idea (403, "Ideas belong to people"). Ask the user to change it in Studio instead.
@@ -182,9 +193,22 @@ that is an idea (403, "Ideas belong to people"). Ask the user to change it in St
 
 `get_hex_view` on a work hex includes `workBranch` and `pullRequests`; on a PR, `workHex`.
 
+### Facts
+
+| Tool        | Kind | Input                                                                                   | Purpose                                                                                                                |
+| ----------- | ---- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `get_facts` | R    | `project_id`, `near?`, `depth?` (1–4, default 2), `file?`, `query?`, `include_retired?` | Facts about the project. With `near`, those within `depth` links of that hex, nearest first, each with the path to it. |
+
+Call `get_facts` with `near` set to a hex before working on it. Links are followed in both
+directions but never through the project, since everything depends on it. `file` keeps facts whose
+`meta.files` lists that path; `query` matches titles by word prefix, like Studio's search box;
+filters combine. Only `known` facts come back unless `include_retired` is set. Record a fact with
+`create_hex` (kind `core.fact`) and retire it with `update_hex_status` → `retired`. The same data is
+at `GET /api/projects/:id/facts?near=&depth=&file=&query=&include_retired=1`.
+
 ### Meta
 
-Meta holds work-tracking facts such as `git_branch`, `pr_url`, `desired_language`, `assignee`.
+Meta holds work-tracking values such as `git_branch`, `pr_url`, `desired_language`, `assignee`.
 
 | Tool                                 | Kind | Input                | Purpose                               |
 | ------------------------------------ | ---- | -------------------- | ------------------------------------- |
@@ -213,7 +237,8 @@ Auto-allow the read tools; leave writes prompting, and `delete_hex` always promp
       "mcp__hexes__get_ready_hexes",
       "mcp__hexes__get_ready_hexes_for_project",
       "mcp__hexes__get_hexes_that_depend_on_hex_with_id",
-      "mcp__hexes__get_hexes_that_this_hex_depends_on"
+      "mcp__hexes__get_hexes_that_this_hex_depends_on",
+      "mcp__hexes__get_facts"
     ],
     "ask": ["mcp__hexes__delete_hex"]
   }
@@ -267,8 +292,9 @@ description: Pick up and execute the next ready hex, then close it out and repor
    build the work that depends on it, and mark the spec `done` once that work is. A ready
    `core.question` needs the user: ask it, then answer it with their words (`update_hex_status` →
    `answered` with `response`), and report the decision it created.
-2. Load context: `get_hex_view` (description, breadcrumbs, dependencies). Read the linked
-   design/spec/ decision hexes with `get_hex_by_id` when the description is not self-sufficient.
+2. Load context: `get_hex_view` (description, breadcrumbs, dependencies), and `get_facts` with
+   `near` set to the hex for what is already known around it. Read the linked design/spec/decision
+   hexes with `get_hex_by_id` when the description is not self-sufficient.
 3. Claim it on its own branch: `start_work_branch` (story, substory, bug, …; it also sets
    `in_progress`). Other kinds: `update_hex_status` → `in_progress`.
 4. Do the work in the codebase and commit it on that branch.
@@ -290,6 +316,8 @@ Rules:
   `in_review` or `merged`: pull requests set them.
 - Never commit work hexes' changes straight to main, and never merge a pull request unasked.
 - Work that is discovered mid-task goes in via `hexes-capture-discovery`, not into this hex's scope.
+  So does a fact: something durable and non-obvious you learned that the next session would
+  otherwise have to rediscover.
 - A `<channel source="hexes-channel">` event means a person just unblocked work: finish the current
   step, then start here (or `hexes-plan-work` for a blessed design).
 ```
@@ -349,6 +377,10 @@ description: Break a goal into hexes (design → spec/decision → epic → stor
 
 Never create `core.pull_request` hexes: they come from `open_pull_request` when work is done.
 
+Facts (`core.fact`) are not part of a plan: they record what is known, never a prerequisite, so
+never make a design, spec, story or gate depend on one. `get_facts` near the design or epic you are
+planning for before writing hexes, and let what it returns shape them.
+
 Rules: titles are short and imperative; one hex = one atomic unit; fix wiring with `add_dependency`
 / `remove_dependency` rather than deleting and recreating.
 ````
@@ -360,23 +392,33 @@ Rules: titles are short and imperative; one hex = one atomic unit; fix wiring wi
 ```markdown
 ---
 name: hexes-capture-discovery
-description: Record a bug, question, decision or follow-up discovered while working on another hex.
+description: Record a bug, question, decision, fact or follow-up discovered while working on another hex.
 ---
 
 1. Identify the hex you were working on (`current_id`) and its project.
-2. `search_hexes` (query on key words, same project) to avoid duplicates.
+2. `search_hexes` (query on key words, same project) to avoid duplicates; for a fact, also
+   `get_facts` with `query`.
 3. `create_hex` with:
    - kind: `core.bug` (defect), `core.question` (needs an answer from the user), `core.decision`
-     (choice made or needed), or `core.story` (follow-up work). A question is created open
-     (`blocked` or `ready`); it is answered later with `update_hex_status` → `answered` and the
-     user's `response`, which records the decision for you, so don't also create one;
+     (choice made or needed), `core.fact` (something durable you learned), or `core.story`
+     (follow-up work). A question is created open (`blocked` or `ready`); it is answered later with
+     `update_hex_status` → `answered` and the user's `response`, which records the decision for you,
+     so don't also create one;
    - `emerged_from: current_id`;
    - `description`: what was observed, how to reproduce, and why it matters;
    - `depends_on`/`required_by` only if it truly gates something (e.g. `add_dependency` so the
-     current hex waits on a bug that blocks it). Otherwise leave it unwired.
-4. If it blocks the current hex, move the current hex back to `blocked` with `update_hex_status`
+     current hex waits on a bug that blocks it). Otherwise leave it unwired. A fact is the
+     exception: it always depends on the project and on the hexes it is about, and nothing ever
+     depends on it.
+4. A fact is one sentence (about 140 characters) that will still hold later and isn't obvious from
+   the code, a design or a spec: a constraint, a gotcha, a convention that bit you. Put the evidence
+   in its `description` and repo paths in `meta.files`. Don't record what a design or spec already
+   says, a step you just took, or a list: one fact per hex. When a fact stops being true, set it
+   `retired`; if a new fact replaces it, the new one depends on the old one and the old one gets
+   `meta.superseded_by`.
+5. If it blocks the current hex, move the current hex back to `blocked` with `update_hex_status`
    after wiring the dependency.
-5. Tell the user the new id and one-line summary.
+6. Tell the user the new id and one-line summary.
 ```
 
 ---
@@ -433,4 +475,7 @@ description: Delete hexes safely, with explicit user confirmation.
   merging its pull request set `in_review` and `merged`; for other kinds, `verified` when checked
   and `done` when accepted. Dependents unblock on `done`, `merged`, `answered` or `blessed`.
 - **Prefer small, linked hexes** over large descriptions; wire real dependencies, not hopeful ones.
+- **Fetch facts before you work, record them as you learn.** `get_facts` near the hex first. When
+  you learn something durable and non-obvious, record one `core.fact` about the hexes it concerns;
+  retire facts that stop holding rather than deleting them.
 - **Tell the user** the ids you touched and what changed when you finish.
