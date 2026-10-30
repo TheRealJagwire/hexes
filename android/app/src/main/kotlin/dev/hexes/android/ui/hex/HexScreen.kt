@@ -306,6 +306,7 @@ private fun HexContent(
         item { MetaPanel(hex.meta, busy, vm) }
         item { RelatedPanel("Depends on", view.dependsOn, onOpenHex) }
         item { RelatedPanel("Depended on by", view.dependedOnBy, onOpenHex, footer = view.emergedHere, onOpenHexFooter = onOpenHex) }
+        if (view.facts.isNotEmpty()) item { RelatedPanel("Facts", view.facts, onOpenHex) }
         item {
             DeletePanel(view, busy) {
                 vm.delete { onDeleted(view.projectId, hex.kind == "core.project") }

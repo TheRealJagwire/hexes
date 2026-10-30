@@ -151,4 +151,16 @@ class CreateHexFormTest {
         assertEquals(listOf("hx-a-000", "hx-a-003"), linked.dependsOn)
         assertEquals("core.idea", CREATE_KINDS.first())
     }
+
+    @Test
+    fun aFactStartsKnownAndHangsOffItsProject() {
+        val form = CreateHexForm(kind = "core.fact", title = "Channels must be stdio", status = Status.Ready)
+        assertTrue(form.isFact)
+        assertFalse(CreateHexForm().isFact)
+        assertEquals(listOf(Status.Known), form.statusOptions(StatusTable.LEGACY))
+        val req = form.copy(dependsOn = listOf(hex("hx-a-003"))).toRequest("hx-a-000")
+        assertEquals(Status.Known, req.status)
+        assertEquals(listOf("hx-a-000", "hx-a-003"), req.dependsOn)
+        assertTrue("core.fact" in CREATE_KINDS)
+    }
 }

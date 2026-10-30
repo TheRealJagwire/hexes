@@ -1,6 +1,7 @@
 package dev.hexes.android.ui.create
 
 import dev.hexes.android.data.CreateHexRequest
+import dev.hexes.android.data.FACT_KIND
 import dev.hexes.android.data.HexSummary
 import dev.hexes.android.data.IDEA_KIND
 import dev.hexes.android.data.Status
@@ -8,7 +9,7 @@ import dev.hexes.android.data.StatusTable
 
 /** The kinds offered as chips; project hexes come from the new-project flow instead. */
 val CREATE_KINDS: List<String> =
-    listOf("idea", "design", "spec", "decision", "gate", "epic", "story", "substory", "bug", "question")
+    listOf("idea", "design", "spec", "decision", "gate", "epic", "story", "substory", "bug", "question", "fact")
         .map { "core.$it" }
 
 data class MetaRow(val key: String = "", val value: String = "")
@@ -30,16 +31,19 @@ data class CreateHexForm(
 
     val canSubmit: Boolean get() = title.isNotBlank() && effectiveKind.isNotEmpty()
 
+    /** A fact's title is its statement, and its dependencies are the hexes it is about. */
+    val isFact: Boolean get() = effectiveKind == FACT_KIND
+
     /**
      * The statuses a new hex of this kind can start in, `blocked` first as on the web. Ones that
-     * need a response (answering a question) are set after creating it, and an idea always starts
-     * as a draft.
+     * need a response (answering a question) are set after creating it, an idea always starts
+     * as a draft and a fact as known.
      */
     fun statusOptions(table: StatusTable): List<Status> =
-        if (effectiveKind == IDEA_KIND) {
-            listOf(Status.Draft)
-        } else {
-            table.pickable(effectiveKind).filter { it !in table.requiresResponse }
+        when {
+            effectiveKind == IDEA_KIND -> listOf(Status.Draft)
+            isFact -> listOf(Status.Known)
+            else -> table.pickable(effectiveKind).filter { it !in table.requiresResponse }
         }
 
     /** The chosen status, or the kind's first one (usually `blocked`) when switching kind made it unavailable. */
@@ -54,8 +58,8 @@ data class CreateHexForm(
         status = effectiveStatus(table),
         emergedFrom = emergedFrom?.id,
         requiredBy = requiredBy.map { it.id },
-        // An idea always hangs off its project, so it shows on the project screen.
-        dependsOn = ((if (effectiveKind == IDEA_KIND) listOf(projectId) else emptyList()) + dependsOn.map { it.id })
+        // An idea or a fact always hangs off its project, so it shows on the project screen.
+        dependsOn = ((if (effectiveKind == IDEA_KIND || isFact) listOf(projectId) else emptyList()) + dependsOn.map { it.id })
             .distinct(),
         // Rows without a key are ignored; later rows win over earlier ones with the same key.
         meta = meta.filter { it.key.isNotBlank() }.associate { it.key.trim() to it.value },

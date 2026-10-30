@@ -8,6 +8,7 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -90,6 +91,8 @@ class ContractParsingTest {
         assertEquals(listOf(Status.Answered), table.requiresResponse)
         assertEquals(listOf(Status.Draft, Status.Published, Status.Done), table.allowed("core.idea"))
         assertEquals(listOf(Status.Known, Status.Retired), table.allowed("core.fact"))
+        // The hex screen's status menu: a fact retires and is restored there.
+        assertEquals(listOf(Status.Known, Status.Retired), table.options("core.fact", Status.Known))
         assertEquals(listOf(Status.InReview, Status.Merged), table.derived)
         assertEquals(listOf(Status.Blocked, Status.Ready, Status.InProgress, Status.Done), table.options("core.story", Status.Ready))
         assertEquals(
@@ -151,6 +154,8 @@ class ContractParsingTest {
         assertEquals(1, view.deleteImpact.pullRequests)
         assertTrue(isWorkKind(view.hex.kind))
         assertTrue(!isWorkKind(PULL_REQUEST_KIND) && !isWorkKind("core.design") && isWorkKind("custom.task"))
+        // A fact is never worked on a branch, so its page offers no branch or pull request.
+        assertFalse(isWorkKind(FACT_KIND))
     }
 
     @Test

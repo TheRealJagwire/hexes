@@ -195,7 +195,12 @@ private fun CreateHexContent(
         OutlinedTextField(
             value = form.title,
             onValueChange = { v -> vm.edit { it.copy(title = v) } },
-            label = { Text("Title") },
+            label = { Text(if (form.isFact) "Statement" else "Title") },
+            supportingText = if (form.isFact) {
+                { Text("One sentence, about 140 characters") }
+            } else {
+                null
+            },
             modifier = Modifier.fillMaxWidth(),
         )
         OutlinedTextField(
@@ -223,8 +228,8 @@ private fun CreateHexContent(
             onChange = { v -> vm.edit { it.copy(requiredBy = v) } },
         )
         MultiPicker(
-            label = "Depends on",
-            hint = "must be done before this is ready",
+            label = if (form.isFact) "About" else "Depends on",
+            hint = if (form.isFact) "the hexes this fact is about" else "must be done before this is ready",
             options = options,
             value = form.dependsOn,
             onChange = { v -> vm.edit { it.copy(dependsOn = v) } },
