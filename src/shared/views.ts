@@ -70,6 +70,8 @@ export interface ProjectView {
   /** Facts, newest first, retired ones included. */
   facts: HexSummary[];
   epics: EpicView[];
+  /** Pull requests are merged as soon as they are opened, and other branches updated. */
+  autoMerge: boolean;
 }
 
 /** A hex as one cell of the project hex map. */
@@ -127,6 +129,8 @@ export interface HexView {
   workHex: HexSummary | null;
   /** Facts about this hex (that depend on it), newest first; left out of `dependedOnBy`. */
   facts: HexSummary[];
+  /** Whether the hex's project merges pull requests as soon as they are opened. */
+  autoMerge: boolean;
   /** What deleting this hex would touch, for the confirmation copy. */
   deleteImpact: {
     dependents: number;

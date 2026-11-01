@@ -73,6 +73,13 @@ class ContractParsingTest {
     }
 
     @Test
+    fun autoMergeDecodesAndOlderServersHaveItOff() {
+        val project = strict.parseToJsonElement(fixture("project_view").second).jsonObject
+        assertTrue(parse("project_view", ProjectView.serializer()).autoMerge)
+        assertFalse(strict.decodeFromString(ProjectView.serializer(), JsonObject(project - "autoMerge").toString()).autoMerge)
+    }
+
+    @Test
     fun factsDecodeAndOlderServersHaveNone() {
         val project = strict.parseToJsonElement(fixture("project_view").second).jsonObject
         assertEquals(emptyList<HexSummary>(), parse("project_view", ProjectView.serializer()).facts)

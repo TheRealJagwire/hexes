@@ -71,6 +71,9 @@ export const api = {
     const qs = params.toString();
     return request<FactsResult>("GET", `/projects/${projectId}/facts${qs ? `?${qs}` : ""}`);
   },
+  /** Turns a project's auto-merge on or off; returns the project hex. */
+  setAutoMerge: (id: string, enabled: boolean) =>
+    request<Hex>("PUT", `/projects/${id}/auto-merge`, { enabled }),
   selectProject: (id: string) => request<{ ok: true }>("POST", "/selected-project", { id }),
   recentProjects: () => request<RecentProject[]>("GET", "/projects/recent"),
   /** Opens the project's folder when needed and selects it, in one step. */

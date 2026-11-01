@@ -1,4 +1,6 @@
 import {
+  AUTO_MERGE_KEY,
+  autoMergeOn,
   breadcrumbs,
   buildIndex,
   byCreated,
@@ -303,7 +305,21 @@ export class HexService {
       ideas: own.filter((h) => h.kind === IDEA_KIND).reverse().map(summarize),
       facts: own.filter((h) => h.kind === FACT_KIND).reverse().map(summarize),
       epics,
+      autoMerge: autoMergeOn(project),
     };
+  }
+
+  /** Turns a project's auto-merge on or off (`meta.auto_merge`). A person's setting. */
+  setAutoMerge(projectId: string, enabled: boolean): Promise<Hex> {
+    return this.mutate((hexes) => {
+      const project = buildIndex(hexes).byId.get(projectId);
+      if (!project || project.kind !== "core.project") {
+        throw new DomainError(`No project with id ${projectId}`, 404);
+      }
+      project.meta = { ...project.meta, [AUTO_MERGE_KEY]: enabled ? "on" : "off" };
+      project.lastUpdatedAtTimeInMs = this.now();
+      return project;
+    });
   }
 
   /** Every hex in a project and the links between them, for the hex map. */
@@ -401,10 +417,11 @@ export class HexService {
     const emergedFromHex = hex.emergedFrom ? idx.byId.get(hex.emergedFrom) : undefined;
     const pullRequests = pullRequestsOf(idx, id);
     const workHex = hex.meta?.work_hex ? idx.byId.get(hex.meta.work_hex) : undefined;
+    const project = prefix ? findProject(idx, prefix) : undefined;
     return {
       hex,
       breadcrumbs: breadcrumbs(idx, hex).map(summarize),
-      projectId: (prefix && findProject(idx, prefix)?.id) || null,
+      projectId: project?.id ?? null,
       dependsOn: dependenciesOf(idx, hex).map(summarize),
       // Facts about this hex are listed apart, so they don't read as work waiting on it.
       dependedOnBy: dependents.filter((d) => d.kind !== FACT_KIND).map(summarize),
@@ -422,6 +439,7 @@ export class HexService {
       facts: dependents.filter((d) => d.kind === FACT_KIND).sort(byCreated).reverse().map(
         summarize,
       ),
+      autoMerge: autoMergeOn(project),
       deleteImpact: {
         dependents: dependents.length,
         emerged: emergedHere.length,
@@ -760,11 +778,22 @@ export class HexService {
 
   /**
    * Opens a pull request for a work hex's branch: a `core.pull_request` hex the work hex then
-   * depends on, so the work cannot be done until it is merged. Does not switch branches.
+   * depends on, so the work cannot be done until it is merged. Does not switch branches. When the
+   * project has auto-merge on, it is merged straight away and the other outstanding branches are
+   * brought up to date (see `autoMerge`); the pull request comes back as it ended up.
    */
   async openPullRequest(
     workId: string,
     opts: { title?: string | undefined; description?: string | undefined } = {},
+  ): Promise<Hex> {
+    const pr = await this.createPullRequest(workId, opts);
+    const project = findProject(await this.index(), prefixOf(workId) ?? "");
+    return autoMergeOn(project) ? await this.autoMerge(pr.id) : pr;
+  }
+
+  private async createPullRequest(
+    workId: string,
+    opts: { title?: string | undefined; description?: string | undefined },
   ): Promise<Hex> {
     const idx = await this.index();
     const work = this.require(idx, workId);
@@ -894,6 +923,108 @@ export class HexService {
         reconcileReadiness(hexes, waiting.map((d) => d.id), t);
         return p;
       });
+    });
+  }
+
+  /**
+   * Merges a pull request that was just opened, then merges its target into every other
+   * outstanding branch of the project. A merge that fails (a conflict, uncommitted changes on a
+   * checked-out target) leaves the pull request open, as opening it without auto-merge would. What
+   * happened is recorded as `meta.auto_merge_result`.
+   */
+  private async autoMerge(id: string): Promise<Hex> {
+    let note: string;
+    try {
+      const merged = await this.mergePullRequest(id);
+      const updates = await this.updateOutstandingBranches(merged);
+      note = ["merged", ...updates].join("; ");
+    } catch (e) {
+      if (!(e instanceof DomainError)) throw e;
+      note = `not merged: ${e.message}`;
+    }
+    return await this.mutate((hexes) => {
+      const pr = this.require(buildIndex(hexes), id);
+      pr.meta = { ...pr.meta, auto_merge_result: note };
+      return pr;
+    });
+  }
+
+  /**
+   * After `merged` lands, merges its target into the project's outstanding branches: those of
+   * other open pull requests into that target, and of unfinished work with no open pull request.
+   * Like `updatePullRequestBranch`, nothing switches branches; a conflict changes nothing in git
+   * and is recorded as `meta.merge_conflicts` on the pull request or work hex, and a branch checked
+   * out with uncommitted changes is skipped. Returns one note per kind of outcome.
+   */
+  private async updateOutstandingBranches(merged: Hex): Promise<string[]> {
+    const target = merged.meta?.target_branch ?? "";
+    const git = await this.git();
+    return await git.serial(async () => {
+      const idx = await this.index();
+      const branches = new Map<string, { id: string; pullRequest: boolean }>();
+      for (const h of projectHexes(idx, prefixOf(merged.id) ?? "")) {
+        if (
+          h.kind === PULL_REQUEST_KIND && h.status === "pull_requested" && h.id !== merged.id &&
+          h.meta?.target_branch === target && h.meta.source_branch
+        ) {
+          branches.set(h.meta.source_branch, { id: h.id, pullRequest: true });
+        } else if (
+          isWorkKind(h.kind) && roleOf(h.status) !== "terminal" && h.meta?.git_branch &&
+          !pullRequestsOf(idx, h.id).some((p) => p.status === "pull_requested")
+        ) {
+          if (!branches.has(h.meta.git_branch)) {
+            branches.set(h.meta.git_branch, { id: h.id, pullRequest: false });
+          }
+        }
+      }
+      const updated: string[] = [];
+      const skipped: string[] = [];
+      const conflicted: string[] = [];
+      const outcomes = new Map<string, { conflicts: string[]; head?: string; base?: string }>();
+      for (const [branch, { id, pullRequest }] of branches) {
+        if (!await git.branchExists(branch)) continue;
+        let conflicts: string[] = [];
+        if (await git.aheadOf(branch, target) > 0) {
+          try {
+            conflicts =
+              (await git.merge(branch, target, `Merge ${target} into ${branch}`)).conflicts;
+          } catch (e) {
+            if (!(e instanceof DomainError)) throw e;
+            skipped.push(branch);
+            continue;
+          }
+          if (conflicts.length) conflicted.push(`${branch} (${conflicts.join(", ")})`);
+          else updated.push(branch);
+        }
+        outcomes.set(
+          id,
+          pullRequest
+            ? {
+              conflicts,
+              head: await git.revParse(branch),
+              base: await git.mergeBase(target, branch),
+            }
+            : { conflicts },
+        );
+      }
+      await this.mutate((hexes) => {
+        const idx = buildIndex(hexes);
+        const t = this.now();
+        for (const [id, { conflicts, head, base }] of outcomes) {
+          const h = idx.byId.get(id);
+          if (!h) continue;
+          markConflicts(h, conflicts, t);
+          if (head && h.meta?.head_sha !== head) {
+            h.meta = { ...h.meta, base_sha: base!, head_sha: head };
+            h.lastUpdatedAtTimeInMs = t;
+          }
+        }
+      });
+      return [
+        ...(updated.length ? [`updated ${updated.sort().join(", ")}`] : []),
+        ...(conflicted.length ? [`conflicts in ${conflicted.sort().join("; ")}`] : []),
+        ...(skipped.length ? [`skipped ${skipped.sort().join(", ")} (uncommitted changes)`] : []),
+      ];
     });
   }
 

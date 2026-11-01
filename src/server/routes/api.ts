@@ -30,6 +30,7 @@ const OpenPullRequestSchema = z.object({
   description: z.string().optional(),
 });
 const SelectSchema = z.object({ id: HexIdSchema });
+const AutoMergeSchema = z.object({ enabled: z.boolean() });
 const RecentProjectSchema = z.object({ dir: z.string().trim().min(1), projectId: HexIdSchema });
 
 /** JSON API consumed by the Preact client. Every handler delegates to HexService. */
@@ -122,6 +123,10 @@ export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
     "/projects/:id/graph",
     async (c) => c.json(await service.projectGraph(c.req.param("id"))),
   );
+  api.put("/projects/:id/auto-merge", async (c) => {
+    const { enabled } = AutoMergeSchema.parse(await c.req.json());
+    return c.json(await service.setAutoMerge(c.req.param("id"), enabled));
+  });
   api.get("/projects/:id/facts", async (c) => {
     const q = c.req.query();
     const depth = q.depth ? Number(q.depth) : undefined;

@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { roleOf } from "../../shared/constants.ts";
-import { statusSummary } from "../../shared/graph.ts";
+import { AUTO_MERGE_KEY, statusSummary } from "../../shared/graph.ts";
 import type { Hex } from "../../shared/schemas.ts";
 import type { EpicView, HexSummary } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
@@ -241,6 +241,69 @@ export function ProjectHeader(
   );
 }
 
+/**
+ * The project's auto-merge switch, kept in plain sight: while it is on, Studio merges every pull
+ * request as soon as it is opened, without anyone reviewing it.
+ */
+function AutoMergeBar(
+  { projectId, on, onChange }: { projectId: string; on: boolean; onChange: () => void },
+) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const toggle = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.setAutoMerge(projectId, !on);
+      onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    setBusy(false);
+  };
+  return (
+    <section
+      aria-labelledby="auto-merge-h"
+      class={`flex flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl border px-6 py-4 ${
+        on ? "border-accent bg-accent-bg" : "border-line-strong bg-panel"
+      }`}
+    >
+      <div class="flex min-w-0 flex-[1_1_320px] flex-col gap-1">
+        <h2
+          id="auto-merge-h"
+          class={`m-0 text-base font-semibold ${on ? "text-accent" : "text-ink"}`}
+        >
+          Auto-merge is {on ? "on" : "off"}
+        </h2>
+        <p class="m-0 text-sm leading-normal text-ink-2">
+          {on
+            ? "Studio merges each pull request into main as soon as it's opened, with no review, and brings the other open branches up to date."
+            : "Pull requests wait for someone to review and merge them."}
+        </p>
+        {error && <span role="alert" class="text-[13px] text-blocked">{error}</span>}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-labelledby="auto-merge-h"
+        disabled={busy}
+        onClick={toggle}
+        class={`relative inline-flex h-8 w-14 flex-none items-center rounded-full border-none transition-colors duration-150 ${
+          on ? "bg-accent" : "bg-line-strong"
+        }`}
+      >
+        <span
+          aria-hidden="true"
+          class={`inline-block size-6 rounded-full bg-white shadow transition-transform duration-150 ${
+            on ? "translate-x-7" : "translate-x-1"
+          }`}
+        />
+      </button>
+    </section>
+  );
+}
+
 /** The project statement, cut off after about ten lines; the full text lives on the hex's own page. */
 function ClampedDescription({ text, href }: { text: string; href: string }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -295,8 +358,10 @@ export function ProjectScreen({ id }: { id: string }) {
     );
   }
 
-  const { project, ideas, designs, specs, decisions, questions, facts, epics } = res.data;
-  const meta = Object.entries(project.meta ?? {});
+  const { project, ideas, designs, specs, decisions, questions, facts, epics, autoMerge } =
+    res.data;
+  // Auto-merge has its own switch below.
+  const meta = Object.entries(project.meta ?? {}).filter(([k]) => k !== AUTO_MERGE_KEY);
   return (
     <Page
       header={
@@ -337,6 +402,8 @@ export function ProjectScreen({ id }: { id: string }) {
           </span>
         </div>
       </section>
+
+      <AutoMergeBar projectId={id} on={autoMerge} onChange={res.reload} />
 
       <div class="flex flex-col gap-2.5">
         <HexGroup label="Ideas" items={ideas} />

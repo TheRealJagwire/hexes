@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { defaultStatus, PEOPLE_ONLY, type Status } from "../../shared/constants.ts";
 import { DomainError } from "../../server/core/errors.ts";
-import { IDEA_KIND } from "../../shared/graph.ts";
+import { AUTO_MERGE_KEY, IDEA_KIND } from "../../shared/graph.ts";
 import {
   CORE_KINDS,
   HexIdSchema,
@@ -32,6 +32,16 @@ async function refuseIdeas(s: HexService, ids: readonly string[]): Promise<void>
     if ((await s.getHex(id)).kind === IDEA_KIND) {
       throw new DomainError("Ideas belong to people: ask the user to change it in Studio", 403);
     }
+  }
+}
+
+/** Auto-merge decides whether work reaches main without a person: only people change it. */
+async function refuseAutoMergeSetting(s: HexService, id: string, key: string): Promise<void> {
+  if (key === AUTO_MERGE_KEY && (await s.getHex(id)).kind === "core.project") {
+    throw new DomainError(
+      "Only a person turns auto-merge on or off. Ask the user to use the switch in Studio.",
+      403,
+    );
   }
 }
 
@@ -305,7 +315,11 @@ export function buildTools(s: HexService) {
       description:
         "Open a pull request (a core.pull_request hex, status pull_requested) for a work hex's " +
         "branch once it has commits. It moves the work hex to in_review; the work hex depends on " +
-        "the pull request until it is merged. Next: the user reviews; merge_pull_request only when " +
+        "the pull request until it is merged. When the project has auto-merge on (get_project's " +
+        "autoMerge, on by default), Studio merges it at once and merges main into the other open " +
+        "branches: the result is status merged, with meta.auto_merge_result saying what happened, " +
+        "and there is no review step. If that merge conflicts, it stays pull_requested with " +
+        "meta.merge_conflicts. With auto-merge off: the user reviews; merge_pull_request only when " +
         "they say so.",
       kind: "write",
       input: z.object({
@@ -444,6 +458,7 @@ export function buildTools(s: HexService) {
       input: z.object({ id, key, value }),
       run: async ({ id, key, value }) => {
         await refuseIdeas(s, [id]);
+        await refuseAutoMergeSetting(s, id, key);
         return await s.setMeta(id, key, value, "add");
       },
     }),
@@ -454,6 +469,7 @@ export function buildTools(s: HexService) {
       input: z.object({ id, key, value }),
       run: async ({ id, key, value }) => {
         await refuseIdeas(s, [id]);
+        await refuseAutoMergeSetting(s, id, key);
         return await s.setMeta(id, key, value, "update");
       },
     }),
@@ -464,6 +480,7 @@ export function buildTools(s: HexService) {
       input: z.object({ id, key }),
       run: async ({ id, key }) => {
         await refuseIdeas(s, [id]);
+        await refuseAutoMergeSetting(s, id, key);
         return await s.removeMeta(id, key);
       },
     }),
