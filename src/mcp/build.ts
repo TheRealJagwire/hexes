@@ -1,9 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ActivityLog } from "../server/core/activity.ts";
 import type { HexService } from "../server/core/service.ts";
 import { registerTool } from "./tools/define.ts";
 import { buildTools } from "./tools/index.ts";
 
-export function buildServer(service: HexService): McpServer {
+/** `activity`, when given, hears about every tool call (Studio passes one; stdio doesn't). */
+export function buildServer(service: HexService, activity?: ActivityLog): McpServer {
   const server = new McpServer(
     { name: "hexes", version: "0.1.0" },
     {
@@ -17,6 +19,6 @@ export function buildServer(service: HexService): McpServer {
         "non-obvious; get_facts near a hex before working on it.",
     },
   );
-  for (const tool of buildTools(service)) registerTool(server, tool);
+  for (const tool of buildTools(service)) registerTool(server, tool, activity);
   return server;
 }

@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { z } from "zod";
+import { type ActivityLog, hexIdOf } from "../../server/core/activity.ts";
 import { DomainError } from "../../server/core/errors.ts";
 
 export interface ToolDef<S extends z.ZodObject> {
@@ -25,8 +26,11 @@ function text(value: unknown, isError = false) {
   };
 }
 
-/** Registers a tool whose handler returns JSON text and turns DomainErrors into tool errors. */
-export function registerTool(server: McpServer, def: AnyTool): void {
+/**
+ * Registers a tool whose handler returns JSON text and turns DomainErrors into tool errors.
+ * Each call, refused ones too, is noted in `activity` when one is given.
+ */
+export function registerTool(server: McpServer, def: AnyTool, activity?: ActivityLog): void {
   server.registerTool(
     def.name,
     {
@@ -40,11 +44,19 @@ export function registerTool(server: McpServer, def: AnyTool): void {
       },
     },
     async (args: unknown) => {
+      let result: unknown;
       try {
-        return text(await def.run(def.input.parse(args)));
+        result = await def.run(def.input.parse(args));
+        return text(result);
       } catch (e) {
         if (e instanceof DomainError) return text(e.message, true);
         throw e;
+      } finally {
+        activity?.record({
+          tool: def.name,
+          read: def.kind === "read",
+          hexId: hexIdOf(args, result),
+        });
       }
     },
   );

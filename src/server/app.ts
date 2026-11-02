@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { serveStatic } from "hono/deno";
 import { mcpRoutes } from "../mcp/http.ts";
+import { ActivityLog } from "./core/activity.ts";
 import { HexService } from "./core/service.ts";
 import { ChangeWatcher } from "./core/watcher.ts";
 import { Workspace } from "./core/workspace.ts";
@@ -38,11 +39,13 @@ export function createApp(
   service: HexService = new HexService(Workspace.fromEnv()),
   changes: ChangeWatcher = new ChangeWatcher(service.workspace),
   security: GuardOptions = guardOptionsFromEnv(),
+  /** Agents' MCP tool calls, shared by `/mcp` (which records them) and `/api` (which shows them). */
+  activity: ActivityLog = new ActivityLog(),
 ): Hono {
   const app = new Hono();
   app.use("*", createGuard(security));
-  app.route("/api", apiRoutes(service, changes));
-  app.route("/mcp", mcpRoutes(service));
+  app.route("/api", apiRoutes(service, changes, activity));
+  app.route("/mcp", mcpRoutes(service, activity));
   app.use("/static/*", serveStatic({ root: "./" }));
   // Client-side routes: anything else that is not an API or asset path gets the SPA shell.
   app.get("*", (c) => c.html(INDEX_HTML));
