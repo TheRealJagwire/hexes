@@ -10,6 +10,7 @@ import {
 } from "../../shared/graph.ts";
 import type { HexSummary, HexView } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
+import { followHandoff, HANDOFF_STATUSES } from "../lib/handoff.ts";
 import { notify, notifyError, statusText } from "../lib/toasts.ts";
 import { dateTime, PILL, plural, statusOptions } from "../lib/format.ts";
 import { Link, navigate } from "../lib/router.tsx";
@@ -581,7 +582,7 @@ function AnswerDialog(
           setError(null);
           try {
             await api.updateHex(view.hex.id, { status, response });
-            notify(statusText(view.hex.id, status));
+            if (!handOff(view, status)) notify(statusText(view.hex.id, status));
             onAnswered();
             ref.current?.close();
           } catch (err) {
@@ -640,6 +641,24 @@ function AnswerPanel({ meta }: { meta: Record<string, string> }) {
   );
 }
 
+const HANDOFF_VERB: Partial<Record<Status, string>> = {
+  published: "Published",
+  blessed: "Blessed",
+  answered: "Answered",
+};
+
+/**
+ * After a person publishes, blesses or answers: go to the project page and follow the signal to
+ * Claude in one toast. False for any other change, which gets the ordinary toast.
+ */
+function handOff(view: HexView, status: Status): boolean {
+  const verb = HANDOFF_VERB[status];
+  if (!verb || !HANDOFF_STATUSES.includes(status) || !view.projectId) return false;
+  void followHandoff(view.hex.id, verb);
+  navigate(`/p/${view.projectId}`);
+  return true;
+}
+
 function StatusSelect({ view, onChange }: { view: HexView; onChange: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [answering, setAnswering] = useState<Status | null>(null);
@@ -662,7 +681,7 @@ function StatusSelect({ view, onChange }: { view: HexView; onChange: () => void 
             }
             try {
               await api.updateHex(view.hex.id, { status: next });
-              notify(statusText(view.hex.id, next));
+              if (!handOff(view, next)) notify(statusText(view.hex.id, next));
             } catch (err) {
               setError(notifyError(err));
             }
