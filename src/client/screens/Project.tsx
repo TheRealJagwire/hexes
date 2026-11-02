@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { roleOf } from "../../shared/constants.ts";
-import { AUTO_MERGE_KEY, statusSummary } from "../../shared/graph.ts";
+import { AUTO_MERGE_KEY, isArchived, statusSummary } from "../../shared/graph.ts";
 import type { Hex } from "../../shared/schemas.ts";
 import type { EpicView, HexSummary } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
@@ -163,7 +163,14 @@ function EpicAccordion({ epic, defaultOpen }: { epic: EpicView; defaultOpen: boo
             {epic.hex.id}
             {epic.gate ? ` · gate: ${epic.gate.title}` : ""}
           </span>
-          <span class="text-lg font-semibold">{epic.hex.title}</span>
+          <span class="flex flex-wrap items-center gap-2.5 text-lg font-semibold">
+            {epic.hex.title}
+            {isArchived(epic.hex) && (
+              <span class="rounded-full border border-line px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
+                Archived
+              </span>
+            )}
+          </span>
         </div>
         <div class="flex items-center gap-3.5">
           <div class="flex flex-col items-end gap-0.5">
@@ -194,6 +201,29 @@ function EpicAccordion({ epic, defaultOpen }: { epic: EpicView; defaultOpen: boo
         </ul>
       )}
     </div>
+  );
+}
+
+/** Archived epics stay behind a "Show archived (n)" toggle, after the others. */
+function EpicList({ epics }: { epics: EpicView[] }) {
+  const [showArchived, setShowArchived] = useState(false);
+  const active = epics.filter((e) => !isArchived(e.hex));
+  const archived = epics.filter((e) => isArchived(e.hex));
+  const shown = showArchived ? [...active, ...archived] : active;
+  return (
+    <>
+      {shown.map((e, i) => <EpicAccordion key={e.hex.id} epic={e} defaultOpen={i === 0} />)}
+      {archived.length > 0 && (
+        <button
+          type="button"
+          aria-pressed={showArchived}
+          onClick={() => setShowArchived(!showArchived)}
+          class="inline-flex h-9 items-center self-start rounded-lg border-none bg-transparent px-1 text-[13px] text-accent underline-offset-2 hover:underline"
+        >
+          {showArchived ? "Hide archived" : `Show archived (${archived.length})`}
+        </button>
+      )}
+    </>
   );
 }
 
@@ -424,7 +454,7 @@ export function ProjectScreen({ id }: { id: string }) {
             No epics yet. Use “Create hex” and pick <code class="font-mono">core.epic</code>.
           </p>
         )}
-        {epics.map((e, i) => <EpicAccordion key={e.hex.id} epic={e} defaultOpen={i === 0} />)}
+        <EpicList epics={epics} />
       </div>
     </Page>
   );

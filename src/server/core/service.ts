@@ -1,9 +1,11 @@
 import {
+  ARCHIVED_KEY,
   AUTO_MERGE_KEY,
   autoMergeOn,
   breadcrumbs,
   buildIndex,
   byCreated,
+  canArchiveEpic,
   dependenciesDone,
   dependenciesOf,
   dependentsOf,
@@ -319,6 +321,31 @@ export class HexService {
       project.meta = { ...project.meta, [AUTO_MERGE_KEY]: enabled ? "on" : "off" };
       project.lastUpdatedAtTimeInMs = this.now();
       return project;
+    });
+  }
+
+  /**
+   * Archives an epic (`meta.archived` = the time) once every story it depends on is finished, or
+   * unarchives it. Unarchiving is always allowed.
+   */
+  setArchived(id: string, archived: boolean): Promise<Hex> {
+    return this.mutate((hexes) => {
+      const idx = buildIndex(hexes);
+      const epic = idx.byId.get(id);
+      if (!epic) throw new DomainError(`No hex with id ${id}`, 404);
+      if (epic.kind !== "core.epic") throw new DomainError("Only an epic can be archived.", 400);
+      const meta = { ...epic.meta };
+      if (archived) {
+        if (!canArchiveEpic(epicStories(idx, epic))) {
+          throw new DomainError("An epic can be archived once all its stories are closed.", 409);
+        }
+        meta[ARCHIVED_KEY] = new Date(this.now()).toISOString();
+      } else {
+        delete meta[ARCHIVED_KEY];
+      }
+      epic.meta = meta;
+      epic.lastUpdatedAtTimeInMs = this.now();
+      return epic;
     });
   }
 
