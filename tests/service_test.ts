@@ -221,6 +221,35 @@ Deno.test("project view groups designs, specs, decisions, questions and epics", 
   }
 });
 
+Deno.test("project view lists the most active epics first and archived ones last", async () => {
+  const f = await fixture();
+  try {
+    const s = f.service;
+    const base = { projectId: f.projectId, description: "", meta: {}, requiredBy: [] };
+    const story = (title: string, status: "done" | "blocked" | "ready" | "in_progress") =>
+      s.createHex({ ...base, kind: "core.story", title, status, dependsOn: [] });
+    const epic = (title: string, dependsOn: string[], status: "blocked" | "done" = "blocked") =>
+      s.createHex({ ...base, kind: "core.epic", title, status, dependsOn });
+    // Created finished-first, the reverse of the order the view should show.
+    const archived = await epic("Archived", [(await story("A1", "in_progress")).id]);
+    await s.setMeta(archived.id, "archived", "2026-01-01T00:00:00Z");
+    await epic("Finished", [(await story("F1", "done")).id]);
+    await epic("Blocked", [(await story("B1", "blocked")).id]);
+    await epic("Ready", [(await story("R1", "ready")).id]);
+    await epic("Active", [(await story("P1", "in_progress")).id]);
+    const view = await s.projectView(f.projectId);
+    assertEquals(view.epics.map((e) => e.hex.title), [
+      "Active",
+      "Ready",
+      "Blocked",
+      "Finished",
+      "Archived",
+    ]);
+  } finally {
+    await f.cleanup();
+  }
+});
+
 Deno.test("ideas start as drafts, are published by people and list newest first", async () => {
   const f = await fixture();
   try {
