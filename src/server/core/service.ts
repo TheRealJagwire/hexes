@@ -24,6 +24,7 @@ import {
   pullRequestsOf,
   readyHexes,
   reconcileReadiness,
+  sortEpics,
   summarize,
 } from "../../shared/graph.ts";
 import {
@@ -288,7 +289,8 @@ export class HexService {
       throw new DomainError(`No project with id ${id}`, 404);
     }
     const own = projectHexes(idx, prefixOf(id) ?? "").sort(byCreated);
-    const epics: EpicView[] = own.filter((h) => h.kind === "core.epic").map((epic) => {
+    const ownEpics = own.filter((h) => h.kind === "core.epic");
+    const epics: EpicView[] = sortEpics(idx, ownEpics).map((epic) => {
       const gate = dependentsOf(idx, epic.id).find((d) => d.kind === "core.gate");
       const stories = epicStories(idx, epic);
       return {
