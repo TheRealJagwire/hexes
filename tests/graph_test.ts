@@ -10,6 +10,7 @@ import {
   pullRequestsOf,
   readyHexes,
   reconcileReadiness,
+  sortEpics,
   sortStories,
   statusSummary,
 } from "../src/shared/graph.ts";
@@ -206,4 +207,39 @@ Deno.test("a fact is never ready, never waits, and sits under its project", () =
   // A fact about a design still sits under the project, not the design or an epic.
   assertEquals(breadcrumbs(idx, hexes[3]!).map((h) => h.id), ["hx-p-001", "hx-p-0f1"]);
   assertEquals(statusSummary(hexes.slice(3, 5)), "1 known · 1 retired");
+});
+
+Deno.test("epics sort in progress → ready → blocked → finished → archived, oldest first", () => {
+  const archived = (h: Hex) => ({ ...h, meta: { archived: "2026-01-01T00:00:00Z" } });
+  const hexes = [
+    // Created in reverse of the expected order so creation order alone cannot pass.
+    archived(hex("hx-p-2e0", "core.epic", "in_progress")),
+    hex("hx-p-2a1", "core.story", "merged"),
+    hex("hx-p-2e1", "core.epic", "blocked", ["hx-p-2a1"]),
+    hex("hx-p-2e2", "core.epic", "done"),
+    hex("hx-p-2a3", "core.story", "blocked"),
+    hex("hx-p-2e3", "core.epic", "blocked", ["hx-p-2a3"]),
+    hex("hx-p-2e4", "core.epic", "blocked"),
+    hex("hx-p-2a5", "core.story", "ready"),
+    hex("hx-p-2e5", "core.epic", "blocked", ["hx-p-2a5", "hx-p-2a3"]),
+    hex("hx-p-2e6", "core.epic", "ready"),
+    hex("hx-p-2a7", "core.story", "in_review"),
+    hex("hx-p-2e7", "core.epic", "blocked", ["hx-p-2a7", "hx-p-2a5"]),
+    hex("hx-p-2e8", "core.epic", "in_progress"),
+  ];
+  const idx = buildIndex(hexes);
+  const epics = hexes.filter((h) => h.kind === "core.epic");
+  const before = epics.map((e) => e.id);
+  assertEquals(sortEpics(idx, epics).map((e) => e.id), [
+    "hx-p-2e7", // a story in review
+    "hx-p-2e8", // the epic itself in progress, no stories
+    "hx-p-2e5", // a ready story
+    "hx-p-2e6", // the epic itself ready, no stories
+    "hx-p-2e3", // unfinished stories, none ready
+    "hx-p-2e4", // blocked, no stories
+    "hx-p-2e1", // every story merged
+    "hx-p-2e2", // the epic itself done
+    "hx-p-2e0", // archived, though still in progress
+  ]);
+  assertEquals(epics.map((e) => e.id), before, "the input is left unchanged");
 });
