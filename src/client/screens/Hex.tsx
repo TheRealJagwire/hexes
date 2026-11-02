@@ -654,7 +654,7 @@ const HANDOFF_VERB: Partial<Record<Status, string>> = {
 function handOff(view: HexView, status: Status): boolean {
   const verb = HANDOFF_VERB[status];
   if (!verb || !HANDOFF_STATUSES.includes(status) || !view.projectId) return false;
-  void followHandoff(view.hex.id, verb);
+  void followHandoff(view.hex.id, verb, view.projectId);
   navigate(`/p/${view.projectId}`);
   return true;
 }
