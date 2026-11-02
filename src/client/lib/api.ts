@@ -5,7 +5,9 @@ import type {
   UpdateHexRequest,
 } from "../../shared/schemas.ts";
 import type {
+  AgentActivity,
   ApiError,
+  ChannelsState,
   CreateProjectResult,
   FactsQuery,
   FactsResult,
@@ -53,6 +55,11 @@ type CreateHexInput =
 
 export const api = {
   state: () => request<WorkspaceState>("GET", "/state"),
+  /** The `hexes-channel` processes listening on the open workspace. */
+  channels: () => request<ChannelsState>("GET", "/channels"),
+  /** What agents have been doing in a project over MCP. */
+  agent: (projectId: string) =>
+    request<AgentActivity>("GET", `/agent?project=${encodeURIComponent(projectId)}`),
   inspect: (dir: string) => request<InspectResult>("POST", "/workspace/inspect", { dir }),
   openWorkspace: (dir: string) => request<WorkspaceState>("POST", "/workspace/open", { dir }),
   createProject: (req: CreateProjectRequest) =>

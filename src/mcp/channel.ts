@@ -1,3 +1,4 @@
+import process from "node:process";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Hex } from "../shared/schemas.ts";
@@ -137,6 +138,9 @@ if (import.meta.main) {
     Deno.exit(0);
   };
   server.onclose = () => void shutdown();
+  // The stdio transport doesn't close when Claude Code goes away, so stdin ending is the cue;
+  // otherwise an orphaned channel would keep its heartbeat fresh with nobody listening.
+  process.stdin.on("end", () => void shutdown());
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     Deno.addSignalListener(signal, () => void shutdown());
   }
