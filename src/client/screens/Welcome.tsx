@@ -1,5 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
-import { api, ApiFailure } from "../lib/api.ts";
+import { api } from "../lib/api.ts";
+import { notify, notifyError } from "../lib/toasts.ts";
 import { navigate } from "../lib/router.tsx";
 import type { InspectResult } from "../../shared/views.ts";
 import { Folder, HexPlus } from "../components/Icons.tsx";
@@ -75,7 +76,7 @@ export function Welcome() {
       const { dir } = await api.pickDirectory();
       if (dir) set(dir);
     } catch (e) {
-      setError({ where, message: e instanceof Error ? e.message : String(e) });
+      setError({ where, message: notifyError(e) });
     }
   };
 
@@ -84,9 +85,10 @@ export function Welcome() {
     setError(null);
     try {
       await api.openWorkspace(openDir);
+      notify(`Opened ${openDir}`);
       navigate("/");
     } catch (e) {
-      setError({ where: "open", message: e instanceof ApiFailure ? e.message : String(e) });
+      setError({ where: "open", message: notifyError(e) });
     } finally {
       setBusy(null);
     }
@@ -98,10 +100,11 @@ export function Welcome() {
     setError(null);
     try {
       const res = await api.createProject({ dir: newDir, title, description: statement, gitInit });
+      notify(`Created ${title.trim() || "the project"}`);
       if (res.warnings.length) setWarnings({ projectId: res.projectId, items: res.warnings });
       else navigate(`/p/${res.projectId}`);
     } catch (err) {
-      setError({ where: "create", message: err instanceof Error ? err.message : String(err) });
+      setError({ where: "create", message: notifyError(err) });
     } finally {
       setBusy(null);
     }

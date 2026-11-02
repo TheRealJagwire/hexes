@@ -4,6 +4,7 @@ import { liveStatus } from "../lib/live.ts";
 import { Link, location, matchPath, navigate } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
 import { ErrorState, LoadingState } from "./Layout.tsx";
+import { Toasts } from "./Toasts.tsx";
 import { CreateHex } from "../screens/CreateHex.tsx";
 import { HexScreen } from "../screens/Hex.tsx";
 import { ProjectScreen } from "../screens/Project.tsx";
@@ -55,6 +56,7 @@ export function App() {
   return (
     <>
       <Routes />
+      <Toasts />
       <LiveDot />
     </>
   );

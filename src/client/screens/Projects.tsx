@@ -1,5 +1,6 @@
 import { useState } from "preact/hooks";
 import { api } from "../lib/api.ts";
+import { notify, notifyError } from "../lib/toasts.ts";
 import type { RecentProject } from "../../shared/views.ts";
 import { Link, navigate } from "../lib/router.tsx";
 import { plural, relativeTime } from "../lib/format.ts";
@@ -27,7 +28,7 @@ function RecentProjects() {
     try {
       await fn();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(notifyError(e));
     } finally {
       setBusy(null);
     }
@@ -57,6 +58,7 @@ function RecentProjects() {
                     onClick={() =>
                       run(r, async () => {
                         await api.openRecentProject(r.dir, r.projectId);
+                        notify(`Opened ${r.title}`);
                         navigate(`/p/${r.projectId}`);
                       })}
                     class="flex w-full flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-line bg-panel px-5 py-3.5 text-left text-ink hover:border-line-hover hover:bg-panel2"
@@ -88,6 +90,7 @@ function RecentProjects() {
                       onClick={() =>
                         run(r, async () => {
                           await api.forgetRecentProject(r.dir, r.projectId);
+                          notify(`Removed ${r.title} from recent projects`);
                           recent.reload();
                         })}
                     >
