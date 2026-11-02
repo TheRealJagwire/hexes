@@ -278,3 +278,18 @@
     max-width: 100%;
   }
 }
+
+.hx-toast {
+  animation: hx-toast-in 180ms ease-out;
+}
+@keyframes hx-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hx-toast {
+    animation: none;
+  }
+}

@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import type { DiffFile, HexView, PullRequestDiff } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
+import { notify, notifyError } from "../lib/toasts.ts";
 import { dateTime, plural } from "../lib/format.ts";
 import { Link } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
@@ -32,14 +33,14 @@ function ConflictNote({ files, target }: { files: string[]; target: string }) {
 function useAction(onChange: () => void) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const run = async (fn: () => Promise<unknown>) => {
+  const run = async <T,>(fn: () => Promise<T>, done: (result: T) => string) => {
     setBusy(true);
     setError(null);
     try {
-      await fn();
+      notify(done(await fn()));
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(notifyError(e));
     } finally {
       setBusy(false);
     }
@@ -102,7 +103,8 @@ export function WorkPanel({ view, onChange }: { view: HexView; onChange: () => v
           type="button"
           class={view.workBranch ? "btn" : "btn-primary"}
           disabled={busy}
-          onClick={() => run(() => api.startWork(id))}
+          onClick={() =>
+            run(() => api.startWork(id), (h) => `On branch ${h.meta?.git_branch ?? ""}`)}
         >
           {view.workBranch ? "Switch to branch" : "Start work on a branch"}
         </button>
@@ -111,7 +113,11 @@ export function WorkPanel({ view, onChange }: { view: HexView; onChange: () => v
             type="button"
             class="btn-primary"
             disabled={busy}
-            onClick={() => run(() => api.openPullRequest(id))}
+            onClick={() =>
+              run(
+                () => api.openPullRequest(id),
+                (pr) => pr.status === "merged" ? `Opened and merged ${pr.id}` : `Opened ${pr.id}`,
+              )}
             title={view.autoMerge
               ? "Auto-merge is on: Studio merges it into main as soon as it's opened"
               : undefined}
@@ -134,7 +140,8 @@ export function WorkPanel({ view, onChange }: { view: HexView; onChange: () => v
             type="button"
             class="btn"
             disabled={busy}
-            onClick={() => run(() => api.updatePullRequestBranch(open.id))}
+            onClick={() =>
+              run(() => api.updatePullRequestBranch(open.id), () => `Updated ${open.sourceBranch}`)}
           >
             Update from {open.targetBranch}
           </button>
@@ -149,7 +156,10 @@ export function WorkPanel({ view, onChange }: { view: HexView; onChange: () => v
           target={open.targetBranch}
           also="This marks this hex and its pull request merged, and readies what was waiting on them."
           busy={busy}
-          onMerge={() => run(() => api.mergeWork(id)).then(() => setConfirmMerge(false))}
+          onMerge={() =>
+            run(() => api.mergeWork(id), () => `Merged into ${open.targetBranch}`).then(() =>
+              setConfirmMerge(false)
+            )}
           onCancel={() => setConfirmMerge(false)}
         />
       )}
@@ -229,7 +239,11 @@ export function PullRequestPanel({ view, onChange }: { view: HexView; onChange: 
             type="button"
             class="btn"
             disabled={busy}
-            onClick={() => run(() => api.updatePullRequestBranch(pr.id))}
+            onClick={() =>
+              run(
+                () => api.updatePullRequestBranch(pr.id),
+                () => `Updated ${m.source_branch ?? ""}`,
+              )}
           >
             Update from {m.target_branch}
           </button>
@@ -243,7 +257,10 @@ export function PullRequestPanel({ view, onChange }: { view: HexView; onChange: 
           source={m.source_branch ?? ""}
           target={m.target_branch ?? ""}
           busy={busy}
-          onMerge={() => run(() => api.mergePullRequest(pr.id)).then(() => setConfirm(null))}
+          onMerge={() =>
+            run(() => api.mergePullRequest(pr.id), () => `Merged ${pr.id}`).then(() =>
+              setConfirm(null)
+            )}
           onCancel={() => setConfirm(null)}
         />
       )}
@@ -260,7 +277,10 @@ export function PullRequestPanel({ view, onChange }: { view: HexView; onChange: 
               type="button"
               class="btn-primary"
               disabled={busy}
-              onClick={() => run(() => api.closePullRequest(pr.id)).then(() => setConfirm(null))}
+              onClick={() =>
+                run(() => api.closePullRequest(pr.id), () => `Closed ${pr.id}`).then(() =>
+                  setConfirm(null)
+                )}
             >
               {busy ? "Closing…" : "Close"}
             </button>

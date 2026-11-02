@@ -10,6 +10,7 @@ import {
 } from "../../shared/graph.ts";
 import type { HexSummary, HexView } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
+import { notify, notifyError, statusText } from "../lib/toasts.ts";
 import { dateTime, PILL, plural, statusOptions } from "../lib/format.ts";
 import { Link, navigate } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
@@ -140,14 +141,15 @@ function MetaPanel({ view, onChange }: { view: HexView; onChange: () => void }) 
   const [error, setError] = useState<string | null>(null);
   const meta = Object.entries(view.hex.meta ?? {});
 
-  const run = async (fn: () => Promise<unknown>) => {
+  const run = async (fn: () => Promise<unknown>, done: string) => {
     setError(null);
     try {
       await fn();
+      notify(done);
       onChange();
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(notifyError(e));
       return false;
     }
   };
@@ -170,7 +172,12 @@ function MetaPanel({ view, onChange }: { view: HexView; onChange: () => void }) 
           class="flex flex-wrap gap-2"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (await run(() => api.setMeta(view.hex.id, k.trim(), v))) {
+            if (
+              await run(
+                () => api.setMeta(view.hex.id, k.trim(), v),
+                `Set ${k.trim()} on ${view.hex.id}`,
+              )
+            ) {
               setK("");
               setV("");
               setAdding(false);
@@ -232,7 +239,11 @@ function MetaPanel({ view, onChange }: { view: HexView; onChange: () => void }) 
                       <button
                         type="button"
                         aria-label={`Remove ${key}`}
-                        onClick={() => run(() => api.removeMeta(view.hex.id, key))}
+                        onClick={() =>
+                          run(
+                            () => api.removeMeta(view.hex.id, key),
+                            `Removed ${key} from ${view.hex.id}`,
+                          )}
                         class="inline-flex size-8 items-center justify-center rounded-md border-none bg-transparent text-muted hover:text-ink"
                       >
                         <Close size={14} />
@@ -269,7 +280,7 @@ function FactPanel({ view, onChange }: { view: HexView; onChange: () => void }) 
       setReplacement("");
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(notifyError(e));
     }
     setBusy(false);
   };
@@ -284,12 +295,14 @@ function FactPanel({ view, onChange }: { view: HexView; onChange: () => void }) 
         await api.setMeta(hex.id, "superseded_by", by);
       }
       await api.updateHex(hex.id, { status: "retired" });
+      notify(`Retired ${hex.id}`);
     });
 
   const restore = () =>
     run(async () => {
       await api.updateHex(hex.id, { status: "known" });
       if (supersededBy !== undefined) await api.removeMeta(hex.id, "superseded_by");
+      notify(`Restored ${hex.id}`);
     });
 
   return (
@@ -381,9 +394,10 @@ function ArchivePanel({ view, onChange }: { view: HexView; onChange: () => void 
     setError(null);
     try {
       await api.setArchived(hex.id, archived);
+      notify(`${archived ? "Archived" : "Unarchived"} ${hex.id}`);
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(notifyError(e));
     }
     setBusy(false);
   };
@@ -441,10 +455,15 @@ function DeletePanel({ view }: { view: HexView }) {
   const destroy = async () => {
     setBusy(true);
     try {
-      await api.deleteHex(view.hex.id);
+      const { deleted } = await api.deleteHex(view.hex.id);
+      notify(
+        deleted.length > 1
+          ? `Deleted ${view.hex.id} and ${plural(deleted.length - 1, "other hex")}`
+          : `Deleted ${view.hex.id}`,
+      );
       navigate(view.hex.kind === "core.project" || !view.projectId ? "/" : `/p/${view.projectId}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(notifyError(e));
       setBusy(false);
     }
   };
@@ -562,10 +581,11 @@ function AnswerDialog(
           setError(null);
           try {
             await api.updateHex(view.hex.id, { status, response });
+            notify(statusText(view.hex.id, status));
             onAnswered();
             ref.current?.close();
           } catch (err) {
-            setError(err instanceof Error ? err.message : String(err));
+            setError(notifyError(err));
             setBusy(false);
           }
         }}
@@ -642,8 +662,9 @@ function StatusSelect({ view, onChange }: { view: HexView; onChange: () => void 
             }
             try {
               await api.updateHex(view.hex.id, { status: next });
+              notify(statusText(view.hex.id, next));
             } catch (err) {
-              setError(err instanceof Error ? err.message : String(err));
+              setError(notifyError(err));
             }
             onChange();
           }}
@@ -831,9 +852,10 @@ function EditText({ view, onDone }: { view: HexView; onDone: () => void }) {
         e.preventDefault();
         try {
           await api.updateHex(view.hex.id, { title, description });
+          notify(`Saved ${view.hex.id}`);
           onDone();
         } catch (err) {
-          setError(err instanceof Error ? err.message : String(err));
+          setError(notifyError(err));
         }
       }}
     >

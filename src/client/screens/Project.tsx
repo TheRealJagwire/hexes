@@ -5,6 +5,7 @@ import { AUTO_MERGE_KEY, canArchiveEpic, isArchived, statusSummary } from "../..
 import type { Hex } from "../../shared/schemas.ts";
 import type { EpicView, HexSummary } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
+import { notify, notifyError } from "../lib/toasts.ts";
 import { relativeTime } from "../lib/format.ts";
 import { Link } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
@@ -163,9 +164,10 @@ function ArchiveButton({ epic, onChange }: { epic: EpicView; onChange: () => voi
     setError(null);
     try {
       await api.setArchived(epic.hex.id, !archived);
+      notify(`${archived ? "Unarchived" : "Archived"} ${epic.hex.id}`);
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(notifyError(e));
     }
     setBusy(false);
   };
@@ -338,9 +340,10 @@ function AutoMergeBar(
     setError(null);
     try {
       await api.setAutoMerge(projectId, !on);
+      notify(`Auto-merge is ${on ? "off" : "on"}`);
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(notifyError(e));
     }
     setBusy(false);
   };

@@ -3,6 +3,7 @@ import { CORE_KINDS, type Status } from "../../shared/constants.ts";
 import { FACT_KIND, IDEA_KIND, kindQualifier, prefixOf } from "../../shared/graph.ts";
 import type { HexSummary } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
+import { notify, notifyError } from "../lib/toasts.ts";
 import { createStatusOptions } from "../lib/format.ts";
 import { Link, navigate } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
@@ -156,9 +157,10 @@ export function CreateHex(
         ],
         meta: metaMap,
       });
+      notify(`Created ${hex.id}`);
       navigate(`/h/${hex.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(notifyError(err));
       setBusy(false);
     }
   };
