@@ -265,3 +265,21 @@ export interface ChannelInfo {
 export interface ChannelsState {
   channels: ChannelInfo[];
 }
+
+/** One MCP tool call an agent made through Studio. */
+export interface AgentCall {
+  tool: string;
+  /** A read-only tool: it counts as the agent being there, not as working on a hex. */
+  read: boolean;
+  /** The hex it was about (its `id`, the hex it created, or its `project_id`), if any. */
+  hexId: string | null;
+  at: number;
+}
+
+/** `GET /api/agent?project=…`: what agents have been doing in a project. */
+export interface AgentActivity {
+  /** The latest call about this project, or about no hex at all. */
+  lastCall: AgentCall | null;
+  /** The hex an agent changed most recently, in the last ten minutes. */
+  working: { hexId: string; tool: string; at: number } | null;
+}

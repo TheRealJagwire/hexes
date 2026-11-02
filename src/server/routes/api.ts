@@ -17,6 +17,7 @@ import {
   STATUS_INFO,
 } from "../../shared/constants.ts";
 import type { ChannelsState, StatusTable } from "../../shared/views.ts";
+import type { ActivityLog } from "../core/activity.ts";
 import { readChannels } from "../core/channels.ts";
 import { DomainError } from "../core/errors.ts";
 import type { HexService } from "../core/service.ts";
@@ -36,7 +37,11 @@ const ArchivedSchema = z.object({ archived: z.boolean() });
 const RecentProjectSchema = z.object({ dir: z.string().trim().min(1), projectId: HexIdSchema });
 
 /** JSON API consumed by the Preact client. Every handler delegates to HexService. */
-export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
+export function apiRoutes(
+  service: HexService,
+  changes?: ChangeWatcher,
+  activity?: ActivityLog,
+): Hono {
   const api = new Hono();
   const channelsState = async (): Promise<ChannelsState> => {
     const dir = await service.workspace.current().catch(() => null);
@@ -79,6 +84,9 @@ export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
           })
         ).catch(() => {});
       });
+      const unsubscribeAgent = activity?.subscribe((call) => {
+        void stream.writeSSE({ event: "agent", data: JSON.stringify(call) }).catch(() => {});
+      });
       const aborted = new Promise<void>((resolve) => stream.onAbort(resolve));
       await stream.writeSSE({ event: "hello", data: JSON.stringify(await changes.snapshot()) });
       while (!stream.aborted) {
@@ -88,11 +96,18 @@ export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
         if (!stream.aborted) await stream.writeSSE({ event: "ping", data: "" });
       }
       unsubscribe();
+      unsubscribeAgent?.();
     });
   });
   api.get("/state", async (c) => c.json(await service.state()));
   /** The `hexes-channel` processes listening on the open workspace, with what they sent. */
   api.get("/channels", async (c) => c.json(await channelsState()));
+  /** What agents have been doing in a project over MCP: the latest call and the hex being worked. */
+  api.get("/agent", (c) => {
+    const project = c.req.query("project");
+    if (!project) throw new DomainError("Pass ?project=<project id>", 400);
+    return c.json(activity?.forProject(project) ?? { lastCall: null, working: null });
+  });
   api.get("/statuses", (c) =>
     c.json(
       {
