@@ -16,7 +16,8 @@ import {
   REQUIRES_RESPONSE,
   STATUS_INFO,
 } from "../../shared/constants.ts";
-import type { StatusTable } from "../../shared/views.ts";
+import type { ChannelsState, StatusTable } from "../../shared/views.ts";
+import { readChannels } from "../core/channels.ts";
 import { DomainError } from "../core/errors.ts";
 import type { HexService } from "../core/service.ts";
 import { pickDirectory } from "../core/picker.ts";
@@ -37,6 +38,10 @@ const RecentProjectSchema = z.object({ dir: z.string().trim().min(1), projectId:
 /** JSON API consumed by the Preact client. Every handler delegates to HexService. */
 export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
   const api = new Hono();
+  const channelsState = async (): Promise<ChannelsState> => {
+    const dir = await service.workspace.current().catch(() => null);
+    return { channels: dir ? await readChannels(dir) : [] };
+  };
 
   api.onError((err, c) => {
     if (err instanceof DomainError) return c.json({ error: err.message }, err.status);
@@ -62,12 +67,17 @@ export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
     if (!changes) return c.json({ error: "live updates are not enabled" }, 404);
     return streamSSE(c, async (stream) => {
       const unsubscribe = changes.subscribe((event) => {
-        void stream.writeSSE({
-          event: "change",
-          id: String(event.rev),
-          data: JSON.stringify(event),
-        })
-          .catch(() => {});
+        // A channel's heartbeat changes no hexes: it goes out as its own event.
+        const data = event.scope === "channels"
+          ? channelsState().then((state) => JSON.stringify(state))
+          : Promise.resolve(JSON.stringify(event));
+        void data.then((data) =>
+          stream.writeSSE({
+            event: event.scope === "channels" ? "channel" : "change",
+            id: String(event.rev),
+            data,
+          })
+        ).catch(() => {});
       });
       const aborted = new Promise<void>((resolve) => stream.onAbort(resolve));
       await stream.writeSSE({ event: "hello", data: JSON.stringify(await changes.snapshot()) });
@@ -81,6 +91,8 @@ export function apiRoutes(service: HexService, changes?: ChangeWatcher): Hono {
     });
   });
   api.get("/state", async (c) => c.json(await service.state()));
+  /** The `hexes-channel` processes listening on the open workspace, with what they sent. */
+  api.get("/channels", async (c) => c.json(await channelsState()));
   api.get("/statuses", (c) =>
     c.json(
       {

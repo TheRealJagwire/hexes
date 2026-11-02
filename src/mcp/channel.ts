@@ -3,6 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import type { Hex } from "../shared/schemas.ts";
 import { diffUnblocked, formatEvent } from "../shared/unblocked.ts";
 import { type ChangeEvent, ChangeWatcher } from "../server/core/watcher.ts";
+import { ChannelPresence } from "../server/core/channels.ts";
 import { Workspace } from "../server/core/workspace.ts";
 
 export const CHANNEL_INSTRUCTIONS =
@@ -14,6 +15,13 @@ export const CHANNEL_INSTRUCTIONS =
   "question, run hexes-next-task on the newly ready hexes. Merging stays a person's call. Ignore " +
   "answers you gave yourself.";
 
+/** One send per hex a person unblocked: `published`, `blessed` or `answered`. */
+export function sendsOf(event: ChannelEvent): { hexId: string; event: string }[] {
+  return (["published", "blessed", "answered"] as const).flatMap((key) =>
+    (event.meta[key] ?? "").split(",").filter(Boolean).map((hexId) => ({ hexId, event: key }))
+  );
+}
+
 export interface ChannelEvent {
   content: string;
   meta: Record<string, string>;
@@ -23,6 +31,8 @@ export interface HexesChannelOptions {
   workspace: Workspace;
   watcher: ChangeWatcher;
   send: (event: ChannelEvent) => void | Promise<void>;
+  /** Told about each send, so Studio can see what went out. */
+  presence?: Pick<ChannelPresence, "recordSend">;
   /** How long to wait after the last change before looking, so a burst becomes one event. */
   settleMs?: number;
 }
@@ -61,6 +71,7 @@ export class HexesChannel {
   }
 
   private onChange(e: ChangeEvent): void {
+    if (e.scope === "channels") return; // heartbeats, ours included: no hexes changed
     clearTimeout(this.timer);
     if (e.scope === "workspace") {
       this.run(async () => {
@@ -82,7 +93,11 @@ export class HexesChannel {
     this.baseline = now;
     if (!before) return;
     const found = diffUnblocked(before, now);
-    for (const u of found) await this.opts.send(formatEvent(u));
+    for (const u of found) {
+      const event = formatEvent(u);
+      await this.opts.send(event);
+      await this.opts.presence?.recordSend(sendsOf(event));
+    }
   }
 
   /** The active workspace's hexes; `[]` with no workspace, null when the file can't be read. */
@@ -107,15 +122,23 @@ if (import.meta.main) {
   );
   await server.connect(new StdioServerTransport());
   const workspace = Workspace.fromEnv();
+  const presence = new ChannelPresence(workspace);
   const channel = new HexesChannel({
     workspace,
     watcher: new ChangeWatcher(workspace),
     send: (params) => server.notification({ method: "notifications/claude/channel", params }),
+    presence,
   });
   await channel.start();
-  server.onclose = () => {
+  await presence.start();
+  const shutdown = async () => {
     channel.stop();
+    await presence.stop();
     Deno.exit(0);
   };
+  server.onclose = () => void shutdown();
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    Deno.addSignalListener(signal, () => void shutdown());
+  }
   console.error("hexes-channel ready (stdio)");
 }

@@ -1,5 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
 import { createApp } from "../src/server/app.ts";
+import { ChannelPresence } from "../src/server/core/channels.ts";
 import { HexFile } from "../src/server/core/store.ts";
 import { type ChangeEvent, ChangeWatcher } from "../src/server/core/watcher.ts";
 import { fixture } from "./helpers.ts";
@@ -84,6 +85,45 @@ Deno.test("GET /api/events streams hello, then change when a hex is updated", as
     await f.service.updateHex(f.projectId, { title: "Live title" });
     assert(await read("event: change"), seen);
   } finally {
+    await reader.cancel();
+    await f.cleanup();
+  }
+});
+
+Deno.test("a channel heartbeat is a channels change, streamed as a channel event", async () => {
+  const f = await fixture();
+  const watcher = new ChangeWatcher(f.workspace, 20, 200);
+  const { events, stop, waitFor } = collect(watcher);
+  const app = createApp(f.service, watcher);
+  const H = { headers: { host: "localhost:8000" } };
+  const res = await app.request("/api/events", H);
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let seen = "";
+  const read = async (needle: string) => {
+    const end = Date.now() + 4000;
+    while (!seen.includes(needle) && Date.now() < end) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      seen += decoder.decode(value);
+    }
+    return seen.includes(needle);
+  };
+  const presence = new ChannelPresence(f.workspace, 777);
+  try {
+    assert(await read("event: hello"), seen);
+    await watcher.snapshot();
+    await presence.start();
+    assert(await waitFor(1), "no channels event");
+    assertEquals(events.map((e) => e.scope), ["channels"]);
+    assert(await read("event: channel"), seen);
+    assert(seen.includes('"pid":777'), seen);
+    assert(!seen.includes("event: change"), seen);
+    const now = await app.request("/api/channels", H);
+    assertEquals((await now.json()).channels.map((c: { pid: number }) => c.pid), [777]);
+  } finally {
+    await presence.stop();
+    stop();
     await reader.cancel();
     await f.cleanup();
   }

@@ -1,11 +1,15 @@
+import { CHANNELS_DIR } from "./channels.ts";
 import type { Workspace } from "./workspace.ts";
 
 export interface ChangeEvent {
   /** Increases on every change, so a client can tell it missed one. */
   rev: number;
   dir: string | null;
-  /** `workspace` when the active directory switched, `data` when its hexes changed. */
-  scope: "data" | "workspace";
+  /**
+   * `workspace` when the active directory switched, `data` when its hexes changed, `channels`
+   * when a channel process wrote or removed its file under `.hx/channels/`.
+   */
+  scope: "data" | "workspace" | "channels";
 }
 
 type Listener = (event: ChangeEvent) => void;
@@ -22,6 +26,7 @@ export class ChangeWatcher {
   private rev = 0;
   private dir: string | null = null;
   private stamp = "";
+  private channelsStamp = "";
   private fs: Deno.FsWatcher | null = null;
   private watching = "";
   private poll: number | undefined;
@@ -65,6 +70,7 @@ export class ChangeWatcher {
     this.watching = "";
     this.dir = null;
     this.stamp = "";
+    this.channelsStamp = "";
   }
 
   private schedule(): void {
@@ -85,13 +91,19 @@ export class ChangeWatcher {
           stamp = `${s.mtime?.getTime()}:${s.size}:${s.ino}`;
         }
       } catch { /* mid-rename or gone: treat as unchanged and look again next tick */ }
+      const channelsStamp = dir ? await stampChannels(dir) : "";
       const switched = dir !== this.dir;
       const changed = stamp !== this.stamp;
+      const channelsChanged = channelsStamp !== this.channelsStamp;
       this.dir = dir;
       this.stamp = stamp;
+      this.channelsStamp = channelsStamp;
       await this.rewatch(dir);
-      if (notify && (switched || changed)) {
-        this.emit({ rev: ++this.rev, dir, scope: switched ? "workspace" : "data" });
+      if (!notify) return;
+      if (switched) this.emit({ rev: ++this.rev, dir, scope: "workspace" });
+      else {
+        if (changed) this.emit({ rev: ++this.rev, dir, scope: "data" });
+        if (channelsChanged) this.emit({ rev: ++this.rev, dir, scope: "channels" });
       }
     }).catch(() => {});
     return this.checking;
@@ -132,4 +144,19 @@ export class ChangeWatcher {
     } catch { /* already closed */ }
     this.fs = null;
   }
+}
+
+/** Names and modification times of the channel files, so any write or removal shows. */
+async function stampChannels(dir: string): Promise<string> {
+  const parts: string[] = [];
+  try {
+    for await (const e of Deno.readDir(`${dir}/${CHANNELS_DIR}`)) {
+      if (!e.name.endsWith(".json")) continue;
+      try {
+        const s = await Deno.stat(`${dir}/${CHANNELS_DIR}/${e.name}`);
+        parts.push(`${e.name}:${s.mtime?.getTime()}`);
+      } catch { /* removed meanwhile */ }
+    }
+  } catch { /* no folder */ }
+  return parts.sort().join("|");
 }
