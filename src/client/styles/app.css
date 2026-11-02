@@ -293,3 +293,28 @@
     animation: none;
   }
 }
+
+.hx-working {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  animation: hx-working 2.4s ease-in-out infinite;
+}
+.hx-working-dot {
+  animation: hx-working-dot 1.2s ease-in-out infinite;
+}
+@keyframes hx-working {
+  50% {
+    outline-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+}
+@keyframes hx-working-dot {
+  50% {
+    opacity: 0.3;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hx-working,
+  .hx-working-dot {
+    animation: none;
+  }
+}

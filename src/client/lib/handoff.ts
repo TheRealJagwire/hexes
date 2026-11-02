@@ -1,9 +1,15 @@
-import { effect } from "@preact/signals";
+import { effect, signal } from "@preact/signals";
 import type { Status } from "../../shared/constants.ts";
 import type { AgentCall, ChannelsState } from "../../shared/views.ts";
 import { api } from "./api.ts";
 import { agentCall, channelState } from "./live.ts";
 import { type ToastKind, toasts } from "./toasts.ts";
+
+/**
+ * Set by a hand-off, for the project page: scroll to the first hex Claude changes after `since`.
+ * Cleared once it has scrolled, or when the person scrolls or types.
+ */
+export const pendingScroll = signal<{ projectId: string; since: number } | null>(null);
 
 /** How long to wait for the send and for Claude to pick it up before saying so. */
 export const PICKUP_MS = 60_000;
@@ -95,7 +101,12 @@ export function handoffToast(
  * Follows what a person just did through the channel to Claude, in one toast that changes in
  * place: from the `channel` and `agent` events, with a 60 s limit.
  */
-export async function followHandoff(hexId: string, verb: string): Promise<void> {
+export async function followHandoff(
+  hexId: string,
+  verb: string,
+  projectId: string,
+): Promise<void> {
+  pendingScroll.value = { projectId, since: Date.now() };
   const channels = await api.channels().catch((): ChannelsState => ({ channels: [] }));
   let state = startHandoff(hexId, verb, channels);
   const toast = toasts.show("", "info", null);

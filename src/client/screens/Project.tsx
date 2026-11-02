@@ -1,12 +1,15 @@
 import type { ComponentChildren } from "preact";
-import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { createContext } from "preact";
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { roleOf } from "../../shared/constants.ts";
 import { AUTO_MERGE_KEY, canArchiveEpic, isArchived, statusSummary } from "../../shared/graph.ts";
 import type { Hex } from "../../shared/schemas.ts";
-import type { EpicView, HexSummary } from "../../shared/views.ts";
+import type { AgentActivity, EpicView, HexSummary } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
 import { notify, notifyError } from "../lib/toasts.ts";
 import { relativeTime } from "../lib/format.ts";
+import { pendingScroll } from "../lib/handoff.ts";
+import { agentCall, liveVersion } from "../lib/live.ts";
 import { Link } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
 import {
@@ -36,6 +39,20 @@ function Chevron({ open, size = 16 }: { open: boolean; size?: number }) {
   );
 }
 
+/** The hex an agent changed last (within ten minutes), and the tool it used. */
+const Working = createContext<AgentActivity["working"]>(null);
+
+/** "Claude is working · start_work_branch" on the marked row. */
+function WorkingLabel({ tool }: { tool: string }) {
+  return (
+    <span class="inline-flex items-center gap-1.5 text-[13px] font-medium text-accent">
+      <span class="hx-working-dot size-2 rounded-full bg-accent" aria-hidden="true" />
+      Claude is working
+      <span class="font-mono text-xs font-normal text-muted">· {tool}</span>
+    </span>
+  );
+}
+
 /** `hideRetired` keeps retired hexes behind a "Show retired (n)" toggle. */
 function HexGroup(
   { label, items, hideRetired = false }: {
@@ -46,8 +63,14 @@ function HexGroup(
 ) {
   const [open, setOpen] = useState(false);
   const [showRetired, setShowRetired] = useState(false);
+  const working = useContext(Working);
   const retired = hideRetired ? items.filter((h) => h.status === "retired").length : 0;
   const shown = retired > 0 && !showRetired ? items.filter((h) => h.status !== "retired") : items;
+  const holdsWorking = working !== null && shown.some((h) => h.id === working.hexId);
+  // The hex being worked on shows, so the group opens for it.
+  useEffect(() => {
+    if (holdsWorking) setOpen(true);
+  }, [holdsWorking, working?.hexId]);
   return (
     <div class="overflow-hidden rounded-xl border border-line bg-panel">
       <button
@@ -69,13 +92,16 @@ function HexGroup(
             <li class="px-3.5 py-3 text-sm text-muted">No {label.toLowerCase()} yet.</li>
           )}
           {shown.map((h) => (
-            <li key={h.id}>
+            <li key={h.id} data-hex-row={h.id}>
               <Link
                 href={`/h/${h.id}`}
-                class="flex flex-wrap items-center gap-3.5 rounded-lg border border-line-soft bg-bg px-3.5 py-3 text-ink no-underline"
+                class={`flex flex-wrap items-center gap-3.5 rounded-lg border border-line-soft bg-bg px-3.5 py-3 text-ink no-underline ${
+                  working?.hexId === h.id ? "hx-working" : ""
+                }`}
               >
                 <span class="min-w-[120px] font-mono text-[13px] text-muted">{h.id}</span>
                 <span class="flex-[1_1_260px] text-[15px]">{h.title}</span>
+                {working?.hexId === h.id && <WorkingLabel tool={working.tool} />}
                 <StatusPill status={h.status} />
               </Link>
             </li>
@@ -101,8 +127,13 @@ function HexGroup(
 function StoryRow({ story, open, onToggle }: { story: Hex; open: boolean; onToggle: () => void }) {
   const done = roleOf(story.status) === "terminal";
   const meta = Object.entries(story.meta ?? {});
+  const working = useContext(Working);
+  const here = working?.hexId === story.id;
   return (
-    <li class="mt-2 rounded-[10px] border border-line-soft bg-bg">
+    <li
+      data-hex-row={story.id}
+      class={`mt-2 rounded-[10px] border border-line-soft bg-bg ${here ? "hx-working" : ""}`}
+    >
       <button
         type="button"
         aria-expanded={open}
@@ -118,6 +149,7 @@ function StoryRow({ story, open, onToggle }: { story: Hex; open: boolean; onTogg
         >
           {story.title}
         </span>
+        {here && <WorkingLabel tool={working.tool} />}
         <StatusPill status={story.status} />
       </button>
       {open && (
@@ -193,13 +225,21 @@ function EpicAccordion(
 ) {
   const [open, setOpen] = useState(defaultOpen);
   const [openStory, setOpenStory] = useState<string | null>(null);
+  const working = useContext(Working);
+  const here = working?.hexId === epic.hex.id;
+  const holdsWorking = working !== null && epic.stories.some((s) => s.id === working.hexId);
+  // A story being worked on shows, so the epic opens for it.
+  useEffect(() => {
+    if (holdsWorking) setOpen(true);
+  }, [holdsWorking, working?.hexId]);
   const { done, total, pct } = epic.progress;
   const inReview = epic.stories.filter((s) => s.status === "in_review").length;
   return (
     <div
+      data-hex-row={epic.hex.id}
       class={`overflow-hidden rounded-[14px] border bg-panel ${
         open ? "border-line-strong" : "border-line"
-      }`}
+      } ${here ? "hx-working" : ""}`}
     >
       <div class="flex items-center gap-3 pr-4 hover:bg-panel2">
         <button
@@ -222,6 +262,7 @@ function EpicAccordion(
                 </span>
               )}
             </span>
+            {here && <WorkingLabel tool={working.tool} />}
           </div>
           <div class="flex items-center gap-3.5">
             <div class="flex flex-col items-end gap-0.5">
@@ -423,8 +464,86 @@ function ClampedDescription({ text, href }: { text: string; href: string }) {
   );
 }
 
+/** Re-reads agent activity on every agent event, hex change, and every 30 s (to let it expire). */
+function useWorking(projectId: string): AgentActivity["working"] {
+  const [working, setWorking] = useState<AgentActivity["working"]>(null);
+  const [tick, setTick] = useState(0);
+  const call = agentCall.value;
+  const version = liveVersion.value;
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    let live = true;
+    api.agent(projectId).then((a) => live && setWorking(a.working)).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [projectId, call, version, tick]);
+  return working;
+}
+
+/**
+ * After a hand-off, scrolls the working hex's row into view the first time Claude changes a hex:
+ * once, and not at all if the person scrolled or typed since arriving.
+ */
+function useHandoffScroll(
+  projectId: string,
+  working: AgentActivity["working"],
+  data: unknown,
+): void {
+  useEffect(() => {
+    const cancel = () => {
+      if (pendingScroll.peek()?.projectId === projectId) pendingScroll.value = null;
+    };
+    const events = ["wheel", "touchmove", "keydown"] as const;
+    for (const e of events) addEventListener(e, cancel, { passive: true });
+    return () => {
+      for (const e of events) removeEventListener(e, cancel);
+    };
+  }, [projectId]);
+  useEffect(() => {
+    const pending = pendingScroll.peek();
+    if (!working || pending?.projectId !== projectId || working.at < pending.since) return;
+    // The row may only appear once the project reloads (a hex just created) and the group or
+    // epic holding it has opened, so look for a few frames; this runs again when data reloads.
+    let frame = 0;
+    let tries = 0;
+    const look = () => {
+      if (pendingScroll.peek() !== pending) return;
+      const row = document.querySelector(`[data-hex-row="${CSS.escape(working.hexId)}"]`);
+      if (row) {
+        pendingScroll.value = null;
+        const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        row.scrollIntoView({ block: "center", behavior: still ? "auto" : "smooth" });
+      } else if (++tries < 10) {
+        frame = requestAnimationFrame(look);
+      } else {
+        // Still missing 5 s on: not on this page (a pull request, say). Give up rather than
+        // jump to some later change instead.
+        giveUp = setTimeout(() => {
+          if (pendingScroll.peek() === pending) pendingScroll.value = null;
+        }, Math.max(0, working.at + 5000 - Date.now()));
+      }
+    };
+    let giveUp: number | undefined;
+    frame = requestAnimationFrame(look);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(giveUp);
+    };
+  }, [projectId, working?.hexId, working?.at, data]);
+}
+
 export function ProjectScreen({ id }: { id: string }) {
   const res = useResource(() => api.project(id), [id]);
+  const working = useWorking(id);
+  useHandoffScroll(
+    id,
+    res.status === "ready" ? working : null,
+    res.status === "ready" ? res.data : null,
+  );
 
   // Opening a project makes it the selected one, so Studio reopens here next time.
   useEffect(() => {
@@ -449,69 +568,73 @@ export function ProjectScreen({ id }: { id: string }) {
   // Auto-merge has its own switch below.
   const meta = Object.entries(project.meta ?? {}).filter(([k]) => k !== AUTO_MERGE_KEY);
   return (
-    <Page
-      header={
-        <ProjectHeader projectId={id} title={project.title}>
-          <Link href={`/p/${id}/map`} class="btn">
-            <HexGrid size={16} /> Hex map
-          </Link>
-          <Link href={`/p/${id}/new`} class="btn-primary">
-            <Plus size={16} width={2.4} /> Create hex
-          </Link>
-        </ProjectHeader>
-      }
-    >
-      <section
-        aria-label="Project statement"
-        class="flex flex-col gap-[18px] rounded-2xl border border-line bg-panel px-10 py-9"
+    <Working.Provider value={working}>
+      <Page
+        header={
+          <ProjectHeader projectId={id} title={project.title}>
+            <Link href={`/p/${id}/map`} class="btn">
+              <HexGrid size={16} /> Hex map
+            </Link>
+            <Link href={`/p/${id}/new`} class="btn-primary">
+              <Plus size={16} width={2.4} /> Create hex
+            </Link>
+          </ProjectHeader>
+        }
       >
-        <div class="flex flex-wrap items-center gap-3">
-          <KindBadge kind={project.kind} />
-          <Link
-            href={`/h/${project.id}`}
-            class="border-b border-dashed border-line-hover font-mono text-sm text-ink-2 no-underline"
-          >
-            {project.id}
-          </Link>
-          <CopyButton text={project.id} />
-        </div>
-        <h1 class="m-0 text-[40px] font-bold leading-[1.12] tracking-[-0.02em]">{project.title}</h1>
-        {project.description && (
-          <ClampedDescription text={project.description} href={`/h/${project.id}`} />
-        )}
-        <div class="flex flex-wrap gap-2.5 font-mono text-xs text-muted">
-          {meta.map(([k, v]) => (
-            <span key={k} class="rounded-md border border-line px-2.5 py-[5px]">{k}: {v}</span>
-          ))}
-          <span class="rounded-md border border-line px-2.5 py-[5px]">
-            updated {relativeTime(project.lastUpdatedAtTimeInMs)}
-          </span>
-        </div>
-      </section>
+        <section
+          aria-label="Project statement"
+          class="flex flex-col gap-[18px] rounded-2xl border border-line bg-panel px-10 py-9"
+        >
+          <div class="flex flex-wrap items-center gap-3">
+            <KindBadge kind={project.kind} />
+            <Link
+              href={`/h/${project.id}`}
+              class="border-b border-dashed border-line-hover font-mono text-sm text-ink-2 no-underline"
+            >
+              {project.id}
+            </Link>
+            <CopyButton text={project.id} />
+          </div>
+          <h1 class="m-0 text-[40px] font-bold leading-[1.12] tracking-[-0.02em]">
+            {project.title}
+          </h1>
+          {project.description && (
+            <ClampedDescription text={project.description} href={`/h/${project.id}`} />
+          )}
+          <div class="flex flex-wrap gap-2.5 font-mono text-xs text-muted">
+            {meta.map(([k, v]) => (
+              <span key={k} class="rounded-md border border-line px-2.5 py-[5px]">{k}: {v}</span>
+            ))}
+            <span class="rounded-md border border-line px-2.5 py-[5px]">
+              updated {relativeTime(project.lastUpdatedAtTimeInMs)}
+            </span>
+          </div>
+        </section>
 
-      <AutoMergeBar projectId={id} on={autoMerge} onChange={res.reload} />
+        <AutoMergeBar projectId={id} on={autoMerge} onChange={res.reload} />
 
-      <div class="flex flex-col gap-2.5">
-        <HexGroup label="Ideas" items={ideas} />
-        <HexGroup label="Designs" items={designs} />
-        <HexGroup label="Specs" items={specs} />
-        <HexGroup label="Decisions" items={decisions} />
-        <HexGroup label="Questions" items={questions} />
-        <HexGroup label="Facts" items={facts} hideRetired />
-      </div>
-
-      <div class="flex flex-col gap-3.5">
-        <div class="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 class="m-0 text-[22px] font-bold tracking-[-0.01em]">Epics</h2>
-          <span class="text-[13px] text-muted">Progress counts stories each epic depends on</span>
+        <div class="flex flex-col gap-2.5">
+          <HexGroup label="Ideas" items={ideas} />
+          <HexGroup label="Designs" items={designs} />
+          <HexGroup label="Specs" items={specs} />
+          <HexGroup label="Decisions" items={decisions} />
+          <HexGroup label="Questions" items={questions} />
+          <HexGroup label="Facts" items={facts} hideRetired />
         </div>
-        {epics.length === 0 && (
-          <p class="m-0 rounded-[14px] border border-dashed border-line-strong p-8 text-center text-muted">
-            No epics yet. Use “Create hex” and pick <code class="font-mono">core.epic</code>.
-          </p>
-        )}
-        <EpicList epics={epics} onChange={res.reload} />
-      </div>
-    </Page>
+
+        <div class="flex flex-col gap-3.5">
+          <div class="flex flex-wrap items-baseline justify-between gap-3">
+            <h2 class="m-0 text-[22px] font-bold tracking-[-0.01em]">Epics</h2>
+            <span class="text-[13px] text-muted">Progress counts stories each epic depends on</span>
+          </div>
+          {epics.length === 0 && (
+            <p class="m-0 rounded-[14px] border border-dashed border-line-strong p-8 text-center text-muted">
+              No epics yet. Use “Create hex” and pick <code class="font-mono">core.epic</code>.
+            </p>
+          )}
+          <EpicList epics={epics} onChange={res.reload} />
+        </div>
+      </Page>
+    </Working.Provider>
   );
 }
