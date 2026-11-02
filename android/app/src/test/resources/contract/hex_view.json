@@ -59,6 +59,7 @@
     "pullRequests": [],
     "workHex": null,
     "facts": [],
+    "autoMerge": true,
     "deleteImpact": {
       "dependents": 1,
       "emerged": 0,

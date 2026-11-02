@@ -112,8 +112,11 @@ export function WorkPanel({ view, onChange }: { view: HexView; onChange: () => v
             class="btn-primary"
             disabled={busy}
             onClick={() => run(() => api.openPullRequest(id))}
+            title={view.autoMerge
+              ? "Auto-merge is on: Studio merges it into main as soon as it's opened"
+              : undefined}
           >
-            Open pull request
+            {view.autoMerge ? "Open & merge" : "Open pull request"}
           </button>
         )}
         {open && !confirmMerge && (

@@ -184,6 +184,8 @@ data class ProjectView(
     /** Newest first, retired ones included. Absent from servers older than facts. */
     val facts: List<HexSummary> = emptyList(),
     val epics: List<EpicView>,
+    /** Studio merges pull requests as soon as they're opened. Absent from older servers, where it's off. */
+    val autoMerge: Boolean = false,
 )
 
 @Serializable
@@ -226,6 +228,8 @@ data class HexView(
     val workHex: HexSummary? = null,
     /** Facts about this hex, newest first; the server leaves them out of `dependedOnBy`. */
     val facts: List<HexSummary> = emptyList(),
+    /** The project merges pull requests as soon as they're opened. Absent from older servers, where it's off. */
+    val autoMerge: Boolean = false,
     val deleteImpact: DeleteImpact,
 )
 

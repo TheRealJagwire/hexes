@@ -93,6 +93,23 @@ main" merges main into a pull request's branch the same switch-free way. After a
 links to a diff view of what landed; the diff is also saved under `.hx/diffs/` in case the commits
 disappear.
 
+## Auto-merge
+
+Each project has an **auto-merge** switch, on by default and shown just under the project statement
+so you don't forget it. While it's on, Studio does the git workflow itself: opening a pull request
+merges it into main straight away (so the work becomes `merged` and what waits on it unblocks), then
+merges main into the project's other outstanding branches, those of open pull requests and of
+unfinished work that has no pull request yet. Nothing is forced and no branch is switched: a branch
+that would conflict is left as it is with the conflict recorded (`meta.merge_conflicts`), a branch
+checked out with uncommitted changes is skipped, and if the new pull request itself conflicts it
+simply stays open. `meta.auto_merge_result` on the pull request says what happened. Turn it off to
+review and merge pull requests yourself as before; turning it back on doesn't merge the ones already
+open.
+
+The setting is `meta.auto_merge` on the project hex (`"off"` turns it off), `autoMerge` in the
+project and hex views, and `PUT /api/projects/:id/auto-merge` with `{ "enabled": true | false }`.
+It's a person's choice: agents can read it but the MCP tools refuse to change it.
+
 ## Hex search
 
 Every page inside a project has a search box in its header; press `/` to jump to it. Suggestions

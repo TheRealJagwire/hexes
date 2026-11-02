@@ -114,10 +114,15 @@ retrying blindly.
   2. Commit the work on that branch.
   3. `open_pull_request`: a `core.pull_request` hex; the work hex now depends on it and is
      `in_review`.
-  4. The user reviews (Studio shows the changes, `get_pull_request_diff` too). Only when they say
-     so: `merge_pull_request`. The checked-out branch stays as it is, the PR records its merge
-     commit, and the work hex is `merged`: finished, with its dependents unblocked. No status change
-     follows.
+  4. With **auto-merge** on (the project's `autoMerge` in `get_project`; on by default), step 3
+     already merged it: `open_pull_request` comes back `merged`, main has been merged into the other
+     outstanding branches, and `meta.auto_merge_result` says what happened. If the merge conflicted
+     it comes back `pull_requested` with `meta.merge_conflicts`: resolve on the branch, then merge
+     as below. Only a person turns auto-merge on or off, in Studio; the meta tools refuse
+     `auto_merge` on a project. With auto-merge off, the user reviews (Studio shows the changes,
+     `get_pull_request_diff` too). Only when they say so: `merge_pull_request`. The checked-out
+     branch stays as it is, the PR records its merge commit, and the work hex is `merged`: finished,
+     with its dependents unblocked. No status change follows.
   - Hexes runs git in the project's own repository. Merges never switch branches: a branch that is
     checked out is merged in place and must have no uncommitted changes to tracked files; any other
     branch is merged without touching a working tree. `.hx/` must be in `.gitignore`.
@@ -182,14 +187,14 @@ that is an idea (403, "Ideas belong to people"). Ask the user to change it in St
 
 ### Branches & pull requests
 
-| Tool                         | Kind | Input                          | Purpose                                                                               |
-| ---------------------------- | ---- | ------------------------------ | ------------------------------------------------------------------------------------- |
-| `start_work_branch`          | W    | `id`                           | Put a work hex on `hx/<id>-<slug>` off main and switch to it; safe to repeat.         |
-| `open_pull_request`          | W    | `id`, `title?`, `description?` | Open a PR for the work hex's branch once it has commits. The work is `in_review`.     |
-| `merge_pull_request`         | W    | `id` (the PR)                  | Merge into main with a merge commit. Only when the user asks. The work is `merged`.   |
-| `update_pull_request_branch` | W    | `id` (the PR)                  | Merge main into the PR's branch without switching. Only when it conflicts or asked.   |
-| `close_pull_request`         | W    | `id` (the PR)                  | Abandon a PR; it is kept, and the work no longer waits on it (back to `in_progress`). |
-| `get_pull_request_diff`      | R    | `id` (the PR)                  | File summaries and a compact patch of what it changes.                                |
+| Tool                         | Kind | Input                          | Purpose                                                                                                                   |
+| ---------------------------- | ---- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `start_work_branch`          | W    | `id`                           | Put a work hex on `hx/<id>-<slug>` off main and switch to it; safe to repeat.                                             |
+| `open_pull_request`          | W    | `id`, `title?`, `description?` | Open a PR for the work hex's branch once it has commits. The work is `in_review`, or `merged` at once with auto-merge on. |
+| `merge_pull_request`         | W    | `id` (the PR)                  | Merge into main with a merge commit. Only when the user asks. The work is `merged`.                                       |
+| `update_pull_request_branch` | W    | `id` (the PR)                  | Merge main into the PR's branch without switching. Only when it conflicts or asked.                                       |
+| `close_pull_request`         | W    | `id` (the PR)                  | Abandon a PR; it is kept, and the work no longer waits on it (back to `in_progress`).                                     |
+| `get_pull_request_diff`      | R    | `id` (the PR)                  | File summaries and a compact patch of what it changes.                                                                    |
 
 `get_hex_view` on a work hex includes `workBranch` and `pullRequests`; on a PR, `workHex`.
 
@@ -300,9 +305,12 @@ description: Pick up and execute the next ready hex, then close it out and repor
 4. Do the work in the codebase and commit it on that branch.
 5. Verify (tests, build, manual check). Then `open_pull_request`; the hex moves to `in_review` by
    itself.
-6. Ask the user to review the pull request. Only when they say so, `merge_pull_request`; on a
-   conflict, merge main into the branch, resolve, commit and retry. The hex becomes `merged` by
-   itself; don't set a status afterwards.
+6. If the project has auto-merge on (`autoMerge` in `get_project`, on by default),
+   `open_pull_request` already merged it: check it came back `merged` and go on. If it came back
+   `pull_requested` with `meta.merge_conflicts`, merge main into the branch, resolve, commit, and
+   `merge_pull_request`. With auto-merge off, ask the user to review the pull request; only when
+   they say so, `merge_pull_request`, and on a conflict merge main into the branch, resolve, commit
+   and retry. Either way the hex becomes `merged` by itself; don't set a status afterwards.
 7. Report: what changed, and which hexes became ready (`get_ready_hexes_for_project` before vs.
    after).
 
@@ -314,7 +322,8 @@ Rules:
   move an idea: ideas belong to a person too.
 - Do not mark `done` without the user's or CI's confirmation unless told you may. Never set
   `in_review` or `merged`: pull requests set them.
-- Never commit work hexes' changes straight to main, and never merge a pull request unasked.
+- Never commit work hexes' changes straight to main, and never merge a pull request unasked (an
+  auto-merge by Studio is not you merging). Never change a project's auto-merge setting.
 - Work that is discovered mid-task goes in via `hexes-capture-discovery`, not into this hex's scope.
   So does a fact: something durable and non-obvious you learned that the next session would
   otherwise have to rediscover.

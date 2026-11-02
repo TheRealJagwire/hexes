@@ -10,10 +10,14 @@ import { type Fixture, fixture, git, initRepo } from "./helpers.ts";
 
 const base = { description: "", requiredBy: [], dependsOn: [], meta: {} };
 
-/** A project in a git repository, with one ready story to work on. */
+/**
+ * A project in a git repository, with one ready story to work on. Auto-merge is off: these tests
+ * drive merging by hand (auto-merge has its own tests).
+ */
 async function repoFixture(): Promise<Fixture & { storyId: string }> {
   const f = await fixture();
   await initRepo(f.dir);
+  await f.service.setAutoMerge(f.projectId, false);
   const story = await f.service.createHex({
     ...base,
     projectId: f.projectId,

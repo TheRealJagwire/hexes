@@ -98,6 +98,17 @@ export function findProject(idx: HexIndex, prefix: string): Hex | undefined {
 
 export const PULL_REQUEST_KIND = "core.pull_request";
 
+/** The project meta key holding the auto-merge setting: `"off"` turns it off. */
+export const AUTO_MERGE_KEY = "auto_merge";
+
+/**
+ * Whether a project merges each pull request as soon as it is opened. On by default: only
+ * `meta.auto_merge = "off"` turns it off.
+ */
+export function autoMergeOn(project: Hex | undefined): boolean {
+  return project?.meta?.[AUTO_MERGE_KEY] !== "off";
+}
+
 /** Written and moved only by people; publishing one asks an agent for a design. */
 export const IDEA_KIND = "core.idea";
 
