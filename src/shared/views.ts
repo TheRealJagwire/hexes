@@ -243,3 +243,25 @@ export interface FactsResult {
   /** Nearest first when `near` was given, then newest; otherwise newest first. */
   facts: FactHit[];
 }
+
+/** One event a channel sent into its Claude session, per hex it named. */
+export interface ChannelSend {
+  hexId: string;
+  /** What the person did: `published`, `blessed` or `answered`. */
+  event: string;
+  at: number;
+}
+
+/** A `hexes-channel` process listening on the open workspace. */
+export interface ChannelInfo {
+  pid: number;
+  startedAt: number;
+  heartbeatAt: number;
+  /** The latest sends, oldest first (at most 20). */
+  sent: ChannelSend[];
+}
+
+/** `GET /api/channels` and the `channel` event: the channels listening now. */
+export interface ChannelsState {
+  channels: ChannelInfo[];
+}

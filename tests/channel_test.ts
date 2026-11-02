@@ -1,5 +1,11 @@
 import { assert, assertEquals } from "@std/assert";
-import { type ChannelEvent, HexesChannel } from "../src/mcp/channel.ts";
+import { type ChannelEvent, HexesChannel, sendsOf } from "../src/mcp/channel.ts";
+import {
+  ChannelPresence,
+  CHANNELS_DIR,
+  readChannels,
+  STALE_MS,
+} from "../src/server/core/channels.ts";
 import type { HexService } from "../src/server/core/service.ts";
 import { ChangeWatcher } from "../src/server/core/watcher.ts";
 import { type Fixture, fixture } from "./helpers.ts";
@@ -155,4 +161,67 @@ Deno.test("stop() unsubscribes", async () => {
   } finally {
     await f.cleanup();
   }
+});
+
+Deno.test("a channel's presence file is written, refreshed, records sends and goes on stop", async () => {
+  const f = await fixture();
+  const d = await design(f.service, f.projectId, "Say you heard");
+  let now = 1_000;
+  const presence = new ChannelPresence(f.workspace, 4242, () => now, 30);
+  const sent: ChannelEvent[] = [];
+  const ch = new HexesChannel({
+    workspace: f.workspace,
+    watcher: new ChangeWatcher(f.workspace, 10, 200),
+    send: (e) => {
+      sent.push(e);
+    },
+    presence,
+    settleMs: 20,
+  });
+  const file = `${f.dir}/${CHANNELS_DIR}/4242.json`;
+  const read = async () => JSON.parse(await Deno.readTextFile(file));
+  try {
+    await ch.start();
+    await presence.start();
+    assertEquals(await read(), { pid: 4242, startedAt: 1000, heartbeatAt: 1000, sent: [] });
+    assertEquals((await readChannels(f.dir, 1000)).map((c) => c.pid), [4242]);
+
+    now = 2_000; // the heartbeat refreshes it
+    const end = Date.now() + 2000;
+    while ((await read()).heartbeatAt !== 2000 && Date.now() < end) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    assertEquals((await read()).heartbeatAt, 2000);
+
+    now = 3_000;
+    await f.service.updateHex(d.id, { status: "blessed" });
+    const until = Date.now() + 3000;
+    while ((await read()).sent.length === 0 && Date.now() < until) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    assertEquals(sent.length, 1);
+    assertEquals((await read()).sent, [{ hexId: d.id, event: "blessed", at: 3000 }]);
+
+    // Older than 45 s without a heartbeat: gone, as after a kill -9.
+    assertEquals(await readChannels(f.dir, 3_000 + STALE_MS + 1), []);
+  } finally {
+    ch.stop();
+    await presence.stop();
+  }
+  try {
+    assertEquals(await Deno.stat(file).then(() => true, () => false), false);
+    assertEquals(await readChannels(f.dir), []);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("sendsOf names each published, blessed and answered hex", () => {
+  assertEquals(
+    sendsOf({ content: "", meta: { project: "p", blessed: "a,b", answered: "q", ready: "x" } }),
+    [{ hexId: "a", event: "blessed" }, { hexId: "b", event: "blessed" }, {
+      hexId: "q",
+      event: "answered",
+    }],
+  );
 });
