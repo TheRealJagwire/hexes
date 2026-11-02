@@ -92,6 +92,9 @@ export const api = {
     request<Hex>("PUT", `/hexes/${id}/meta/${encodeURIComponent(key)}`, { value }),
   removeMeta: (id: string, key: string) =>
     request<Hex>("DELETE", `/hexes/${id}/meta/${encodeURIComponent(key)}`),
+  /** Archives a finished epic, or unarchives it. */
+  setArchived: (id: string, archived: boolean) =>
+    request<Hex>("PUT", `/hexes/${id}/archived`, { archived }),
   /** Puts a work hex on its own branch (and switches the working tree to it). */
   startWork: (id: string) => request<Hex>("POST", `/hexes/${id}/branch`, {}),
   openPullRequest: (id: string, opts: { title?: string; description?: string } = {}) =>

@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { REQUIRES_RESPONSE, type Status } from "../../shared/constants.ts";
-import { FACT_KIND, isWorkKind, kindQualifier, PULL_REQUEST_KIND } from "../../shared/graph.ts";
+import { REQUIRES_RESPONSE, roleOf, type Status } from "../../shared/constants.ts";
+import {
+  ARCHIVED_KEY,
+  canArchiveEpic,
+  FACT_KIND,
+  isWorkKind,
+  kindQualifier,
+  PULL_REQUEST_KIND,
+} from "../../shared/graph.ts";
 import type { HexSummary, HexView } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
 import { dateTime, PILL, plural, statusOptions } from "../lib/format.ts";
@@ -356,6 +363,74 @@ function FactPanel({ view, onChange }: { view: HexView; onChange: () => void }) 
   );
 }
 
+/**
+ * Archive an epic once every story it depends on is finished, or unarchive it. The button only
+ * shows when archiving is allowed; otherwise the panel says what is left.
+ */
+function ArchivePanel({ view, onChange }: { view: HexView; onChange: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { hex } = view;
+  const archivedAt = hex.meta?.[ARCHIVED_KEY];
+  const stories = view.dependsOn.filter((h) => h.kind === "core.story");
+  const archivable = canArchiveEpic(stories);
+  const open = stories.filter((s) => roleOf(s.status) !== "terminal").length;
+
+  const set = async (archived: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.setArchived(hex.id, archived);
+      onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    setBusy(false);
+  };
+
+  const at = archivedAt ? Date.parse(archivedAt) : NaN;
+  return (
+    <section aria-labelledby="archive-h" class="card flex flex-col gap-4 px-7 py-6">
+      <h2 id="archive-h" class="m-0 text-[15px] font-semibold tracking-[0.02em] text-muted">
+        Archive
+      </h2>
+      {archivedAt !== undefined
+        ? (
+          <>
+            <p class="m-0 text-sm leading-normal text-ink-2">
+              Archived{Number.isNaN(at) ? "" : ` ${dateTime(at)}`}. It is tucked away on the project
+              page.
+            </p>
+            <button type="button" disabled={busy} onClick={() => set(false)} class="btn self-start">
+              {busy ? "Unarchiving…" : "Unarchive"}
+            </button>
+          </>
+        )
+        : archivable
+        ? (
+          <>
+            <p class="m-0 text-sm leading-normal text-ink-2">
+              Every story is closed. Archive the epic to tuck it away on the project page.
+            </p>
+            <button type="button" disabled={busy} onClick={() => set(true)} class="btn self-start">
+              {busy ? "Archiving…" : "Archive"}
+            </button>
+          </>
+        )
+        : (
+          <p class="m-0 text-sm leading-normal text-muted">
+            {stories.length === 0
+              ? "An epic can be archived once it has stories and all of them are closed."
+              : `It can be archived once all its stories are closed: ${
+                plural(open, "story")
+              } still open.`}
+          </p>
+        )}
+      {error && <span role="alert" class="text-[13px] text-blocked">{error}</span>}
+    </section>
+  );
+}
+
 /** Delete… → Continue → Delete forever. */
 function DeletePanel({ view }: { view: HexView }) {
   const [step, setStep] = useState<0 | 1 | 2>(0);
@@ -696,6 +771,7 @@ export function HexScreen({ id }: { id: string }) {
           {isWorkKind(hex.kind) && <WorkPanel view={view} onChange={reload} />}
           {hex.kind === PULL_REQUEST_KIND && <PullRequestPanel view={view} onChange={reload} />}
           {hex.kind === FACT_KIND && <FactPanel view={view} onChange={reload} />}
+          {hex.kind === "core.epic" && <ArchivePanel view={view} onChange={reload} />}
           <section aria-labelledby="fields-h" class="card flex flex-col gap-4 px-7 py-6">
             <h2 id="fields-h" class="m-0 text-[15px] font-semibold tracking-[0.02em] text-muted">
               Fields

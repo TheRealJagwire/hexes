@@ -109,6 +109,20 @@ export function autoMergeOn(project: Hex | undefined): boolean {
   return project?.meta?.[AUTO_MERGE_KEY] !== "off";
 }
 
+/** The meta key set on an archived epic: the ISO time it was archived. */
+export const ARCHIVED_KEY = "archived";
+
+export function isArchived(hex: Hex): boolean {
+  return hex.meta?.[ARCHIVED_KEY] !== undefined;
+}
+
+/** An epic can be archived once it has stories and every one is finished (a story's
+ * finished statuses are done and merged). */
+export function canArchiveEpic(stories: readonly { kind: string; status: Status }[]): boolean {
+  const own = stories.filter((s) => s.kind === "core.story");
+  return own.length > 0 && own.every((s) => roleOf(s.status) === "terminal");
+}
+
 /** Written and moved only by people; publishing one asks an agent for a design. */
 export const IDEA_KIND = "core.idea";
 
