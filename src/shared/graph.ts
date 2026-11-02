@@ -191,6 +191,36 @@ export function epicStories(idx: HexIndex, epic: Hex): Hex[] {
   return sortStories(dependenciesOf(idx, epic).filter((h) => h.kind === "core.story"));
 }
 
+/** Epic list groups, most active first. */
+const EPIC_IN_PROGRESS = 0;
+const EPIC_READY = 1;
+const EPIC_BLOCKED = 2;
+const EPIC_FINISHED = 3;
+const EPIC_ARCHIVED = 4;
+
+/**
+ * An epic's group: archived last whatever its status; finished once the epic itself is
+ * terminal or every story is; otherwise as active as the epic or its liveliest story.
+ */
+export function epicGroup(idx: HexIndex, epic: Hex): number {
+  if (isArchived(epic)) return EPIC_ARCHIVED;
+  if (roleOf(epic.status) === "terminal") return EPIC_FINISHED;
+  const stories = epicStories(idx, epic);
+  const ranks = [epic, ...stories].map((h) => STORY_ORDER[h.status]);
+  if (ranks.some((r) => r <= STORY_ORDER.verified)) return EPIC_IN_PROGRESS;
+  if (ranks.some((r) => r === STORY_ORDER.ready)) return EPIC_READY;
+  if (stories.length > 0 && stories.every((s) => roleOf(s.status) === "terminal")) {
+    return EPIC_FINISHED;
+  }
+  return EPIC_BLOCKED;
+}
+
+/** Epics in progress → ready → blocked → finished → archived, oldest first within each. */
+export function sortEpics(idx: HexIndex, epics: readonly Hex[]): Hex[] {
+  const group = new Map(epics.map((e) => [e.id, epicGroup(idx, e)]));
+  return [...epics].sort((a, b) => group.get(a.id)! - group.get(b.id)! || byCreated(a, b));
+}
+
 export function progressOf(stories: readonly Hex[]): Progress {
   const total = stories.length;
   const done = stories.filter((s) => roleOf(s.status) === "terminal").length;
