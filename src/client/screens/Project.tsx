@@ -1,14 +1,22 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { roleOf } from "../../shared/constants.ts";
-import { AUTO_MERGE_KEY, isArchived, statusSummary } from "../../shared/graph.ts";
+import { AUTO_MERGE_KEY, canArchiveEpic, isArchived, statusSummary } from "../../shared/graph.ts";
 import type { Hex } from "../../shared/schemas.ts";
 import type { EpicView, HexSummary } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
 import { relativeTime } from "../lib/format.ts";
 import { Link } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
-import { ArrowUpRight, ChevronDown, ChevronRight, HexGrid, Plus } from "../components/Icons.tsx";
+import {
+  Archive,
+  ArrowUpRight,
+  ChevronDown,
+  ChevronRight,
+  HexGrid,
+  Plus,
+  Unarchive,
+} from "../components/Icons.tsx";
 import { CopyButton, KindBadge, ProgressRing, StatusPill } from "../components/Bits.tsx";
 import { HexSearch } from "../components/HexSearch.tsx";
 import { Markdown } from "../components/Markdown.tsx";
@@ -140,7 +148,47 @@ function StoryRow({ story, open, onToggle }: { story: Hex; open: boolean; onTogg
   );
 }
 
-function EpicAccordion({ epic, defaultOpen }: { epic: EpicView; defaultOpen: boolean }) {
+/**
+ * Archive a finished epic, or unarchive an archived one, from its row. Nothing for an epic that
+ * still has open stories (or none).
+ */
+function ArchiveButton({ epic, onChange }: { epic: EpicView; onChange: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const archived = isArchived(epic.hex);
+  if (!archived && !canArchiveEpic(epic.stories)) return null;
+  const label = archived ? "Unarchive hex" : "Archive hex";
+  const press = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.setArchived(epic.hex.id, !archived);
+      onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    setBusy(false);
+  };
+  return (
+    <div class="flex flex-none items-center gap-2">
+      {error && <span role="alert" class="max-w-[220px] text-[13px] text-blocked">{error}</span>}
+      <button
+        type="button"
+        title={label}
+        aria-label={label}
+        disabled={busy}
+        onClick={press}
+        class="inline-flex size-9 flex-none items-center justify-center rounded-lg border border-line-strong bg-transparent text-muted hover:bg-panel2 hover:text-ink disabled:opacity-50"
+      >
+        {archived ? <Unarchive size={18} /> : <Archive size={18} />}
+      </button>
+    </div>
+  );
+}
+
+function EpicAccordion(
+  { epic, defaultOpen, onChange }: { epic: EpicView; defaultOpen: boolean; onChange: () => void },
+) {
   const [open, setOpen] = useState(defaultOpen);
   const [openStory, setOpenStory] = useState<string | null>(null);
   const { done, total, pct } = epic.progress;
@@ -151,38 +199,41 @@ function EpicAccordion({ epic, defaultOpen }: { epic: EpicView; defaultOpen: boo
         open ? "border-line-strong" : "border-line"
       }`}
     >
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        class="flex w-full flex-wrap items-center gap-[18px] border-none bg-transparent px-[22px] py-4 text-left text-ink hover:bg-panel2"
-      >
-        <Chevron open={open} />
-        <div class="flex min-w-0 flex-[1_1_300px] flex-col gap-1">
-          <span class="font-mono text-xs text-muted">
-            {epic.hex.id}
-            {epic.gate ? ` · gate: ${epic.gate.title}` : ""}
-          </span>
-          <span class="flex flex-wrap items-center gap-2.5 text-lg font-semibold">
-            {epic.hex.title}
-            {isArchived(epic.hex) && (
-              <span class="rounded-full border border-line px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
-                Archived
-              </span>
-            )}
-          </span>
-        </div>
-        <div class="flex items-center gap-3.5">
-          <div class="flex flex-col items-end gap-0.5">
-            <span class="text-xl font-bold tabular-nums">{pct}%</span>
+      <div class="flex items-center gap-3 pr-4 hover:bg-panel2">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+          class="flex min-w-0 flex-1 flex-wrap items-center gap-[18px] border-none bg-transparent py-4 pl-[22px] text-left text-ink"
+        >
+          <Chevron open={open} />
+          <div class="flex min-w-0 flex-[1_1_300px] flex-col gap-1">
             <span class="font-mono text-xs text-muted">
-              {inReview > 0 && <span class="text-accent">{inReview} in review ·</span>}{" "}
-              {done}/{total} done
+              {epic.hex.id}
+              {epic.gate ? ` · gate: ${epic.gate.title}` : ""}
+            </span>
+            <span class="flex flex-wrap items-center gap-2.5 text-lg font-semibold">
+              {epic.hex.title}
+              {isArchived(epic.hex) && (
+                <span class="rounded-full border border-line px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
+                  Archived
+                </span>
+              )}
             </span>
           </div>
-          <ProgressRing done={done} total={total} pct={pct} />
-        </div>
-      </button>
+          <div class="flex items-center gap-3.5">
+            <div class="flex flex-col items-end gap-0.5">
+              <span class="text-xl font-bold tabular-nums">{pct}%</span>
+              <span class="font-mono text-xs text-muted">
+                {inReview > 0 && <span class="text-accent">{inReview} in review ·</span>}{" "}
+                {done}/{total} done
+              </span>
+            </div>
+            <ProgressRing done={done} total={total} pct={pct} />
+          </div>
+        </button>
+        <ArchiveButton epic={epic} onChange={onChange} />
+      </div>
       {open && (
         <ul class="m-0 flex list-none flex-col gap-2 border-t border-line-soft px-4 pb-4 pt-1">
           {epic.stories.length === 0 && (
@@ -205,14 +256,16 @@ function EpicAccordion({ epic, defaultOpen }: { epic: EpicView; defaultOpen: boo
 }
 
 /** Archived epics stay behind a "Show archived (n)" toggle, after the others. */
-function EpicList({ epics }: { epics: EpicView[] }) {
+function EpicList({ epics, onChange }: { epics: EpicView[]; onChange: () => void }) {
   const [showArchived, setShowArchived] = useState(false);
   const active = epics.filter((e) => !isArchived(e.hex));
   const archived = epics.filter((e) => isArchived(e.hex));
   const shown = showArchived ? [...active, ...archived] : active;
   return (
     <>
-      {shown.map((e, i) => <EpicAccordion key={e.hex.id} epic={e} defaultOpen={i === 0} />)}
+      {shown.map((e, i) => (
+        <EpicAccordion key={e.hex.id} epic={e} defaultOpen={i === 0} onChange={onChange} />
+      ))}
       {archived.length > 0 && (
         <button
           type="button"
@@ -454,7 +507,7 @@ export function ProjectScreen({ id }: { id: string }) {
             No epics yet. Use “Create hex” and pick <code class="font-mono">core.epic</code>.
           </p>
         )}
-        <EpicList epics={epics} />
+        <EpicList epics={epics} onChange={res.reload} />
       </div>
     </Page>
   );

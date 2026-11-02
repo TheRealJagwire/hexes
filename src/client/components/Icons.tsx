@@ -120,3 +120,17 @@ export function Logo({ size = 28 }: { size?: number }) {
     </svg>
   );
 }
+
+/** A box with its lid on: archive. */
+export const Archive = (p: IconProps) => (
+  <Svg {...p} width={1.8}>
+    <path d="M3.5 4.5h17v4h-17zM5 8.5v11h14v-11M10 12.5h4" />
+  </Svg>
+);
+
+/** A box with an arrow out of it: unarchive. */
+export const Unarchive = (p: IconProps) => (
+  <Svg {...p} width={1.8}>
+    <path d="M3.5 4.5h17v4h-17zM5 8.5v11h14v-11M12 17.5v-6M9.5 14l2.5-2.5 2.5 2.5" />
+  </Svg>
+);
