@@ -59,8 +59,17 @@ export interface EpicView {
   stories: Hex[];
 }
 
+/** A milestone on the project stepper. */
+export interface GateView {
+  hex: HexSummary;
+  /** The gate's epics finished (or archived) out of all of them. */
+  epics: Progress;
+}
+
 export interface ProjectView {
   project: Hex;
+  /** Gates in milestone order (`sortGates`): done ones first, never before a gate they follow. */
+  gates: GateView[];
   designs: HexSummary[];
   specs: HexSummary[];
   decisions: HexSummary[];

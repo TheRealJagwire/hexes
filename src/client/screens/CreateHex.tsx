@@ -5,6 +5,7 @@ import type { HexSummary } from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
 import { notify, notifyError } from "../lib/toasts.ts";
 import { createStatusOptions } from "../lib/format.ts";
+import { focusHref } from "../lib/project-focus.ts";
 import { Link, navigate } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
 import { Close, Minus, Plus } from "../components/Icons.tsx";
@@ -158,7 +159,8 @@ export function CreateHex(
         meta: metaMap,
       });
       notify(`Created ${hex.id}`);
-      navigate(`/h/${hex.id}`);
+      // The project page shows it where it's listed, or opens its own page when it isn't.
+      navigate(focusHref(projectId, hex.id));
     } catch (err) {
       setError(notifyError(err));
       setBusy(false);

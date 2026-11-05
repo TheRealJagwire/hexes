@@ -4,6 +4,7 @@ import {
   buildIndex,
   epicStories,
   findCycle,
+  gateProgress,
   isReady,
   isWorkKind,
   progressOf,
@@ -11,6 +12,7 @@ import {
   readyHexes,
   reconcileReadiness,
   sortEpics,
+  sortGates,
   sortStories,
   statusSummary,
 } from "../src/shared/graph.ts";
@@ -242,4 +244,48 @@ Deno.test("epics sort in progress → ready → blocked → finished → archive
     "hx-p-2e0", // archived, though still in progress
   ]);
   assertEquals(epics.map((e) => e.id), before, "the input is left unchanged");
+});
+
+Deno.test("sortGates: done gates first, never before a gate they follow", () => {
+  const hexes = [
+    hex("hx-p-001", "core.project", "done"),
+    hex("hx-p-3e1", "core.epic", "done", ["hx-p-001"]),
+    hex("hx-p-3e2", "core.epic", "blocked", ["hx-p-001"]),
+    hex("hx-p-3a0", "core.gate", "ready", ["hx-p-3e2"]), // oldest, not done
+    hex("hx-p-3a1", "core.gate", "done", ["hx-p-3e1"]),
+    // Done, but follows 3a0 through an epic, so it can't come before it.
+    hex("hx-p-3e3", "core.epic", "done", ["hx-p-3a0"]),
+    hex("hx-p-3a2", "core.gate", "done", ["hx-p-3e3"]),
+    hex("hx-p-3a3", "core.gate", "blocked", ["hx-p-001"]),
+  ];
+  const idx = buildIndex(hexes);
+  const gates = hexes.filter((h) => h.kind === "core.gate");
+  assertEquals(sortGates(idx, gates).map((g) => g.id), [
+    "hx-p-3a1", // done, free
+    "hx-p-3a0", // oldest of the rest
+    "hx-p-3a2", // done, once 3a0 is placed
+    "hx-p-3a3",
+  ]);
+});
+
+Deno.test("gateProgress counts the gate's finished and archived epics", () => {
+  const hexes = [
+    hex("hx-p-4s1", "core.story", "merged"),
+    hex("hx-p-4s2", "core.story", "in_progress"),
+    hex("hx-p-4e1", "core.epic", "blocked", ["hx-p-4s1"]), // every story merged
+    hex("hx-p-4e2", "core.epic", "blocked", ["hx-p-4s2"]),
+    hex("hx-p-4e3", "core.epic", "done"),
+    { ...hex("hx-p-4e4", "core.epic", "blocked", ["hx-p-4s2"]), meta: { archived: "true" } },
+    hex("hx-p-4g1", "core.gate", "blocked", [
+      "hx-p-4e1",
+      "hx-p-4e2",
+      "hx-p-4e3",
+      "hx-p-4e4",
+      "hx-p-4s1",
+    ]),
+    hex("hx-p-4g2", "core.gate", "ready"),
+  ];
+  const idx = buildIndex(hexes);
+  assertEquals(gateProgress(idx, idx.byId.get("hx-p-4g1")!), { done: 3, total: 4, pct: 75 });
+  assertEquals(gateProgress(idx, idx.byId.get("hx-p-4g2")!), { done: 0, total: 0, pct: 0 });
 });

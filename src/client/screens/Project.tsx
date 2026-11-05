@@ -4,13 +4,26 @@ import { useContext, useEffect, useLayoutEffect, useRef, useState } from "preact
 import { roleOf } from "../../shared/constants.ts";
 import { AUTO_MERGE_KEY, canArchiveEpic, isArchived, statusSummary } from "../../shared/graph.ts";
 import type { Hex } from "../../shared/schemas.ts";
-import type { AgentActivity, EpicView, HexSummary } from "../../shared/views.ts";
+import type {
+  AgentActivity,
+  EpicView,
+  GateView,
+  HexSummary,
+  ProjectView,
+} from "../../shared/views.ts";
 import { api } from "../lib/api.ts";
 import { notify, notifyError } from "../lib/toasts.ts";
 import { relativeTime } from "../lib/format.ts";
 import { pendingScroll } from "../lib/handoff.ts";
 import { agentCall, liveVersion } from "../lib/live.ts";
-import { Link } from "../lib/router.tsx";
+import {
+  focusFrom,
+  PROJECT_TABS,
+  type ProjectSpot,
+  type ProjectTab,
+  spotOf,
+} from "../lib/project-focus.ts";
+import { Link, location, navigate } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
 import {
   Archive,
@@ -42,6 +55,9 @@ function Chevron({ open, size = 16 }: { open: boolean; size?: number }) {
 /** The hex an agent changed last (within ten minutes), and the tool it used. */
 const Working = createContext<AgentActivity["working"]>(null);
 
+/** The hex the page was asked to show (`?hex=`), while it flashes. */
+const Focus = createContext<string | null>(null);
+
 /** "Claude is working · start_work_branch" on the marked row. */
 function WorkingLabel({ tool }: { tool: string }) {
   return (
@@ -53,7 +69,59 @@ function WorkingLabel({ tool }: { tool: string }) {
   );
 }
 
-/** `hideRetired` keeps retired hexes behind a "Show retired (n)" toggle. */
+/** A list of hex rows; `hideRetired` keeps retired ones behind a "Show retired (n)" toggle. */
+function HexRows(
+  { label, items, hideRetired = false }: {
+    label: string;
+    items: HexSummary[];
+    hideRetired?: boolean;
+  },
+) {
+  const [showRetired, setShowRetired] = useState(false);
+  const working = useContext(Working);
+  const focus = useContext(Focus);
+  const retired = hideRetired ? items.filter((h) => h.status === "retired").length : 0;
+  // A retired hex the page was asked for shows anyway.
+  const wanted = items.some((h) => h.id === focus && h.status === "retired");
+  const hidden = retired > 0 && !showRetired && !wanted;
+  const shown = hidden ? items.filter((h) => h.status !== "retired") : items;
+  return (
+    <ul class="m-0 flex list-none flex-col gap-1.5 px-3 pb-3">
+      {items.length === 0 && (
+        <li class="px-3.5 py-3 text-sm text-muted">No {label.toLowerCase()} yet.</li>
+      )}
+      {shown.map((h) => (
+        <li key={h.id} data-hex-row={h.id}>
+          <Link
+            href={`/h/${h.id}`}
+            class={`flex flex-wrap items-center gap-3.5 rounded-lg border border-line-soft bg-bg px-3.5 py-3 text-ink no-underline ${
+              working?.hexId === h.id ? "hx-working" : ""
+            } ${focus === h.id ? "hx-focus" : ""}`}
+          >
+            <span class="min-w-[120px] font-mono text-[13px] text-muted">{h.id}</span>
+            <span class="flex-[1_1_260px] text-[15px]">{h.title}</span>
+            {working?.hexId === h.id && <WorkingLabel tool={working.tool} />}
+            <StatusPill status={h.status} />
+          </Link>
+        </li>
+      ))}
+      {retired > 0 && (
+        <li>
+          <button
+            type="button"
+            aria-pressed={!hidden}
+            onClick={() => setShowRetired(hidden)}
+            class="inline-flex h-9 items-center rounded-lg border-none bg-transparent px-3.5 text-[13px] text-accent underline-offset-2 hover:underline"
+          >
+            {hidden ? `Show retired (${retired})` : "Hide retired"}
+          </button>
+        </li>
+      )}
+    </ul>
+  );
+}
+
+/** A collapsible group of hex rows; it opens for the hex being worked on or asked for. */
 function HexGroup(
   { label, items, hideRetired = false }: {
     label: string;
@@ -62,15 +130,13 @@ function HexGroup(
   },
 ) {
   const [open, setOpen] = useState(false);
-  const [showRetired, setShowRetired] = useState(false);
   const working = useContext(Working);
-  const retired = hideRetired ? items.filter((h) => h.status === "retired").length : 0;
-  const shown = retired > 0 && !showRetired ? items.filter((h) => h.status !== "retired") : items;
-  const holdsWorking = working !== null && shown.some((h) => h.id === working.hexId);
-  // The hex being worked on shows, so the group opens for it.
+  const focus = useContext(Focus);
+  const holdsWorking = working !== null && items.some((h) => h.id === working.hexId);
+  const holdsFocus = focus !== null && items.some((h) => h.id === focus);
   useEffect(() => {
-    if (holdsWorking) setOpen(true);
-  }, [holdsWorking, working?.hexId]);
+    if (holdsWorking || holdsFocus) setOpen(true);
+  }, [holdsWorking, working?.hexId, holdsFocus]);
   return (
     <div class="overflow-hidden rounded-xl border border-line bg-panel">
       <button
@@ -86,41 +152,206 @@ function HexGroup(
         </span>
         <span class="ml-auto text-[13px] text-muted">{statusSummary(items)}</span>
       </button>
-      {open && (
-        <ul class="m-0 flex list-none flex-col gap-1.5 px-3 pb-3">
-          {items.length === 0 && (
-            <li class="px-3.5 py-3 text-sm text-muted">No {label.toLowerCase()} yet.</li>
-          )}
-          {shown.map((h) => (
-            <li key={h.id} data-hex-row={h.id}>
+      {open && <HexRows label={label} items={items} hideRetired={hideRetired} />}
+    </div>
+  );
+}
+
+/**
+ * Ideas, designs, specs, decisions and questions as tabs. A tab holding the hex Claude is working
+ * on shows a dot. Arrow keys, Home and End move between tabs.
+ */
+function ProjectTabs(
+  { lists, tab, onTab }: {
+    lists: Record<ProjectTab, HexSummary[]>;
+    tab: ProjectTab;
+    onTab: (tab: ProjectTab) => void;
+  },
+) {
+  const working = useContext(Working);
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const index = PROJECT_TABS.findIndex((t) => t.key === tab);
+  const move = (e: KeyboardEvent) => {
+    const last = PROJECT_TABS.length - 1;
+    const next = e.key === "ArrowRight"
+      ? (index + 1) % PROJECT_TABS.length
+      : e.key === "ArrowLeft"
+      ? (index + last) % PROJECT_TABS.length
+      : e.key === "Home"
+      ? 0
+      : e.key === "End"
+      ? last
+      : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    onTab(PROJECT_TABS[next]!.key);
+    refs.current[next]?.focus();
+  };
+  const current = PROJECT_TABS[index]!;
+  const items = lists[tab];
+  return (
+    <div class="overflow-hidden rounded-xl border border-line bg-panel">
+      <div
+        role="tablist"
+        aria-label="Planning hexes"
+        class="flex overflow-x-auto border-b border-line px-2"
+        onKeyDown={move}
+      >
+        {PROJECT_TABS.map((t, i) => {
+          const selected = t.key === tab;
+          const busy = working !== null && lists[t.key].some((h) => h.id === working.hexId);
+          return (
+            <button
+              key={t.key}
+              ref={(el) => {
+                refs.current[i] = el;
+              }}
+              type="button"
+              role="tab"
+              id={`tab-${t.key}`}
+              aria-selected={selected}
+              aria-controls={`tabpanel-${t.key}`}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => onTab(t.key)}
+              class={`-mb-px inline-flex min-h-[52px] flex-none items-center gap-2 border-x-0 border-t-0 border-b-2 border-solid bg-transparent px-4 text-[15px] ${
+                selected
+                  ? "border-accent font-semibold text-ink"
+                  : "border-transparent text-ink-2 hover:text-ink"
+              }`}
+            >
+              {t.label}
+              <span class="rounded-full bg-line-soft px-2 py-0.5 font-mono text-xs font-normal text-muted">
+                {lists[t.key].length}
+              </span>
+              {busy && (
+                <span
+                  class="hx-working-dot size-2 rounded-full bg-accent"
+                  title="Claude is working on a hex here"
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <div
+        role="tabpanel"
+        id={`tabpanel-${tab}`}
+        aria-labelledby={`tab-${tab}`}
+        class="flex flex-col"
+      >
+        {items.length > 0 && (
+          <p class="m-0 px-6 pb-2 pt-3.5 text-[13px] text-muted">{statusSummary(items)}</p>
+        )}
+        <div class={items.length > 0 ? "" : "pt-3"}>
+          <HexRows key={tab} label={current.label} items={items} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** One gate's fill: done is solid, verified and in progress half, the rest empty. */
+function gateFill(status: string): "full" | "half" | "none" {
+  if (status === "done") return "full";
+  if (status === "verified" || status === "in_progress") return "half";
+  return "none";
+}
+
+/**
+ * The project's gates as a stepper: one step per gate in milestone order, with done gates filled
+ * in like a progress bar. Each step links to its gate and counts the gate's finished epics.
+ */
+function GateStepper({ gates }: { gates: GateView[] }) {
+  const working = useContext(Working);
+  const focus = useContext(Focus);
+  if (gates.length === 0) return null;
+  const done = gates.filter((g) => g.hex.status === "done").length;
+  const pct = Math.round((done / gates.length) * 100);
+  return (
+    <section
+      aria-labelledby="milestones-h"
+      class="flex flex-col gap-4 rounded-2xl border border-line bg-panel px-6 py-5"
+    >
+      <div class="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 id="milestones-h" class="m-0 text-base font-semibold">Milestones</h2>
+        <span class="font-mono text-xs text-muted">
+          {done}/{gates.length} gates done · {pct}%
+        </span>
+      </div>
+      <ol
+        class="m-0 flex list-none overflow-x-auto p-0 pb-1"
+        aria-label={`${done} of ${gates.length} gates done`}
+      >
+        {gates.map((g, i) => {
+          const fill = gateFill(g.hex.status);
+          const prevDone = i > 0 && gates[i - 1]!.hex.status === "done";
+          const here = working?.hexId === g.hex.id;
+          return (
+            <li
+              key={g.hex.id}
+              data-hex-row={g.hex.id}
+              class={`relative flex min-w-[132px] flex-1 flex-col items-center rounded-lg ${
+                focus === g.hex.id ? "hx-focus" : ""
+              }`}
+            >
+              {/* The track: each half joins this step to its neighbour. */}
+              <div class="flex h-7 w-full items-center" aria-hidden="true">
+                <span
+                  class={`h-1.5 flex-1 ${
+                    i === 0
+                      ? "bg-transparent"
+                      : fill === "full" && prevDone
+                      ? "bg-accent"
+                      : "bg-line-strong"
+                  }`}
+                />
+                <span
+                  class={`relative flex size-7 flex-none items-center justify-center overflow-hidden rounded-full border-2 border-solid ${
+                    fill === "none" ? "border-line-strong bg-bg" : "border-accent bg-bg"
+                  } ${here ? "hx-working" : ""}`}
+                >
+                  {fill === "full" && <span class="absolute inset-0 bg-accent" />}
+                  {fill === "half" && <span class="absolute inset-y-0 left-0 w-1/2 bg-accent" />}
+                  <span
+                    class={`relative font-mono text-[11px] font-semibold ${
+                      fill === "full" ? "text-on-accent" : "text-ink-2"
+                    }`}
+                  >
+                    {i + 1}
+                  </span>
+                </span>
+                <span
+                  class={`h-1.5 flex-1 ${
+                    i === gates.length - 1
+                      ? "bg-transparent"
+                      : fill === "full" && gates[i + 1]!.hex.status === "done"
+                      ? "bg-accent"
+                      : "bg-line-strong"
+                  }`}
+                />
+              </div>
               <Link
-                href={`/h/${h.id}`}
-                class={`flex flex-wrap items-center gap-3.5 rounded-lg border border-line-soft bg-bg px-3.5 py-3 text-ink no-underline ${
-                  working?.hexId === h.id ? "hx-working" : ""
-                }`}
+                href={`/h/${g.hex.id}`}
+                title={`${g.hex.id} · ${g.hex.status}`}
+                class="mt-2 flex max-w-[180px] flex-col items-center gap-0.5 px-2 text-center no-underline"
               >
-                <span class="min-w-[120px] font-mono text-[13px] text-muted">{h.id}</span>
-                <span class="flex-[1_1_260px] text-[15px]">{h.title}</span>
-                {working?.hexId === h.id && <WorkingLabel tool={working.tool} />}
-                <StatusPill status={h.status} />
+                <span
+                  class={`line-clamp-2 text-[13px] leading-snug ${
+                    fill === "full" ? "text-ink" : "text-ink-2"
+                  } hover:underline`}
+                >
+                  {g.hex.title}
+                </span>
+                <span class="font-mono text-[11px] text-muted">
+                  {g.hex.status.replace("_", " ")} · {g.epics.done}/{g.epics.total} epics
+                </span>
+                {here && <span class="sr-only">Claude is working on this gate</span>}
               </Link>
             </li>
-          ))}
-          {retired > 0 && (
-            <li>
-              <button
-                type="button"
-                aria-pressed={showRetired}
-                onClick={() => setShowRetired(!showRetired)}
-                class="inline-flex h-9 items-center rounded-lg border-none bg-transparent px-3.5 text-[13px] text-accent underline-offset-2 hover:underline"
-              >
-                {showRetired ? "Hide retired" : `Show retired (${retired})`}
-              </button>
-            </li>
-          )}
-        </ul>
-      )}
-    </div>
+          );
+        })}
+      </ol>
+    </section>
   );
 }
 
@@ -128,11 +359,14 @@ function StoryRow({ story, open, onToggle }: { story: Hex; open: boolean; onTogg
   const done = roleOf(story.status) === "terminal";
   const meta = Object.entries(story.meta ?? {});
   const working = useContext(Working);
+  const focus = useContext(Focus);
   const here = working?.hexId === story.id;
   return (
     <li
       data-hex-row={story.id}
-      class={`mt-2 rounded-[10px] border border-line-soft bg-bg ${here ? "hx-working" : ""}`}
+      class={`mt-2 rounded-[10px] border border-line-soft bg-bg ${here ? "hx-working" : ""} ${
+        focus === story.id ? "hx-focus" : ""
+      }`}
     >
       <button
         type="button"
@@ -227,11 +461,19 @@ function EpicAccordion(
   const [openStory, setOpenStory] = useState<string | null>(null);
   const working = useContext(Working);
   const here = working?.hexId === epic.hex.id;
+  const focus = useContext(Focus);
   const holdsWorking = working !== null && epic.stories.some((s) => s.id === working.hexId);
-  // A story being worked on shows, so the epic opens for it.
+  const focusStory = epic.stories.some((s) => s.id === focus) ? focus : null;
+  // A story being worked on shows, so the epic opens for it; one asked for opens too.
   useEffect(() => {
     if (holdsWorking) setOpen(true);
   }, [holdsWorking, working?.hexId]);
+  useEffect(() => {
+    if (focusStory) {
+      setOpen(true);
+      setOpenStory(focusStory);
+    }
+  }, [focusStory]);
   const { done, total, pct } = epic.progress;
   const inReview = epic.stories.filter((s) => s.status === "in_review").length;
   return (
@@ -239,7 +481,7 @@ function EpicAccordion(
       data-hex-row={epic.hex.id}
       class={`overflow-hidden rounded-[14px] border bg-panel ${
         open ? "border-line-strong" : "border-line"
-      } ${here ? "hx-working" : ""}`}
+      } ${here ? "hx-working" : ""} ${focus === epic.hex.id ? "hx-focus" : ""}`}
     >
       <div class="flex items-center gap-3 pr-4 hover:bg-panel2">
         <button
@@ -301,8 +543,14 @@ function EpicAccordion(
 /** Archived epics stay behind a "Show archived (n)" toggle, after the others. */
 function EpicList({ epics, onChange }: { epics: EpicView[]; onChange: () => void }) {
   const [showArchived, setShowArchived] = useState(false);
+  const focus = useContext(Focus);
   const active = epics.filter((e) => !isArchived(e.hex));
   const archived = epics.filter((e) => isArchived(e.hex));
+  // An archived epic the page was asked for (or a story in one) brings the archived ones out.
+  const wanted = archived.some((e) => e.hex.id === focus || e.stories.some((s) => s.id === focus));
+  useEffect(() => {
+    if (wanted) setShowArchived(true);
+  }, [wanted]);
   const shown = showArchived ? [...active, ...archived] : active;
   return (
     <>
@@ -536,14 +784,68 @@ function useHandoffScroll(
   }, [projectId, working?.hexId, working?.at, data]);
 }
 
+/**
+ * `?hex=<id>` (after creating a hex, say): picks the tab or opens the group that lists it, scrolls
+ * to its row and flashes it, then drops the parameter. A hex the page doesn't list opens its own
+ * page instead. Returns the hex while it flashes.
+ */
+function useFocusHex(
+  projectId: string,
+  view: ProjectView | null,
+  onTab: (tab: ProjectTab) => void,
+): string | null {
+  const wanted = focusFrom(location.value.search);
+  const [focus, setFocus] = useState<string | null>(null);
+  useEffect(() => {
+    if (!wanted || !view) return;
+    const spot: ProjectSpot | null = spotOf(view, wanted);
+    if (!spot) {
+      navigate(`/h/${wanted}`, { replace: true });
+      return;
+    }
+    if (spot.in === "tab") onTab(spot.tab);
+    setFocus(wanted);
+    // Drop the parameter so a reload or going back doesn't do this again.
+    history.replaceState(null, "", `/p/${projectId}`);
+    location.value = { path: `/p/${projectId}`, search: "" };
+  }, [wanted, view, projectId]);
+  // The row may only appear once its tab, group or epic has opened, so look for a few frames.
+  useEffect(() => {
+    if (!focus) return;
+    let tries = 0;
+    let frame = 0;
+    const look = () => {
+      const row = document.querySelector(`[data-hex-row="${CSS.escape(focus)}"]`);
+      if (row) {
+        const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        row.scrollIntoView({ block: "center", behavior: still ? "auto" : "smooth" });
+      } else if (++tries < 10) frame = requestAnimationFrame(look);
+    };
+    frame = requestAnimationFrame(look);
+    const done = setTimeout(() => setFocus(null), 2600);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(done);
+    };
+  }, [focus]);
+  return focus;
+}
+
 export function ProjectScreen({ id }: { id: string }) {
   const res = useResource(() => api.project(id), [id]);
   const working = useWorking(id);
-  useHandoffScroll(
-    id,
-    res.status === "ready" ? working : null,
-    res.status === "ready" ? res.data : null,
-  );
+  const [tab, setTab] = useState<ProjectTab>("ideas");
+  const view = res.status === "ready" ? res.data : null;
+  useEffect(() => setTab("ideas"), [id]);
+  const focus = useFocusHex(id, view, setTab);
+  // A hand-off scrolls to the hex Claude changes; if a tab lists it, that tab has to show first.
+  const pending = pendingScroll.value;
+  const workingSpot = view && working ? spotOf(view, working.hexId) : null;
+  useEffect(() => {
+    if (pending?.projectId !== id || !working || working.at < pending.since) return;
+    if (workingSpot?.in === "tab") setTab(workingSpot.tab);
+  }, [pending, working?.hexId, working?.at, workingSpot?.in === "tab" && workingSpot.tab]);
+  useHandoffScroll(id, view ? working : null, view);
 
   // Opening a project makes it the selected one, so Studio reopens here next time.
   useEffect(() => {
@@ -563,78 +865,84 @@ export function ProjectScreen({ id }: { id: string }) {
     );
   }
 
-  const { project, ideas, designs, specs, decisions, questions, facts, epics, autoMerge } =
+  const { project, ideas, designs, specs, decisions, questions, facts, gates, epics, autoMerge } =
     res.data;
   // Auto-merge has its own switch below.
   const meta = Object.entries(project.meta ?? {}).filter(([k]) => k !== AUTO_MERGE_KEY);
   return (
     <Working.Provider value={working}>
-      <Page
-        header={
-          <ProjectHeader projectId={id} title={project.title}>
-            <Link href={`/p/${id}/map`} class="btn">
-              <HexGrid size={16} /> Hex map
-            </Link>
-            <Link href={`/p/${id}/new`} class="btn-primary">
-              <Plus size={16} width={2.4} /> Create hex
-            </Link>
-          </ProjectHeader>
-        }
-      >
-        <section
-          aria-label="Project statement"
-          class="flex flex-col gap-[18px] rounded-2xl border border-line bg-panel px-10 py-9"
+      <Focus.Provider value={focus}>
+        <Page
+          header={
+            <ProjectHeader projectId={id} title={project.title}>
+              <Link href={`/p/${id}/map`} class="btn">
+                <HexGrid size={16} /> Hex map
+              </Link>
+              <Link href={`/p/${id}/new`} class="btn-primary">
+                <Plus size={16} width={2.4} /> Create hex
+              </Link>
+            </ProjectHeader>
+          }
         >
-          <div class="flex flex-wrap items-center gap-3">
-            <KindBadge kind={project.kind} />
-            <Link
-              href={`/h/${project.id}`}
-              class="border-b border-dashed border-line-hover font-mono text-sm text-ink-2 no-underline"
-            >
-              {project.id}
-            </Link>
-            <CopyButton text={project.id} />
-          </div>
-          <h1 class="m-0 text-[40px] font-bold leading-[1.12] tracking-[-0.02em]">
-            {project.title}
-          </h1>
-          {project.description && (
-            <ClampedDescription text={project.description} href={`/h/${project.id}`} />
-          )}
-          <div class="flex flex-wrap gap-2.5 font-mono text-xs text-muted">
-            {meta.map(([k, v]) => (
-              <span key={k} class="rounded-md border border-line px-2.5 py-[5px]">{k}: {v}</span>
-            ))}
-            <span class="rounded-md border border-line px-2.5 py-[5px]">
-              updated {relativeTime(project.lastUpdatedAtTimeInMs)}
-            </span>
-          </div>
-        </section>
+          <section
+            aria-label="Project statement"
+            class="flex flex-col gap-[18px] rounded-2xl border border-line bg-panel px-10 py-9"
+          >
+            <div class="flex flex-wrap items-center gap-3">
+              <KindBadge kind={project.kind} />
+              <Link
+                href={`/h/${project.id}`}
+                class="border-b border-dashed border-line-hover font-mono text-sm text-ink-2 no-underline"
+              >
+                {project.id}
+              </Link>
+              <CopyButton text={project.id} />
+            </div>
+            <h1 class="m-0 text-[40px] font-bold leading-[1.12] tracking-[-0.02em]">
+              {project.title}
+            </h1>
+            {project.description && (
+              <ClampedDescription text={project.description} href={`/h/${project.id}`} />
+            )}
+            <div class="flex flex-wrap gap-2.5 font-mono text-xs text-muted">
+              {meta.map(([k, v]) => (
+                <span key={k} class="rounded-md border border-line px-2.5 py-[5px]">{k}: {v}</span>
+              ))}
+              <span class="rounded-md border border-line px-2.5 py-[5px]">
+                updated {relativeTime(project.lastUpdatedAtTimeInMs)}
+              </span>
+            </div>
+          </section>
 
-        <AutoMergeBar projectId={id} on={autoMerge} onChange={res.reload} />
+          <GateStepper gates={gates} />
 
-        <div class="flex flex-col gap-2.5">
-          <HexGroup label="Ideas" items={ideas} />
-          <HexGroup label="Designs" items={designs} />
-          <HexGroup label="Specs" items={specs} />
-          <HexGroup label="Decisions" items={decisions} />
-          <HexGroup label="Questions" items={questions} />
-          <HexGroup label="Facts" items={facts} hideRetired />
-        </div>
+          <AutoMergeBar projectId={id} on={autoMerge} onChange={res.reload} />
 
-        <div class="flex flex-col gap-3.5">
-          <div class="flex flex-wrap items-baseline justify-between gap-3">
-            <h2 class="m-0 text-[22px] font-bold tracking-[-0.01em]">Epics</h2>
-            <span class="text-[13px] text-muted">Progress counts stories each epic depends on</span>
+          <div class="flex flex-col gap-2.5">
+            <ProjectTabs
+              lists={{ ideas, designs, specs, decisions, questions }}
+              tab={tab}
+              onTab={setTab}
+            />
+            <HexGroup label="Facts" items={facts} hideRetired />
           </div>
-          {epics.length === 0 && (
-            <p class="m-0 rounded-[14px] border border-dashed border-line-strong p-8 text-center text-muted">
-              No epics yet. Use “Create hex” and pick <code class="font-mono">core.epic</code>.
-            </p>
-          )}
-          <EpicList epics={epics} onChange={res.reload} />
-        </div>
-      </Page>
+
+          <div class="flex flex-col gap-3.5">
+            <div class="flex flex-wrap items-baseline justify-between gap-3">
+              <h2 class="m-0 text-[22px] font-bold tracking-[-0.01em]">Epics</h2>
+              <span class="text-[13px] text-muted">
+                Progress counts stories each epic depends on
+              </span>
+            </div>
+            {epics.length === 0 && (
+              <p class="m-0 rounded-[14px] border border-dashed border-line-strong p-8 text-center text-muted">
+                No epics yet. Use “Create hex” and pick <code class="font-mono">core.epic</code>.
+              </p>
+            )}
+            <EpicList epics={epics} onChange={res.reload} />
+          </div>
+        </Page>
+      </Focus.Provider>
     </Working.Provider>
   );
 }

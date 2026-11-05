@@ -221,6 +221,58 @@ export function sortEpics(idx: HexIndex, epics: readonly Hex[]): Hex[] {
   return [...epics].sort((a, b) => group.get(a.id)! - group.get(b.id)! || byCreated(a, b));
 }
 
+/**
+ * Gates in milestone order for the project stepper: a gate always comes after any gate it reaches
+ * through its dependencies (not passing through the project). Among those free to go next, done
+ * gates come first, so finished milestones fill the stepper from the left, then oldest first.
+ */
+export function sortGates(idx: HexIndex, gates: readonly Hex[]): Hex[] {
+  const ids = new Set(gates.map((g) => g.id));
+  const before = new Map<string, Set<string>>();
+  for (const gate of gates) {
+    const reached = new Set<string>();
+    const seen = new Set<string>([gate.id]);
+    const stack = dependenciesOf(idx, gate);
+    while (stack.length > 0) {
+      const h = stack.pop()!;
+      if (seen.has(h.id) || h.kind === "core.project") continue;
+      seen.add(h.id);
+      if (ids.has(h.id)) reached.add(h.id);
+      stack.push(...dependenciesOf(idx, h));
+    }
+    before.set(gate.id, reached);
+  }
+  const rank = (g: Hex) => (roleOf(g.status) === "terminal" ? 0 : 1);
+  const left = [...gates].sort((a, b) => rank(a) - rank(b) || byCreated(a, b));
+  const out: Hex[] = [];
+  const placed = new Set<string>();
+  while (left.length > 0) {
+    // A dependency cycle cannot happen (writes refuse one); fall back to the head anyway.
+    let i = left.findIndex((g) => [...before.get(g.id)!].every((id) => placed.has(id)));
+    if (i < 0) i = 0;
+    const [next] = left.splice(i, 1);
+    out.push(next!);
+    placed.add(next!.id);
+  }
+  return out;
+}
+
+/**
+ * A gate's finished epics out of all of them: an epic is finished once it is done itself, every
+ * story it has is, or it is archived.
+ */
+export function gateProgress(idx: HexIndex, gate: Hex): Progress {
+  const epics = dependenciesOf(idx, gate).filter((h) => h.kind === "core.epic");
+  const finished = (epic: Hex) => {
+    if (isArchived(epic) || roleOf(epic.status) === "terminal") return true;
+    const { done, total } = progressOf(epicStories(idx, epic));
+    return total > 0 && done === total;
+  };
+  const total = epics.length;
+  const done = epics.filter(finished).length;
+  return { done, total, pct: total === 0 ? 0 : Math.round((done / total) * 100) };
+}
+
 export function progressOf(stories: readonly Hex[]): Progress {
   const total = stories.length;
   const done = stories.filter((s) => roleOf(s.status) === "terminal").length;

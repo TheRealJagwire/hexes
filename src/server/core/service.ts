@@ -13,6 +13,7 @@ import {
   FACT_KIND,
   findCycle,
   findProject,
+  gateProgress,
   type HexIndex,
   IDEA_KIND,
   isWorkKind,
@@ -25,6 +26,7 @@ import {
   readyHexes,
   reconcileReadiness,
   sortEpics,
+  sortGates,
   summarize,
 } from "../../shared/graph.ts";
 import {
@@ -50,6 +52,7 @@ import type {
   FactHit,
   FactsQuery,
   FactsResult,
+  GateView,
   GraphNode,
   HexSummary,
   HexView,
@@ -300,8 +303,12 @@ export class HexService {
         stories,
       };
     });
+    const gates: GateView[] = sortGates(idx, own.filter((h) => h.kind === "core.gate")).map(
+      (gate) => ({ hex: summarize(gate), epics: gateProgress(idx, gate) }),
+    );
     return {
       project,
+      gates,
       designs: own.filter((h) => h.kind === "core.design").map(summarize),
       specs: own.filter((h) => h.kind === "core.spec").map(summarize),
       decisions: own.filter((h) => h.kind === "core.decision").map(summarize),

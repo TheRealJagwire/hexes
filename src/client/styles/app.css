@@ -318,3 +318,23 @@
     animation: none;
   }
 }
+
+/* A hex the project page was asked to show (just created, say): flashes once. */
+.hx-focus {
+  animation: hx-focus 2.4s ease-out 1;
+}
+@keyframes hx-focus {
+  0%,
+  40% {
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hx-focus {
+    animation: none;
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+}
