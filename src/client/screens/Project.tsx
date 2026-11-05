@@ -36,6 +36,7 @@ import {
 } from "../components/Icons.tsx";
 import { CopyButton, KindBadge, ProgressRing, StatusPill } from "../components/Bits.tsx";
 import { HexSearch } from "../components/HexSearch.tsx";
+import { MilestoneStepper } from "../components/MilestoneStepper.tsx";
 import { Markdown } from "../components/Markdown.tsx";
 import { ErrorState, Header, LoadingState, Page, ThemeToggle } from "../components/Layout.tsx";
 import { Logo } from "../components/Icons.tsx";
@@ -250,23 +251,23 @@ function ProjectTabs(
   );
 }
 
-/** One gate's fill: done is solid, verified and in progress half, the rest empty. */
-function gateFill(status: string): "full" | "half" | "none" {
-  if (status === "done") return "full";
-  if (status === "verified" || status === "in_progress") return "half";
-  return "none";
-}
-
 /**
- * The project's gates as a stepper: one step per gate in milestone order, with done gates filled
- * in like a progress bar. Each step links to its gate and counts the gate's finished epics.
+ * The project's gates as a milestone track, in milestone order (`sortGates` puts done gates
+ * first). The leading done gates are filled in, the next one is current, and each step opens its
+ * gate and shows its status and finished epics.
  */
 function GateStepper({ gates }: { gates: GateView[] }) {
   const working = useContext(Working);
   const focus = useContext(Focus);
   if (gates.length === 0) return null;
   const done = gates.filter((g) => g.hex.status === "done").length;
-  const pct = Math.round((done / gates.length) * 100);
+  const leading = gates.findIndex((g) => g.hex.status !== "done");
+  const current = leading < 0 ? gates.length : leading;
+  const milestones = gates.map((g) => ({
+    id: g.hex.id,
+    label: g.hex.title,
+    date: `${g.hex.status.replace("_", " ")} · ${g.epics.done}/${g.epics.total} epics`,
+  }));
   return (
     <section
       aria-labelledby="milestones-h"
@@ -275,82 +276,30 @@ function GateStepper({ gates }: { gates: GateView[] }) {
       <div class="flex flex-wrap items-baseline justify-between gap-3">
         <h2 id="milestones-h" class="m-0 text-base font-semibold">Milestones</h2>
         <span class="font-mono text-xs text-muted">
-          {done}/{gates.length} gates done · {pct}%
+          {done}/{gates.length} gates done · {Math.round((done / gates.length) * 100)}%
         </span>
       </div>
-      <ol
-        class="m-0 flex list-none overflow-x-auto p-0 pb-1"
-        aria-label={`${done} of ${gates.length} gates done`}
-      >
-        {gates.map((g, i) => {
-          const fill = gateFill(g.hex.status);
-          const prevDone = i > 0 && gates[i - 1]!.hex.status === "done";
-          const here = working?.hexId === g.hex.id;
-          return (
-            <li
-              key={g.hex.id}
-              data-hex-row={g.hex.id}
-              class={`relative flex min-w-[132px] flex-1 flex-col items-center rounded-lg ${
-                focus === g.hex.id ? "hx-focus" : ""
-              }`}
-            >
-              {/* The track: each half joins this step to its neighbour. */}
-              <div class="flex h-7 w-full items-center" aria-hidden="true">
-                <span
-                  class={`h-1.5 flex-1 ${
-                    i === 0
-                      ? "bg-transparent"
-                      : fill === "full" && prevDone
-                      ? "bg-accent"
-                      : "bg-line-strong"
-                  }`}
-                />
-                <span
-                  class={`relative flex size-7 flex-none items-center justify-center overflow-hidden rounded-full border-2 border-solid ${
-                    fill === "none" ? "border-line-strong bg-bg" : "border-accent bg-bg"
-                  } ${here ? "hx-working" : ""}`}
-                >
-                  {fill === "full" && <span class="absolute inset-0 bg-accent" />}
-                  {fill === "half" && <span class="absolute inset-y-0 left-0 w-1/2 bg-accent" />}
-                  <span
-                    class={`relative font-mono text-[11px] font-semibold ${
-                      fill === "full" ? "text-on-accent" : "text-ink-2"
-                    }`}
-                  >
-                    {i + 1}
-                  </span>
-                </span>
-                <span
-                  class={`h-1.5 flex-1 ${
-                    i === gates.length - 1
-                      ? "bg-transparent"
-                      : fill === "full" && gates[i + 1]!.hex.status === "done"
-                      ? "bg-accent"
-                      : "bg-line-strong"
-                  }`}
-                />
-              </div>
-              <Link
-                href={`/h/${g.hex.id}`}
-                title={`${g.hex.id} · ${g.hex.status}`}
-                class="mt-2 flex max-w-[180px] flex-col items-center gap-0.5 px-2 text-center no-underline"
-              >
-                <span
-                  class={`line-clamp-2 text-[13px] leading-snug ${
-                    fill === "full" ? "text-ink" : "text-ink-2"
-                  } hover:underline`}
-                >
-                  {g.hex.title}
-                </span>
-                <span class="font-mono text-[11px] text-muted">
-                  {g.hex.status.replace("_", " ")} · {g.epics.done}/{g.epics.total} epics
-                </span>
-                {here && <span class="sr-only">Claude is working on this gate</span>}
-              </Link>
-            </li>
-          );
+      <MilestoneStepper
+        milestones={milestones}
+        current={current}
+        onSelect={(_, m) => navigate(`/h/${m.id}`)}
+        accent="var(--accent)"
+        ink="var(--ink)"
+        track="var(--line)"
+        muted="var(--muted)"
+        hollow="var(--line-hover)"
+        surface="var(--panel)"
+        aria-label={`Gates: ${done} of ${gates.length} done`}
+        itemProps={(m) => ({
+          "data-hex-row": m.id,
+          class: [
+            "rounded-lg",
+            working?.hexId === m.id ? "hx-working" : "",
+            focus === m.id ? "hx-focus" : "",
+          ].filter(Boolean).join(" "),
         })}
-      </ol>
+        class="mx-3"
+      />
     </section>
   );
 }
