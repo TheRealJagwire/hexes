@@ -253,8 +253,7 @@ function ProjectTabs(
 
 /**
  * The project's gates as a milestone track, in milestone order (`sortGates` puts done gates
- * first). The leading done gates are filled in, the next one is current, and each step opens its
- * gate and shows its status and finished epics.
+ * first). The leading done gates are filled in, the next one is current, and each step opens its gate.
  */
 function GateStepper({ gates }: { gates: GateView[] }) {
   const working = useContext(Working);
@@ -263,11 +262,7 @@ function GateStepper({ gates }: { gates: GateView[] }) {
   const done = gates.filter((g) => g.hex.status === "done").length;
   const leading = gates.findIndex((g) => g.hex.status !== "done");
   const current = leading < 0 ? gates.length : leading;
-  const milestones = gates.map((g) => ({
-    id: g.hex.id,
-    label: g.hex.title,
-    date: `${g.hex.status.replace("_", " ")} · ${g.epics.done}/${g.epics.total} epics`,
-  }));
+  const milestones = gates.map((g) => ({ id: g.hex.id, label: g.hex.title }));
   return (
     <section
       aria-labelledby="milestones-h"
