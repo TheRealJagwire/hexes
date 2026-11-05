@@ -616,66 +616,63 @@ export function ProjectHeader(
 }
 
 /**
- * The project's auto-merge switch, kept in plain sight: while it is on, Studio merges every pull
- * request as soon as it is opened, without anyone reviewing it.
+ * The project's auto-merge switch, small, in the project statement's top row. While it is on,
+ * Studio merges every pull request as soon as it is opened, without anyone reviewing it; the
+ * tooltip (on hover or keyboard focus) says so.
  */
-function AutoMergeBar(
+function AutoMergeToggle(
   { projectId, on, onChange }: { projectId: string; on: boolean; onChange: () => void },
 ) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const toggle = async () => {
     setBusy(true);
-    setError(null);
     try {
       await api.setAutoMerge(projectId, !on);
       notify(`Auto-merge is ${on ? "off" : "on"}`);
       onChange();
     } catch (e) {
-      setError(notifyError(e));
+      notifyError(e);
     }
     setBusy(false);
   };
   return (
-    <section
-      aria-labelledby="auto-merge-h"
-      class={`flex flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl border px-6 py-4 ${
-        on ? "border-accent bg-accent-bg" : "border-line-strong bg-panel"
-      }`}
-    >
-      <div class="flex min-w-0 flex-[1_1_320px] flex-col gap-1">
-        <h2
-          id="auto-merge-h"
-          class={`m-0 text-base font-semibold ${on ? "text-accent" : "text-ink"}`}
-        >
-          Auto-merge is {on ? "on" : "off"}
-        </h2>
-        <p class="m-0 text-sm leading-normal text-ink-2">
-          {on
-            ? "Studio merges each pull request into main as soon as it's opened, with no review, and brings the other open branches up to date."
-            : "Pull requests wait for someone to review and merge them."}
-        </p>
-        {error && <span role="alert" class="text-[13px] text-blocked">{error}</span>}
-      </div>
+    <div class="group relative ml-auto flex items-center">
       <button
         type="button"
         role="switch"
         aria-checked={on}
-        aria-labelledby="auto-merge-h"
+        aria-describedby="auto-merge-tip"
         disabled={busy}
         onClick={toggle}
-        class={`relative inline-flex h-8 w-14 flex-none items-center rounded-full border-none transition-colors duration-150 ${
-          on ? "bg-accent" : "bg-line-strong"
+        class={`inline-flex min-h-9 items-center gap-2 rounded-full border border-solid bg-transparent py-1 pl-1.5 pr-3 disabled:opacity-50 ${
+          on ? "border-accent text-accent" : "border-line-strong text-ink-2 hover:text-ink"
         }`}
       >
         <span
           aria-hidden="true"
-          class={`inline-block size-6 rounded-full bg-white shadow transition-transform duration-150 ${
-            on ? "translate-x-7" : "translate-x-1"
+          class={`relative inline-flex h-5 w-9 flex-none items-center rounded-full transition-colors duration-150 ${
+            on ? "bg-accent" : "bg-line-strong"
           }`}
-        />
+        >
+          <span
+            class={`inline-block size-4 rounded-full bg-white shadow transition-transform duration-150 ${
+              on ? "translate-x-[18px]" : "translate-x-0.5"
+            }`}
+          />
+        </span>
+        <span class="font-mono text-xs font-medium">auto-merge</span>
       </button>
-    </section>
+      <span
+        id="auto-merge-tip"
+        role="tooltip"
+        class="pointer-events-none invisible absolute right-0 top-full z-20 mt-2 w-72 rounded-lg border border-line-strong bg-panel px-3.5 py-2.5 text-[13px] leading-normal text-ink-2 opacity-0 shadow-lg transition-opacity duration-150 group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
+      >
+        <strong class="text-ink">Auto-merge is {on ? "on" : "off"}.</strong>{" "}
+        When on, Studio merges each pull request into main as soon as it's opened, with no review,
+        and brings the other open branches up to date. When off, pull requests wait for someone to
+        review and merge them.
+      </span>
+    </div>
   );
 }
 
@@ -897,6 +894,7 @@ export function ProjectScreen({ id }: { id: string }) {
                 {project.id}
               </Link>
               <CopyButton text={project.id} />
+              <AutoMergeToggle projectId={id} on={autoMerge} onChange={res.reload} />
             </div>
             <h1 class="m-0 text-[40px] font-bold leading-[1.12] tracking-[-0.02em]">
               {project.title}
@@ -915,8 +913,6 @@ export function ProjectScreen({ id }: { id: string }) {
           </section>
 
           <GateStepper gates={gates} />
-
-          <AutoMergeBar projectId={id} on={autoMerge} onChange={res.reload} />
 
           <div class="flex flex-col gap-2.5">
             <ProjectTabs
