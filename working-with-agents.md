@@ -135,10 +135,12 @@ retrying blindly.
     `in_progress`); open a new one later from the same branch.
   - After a merge, the work hex's page in Studio and the app has a diff view of what landed.
 - **Conventions**: projects own ideas, designs, gates and bugs; a design written for an idea also
-  depends on that idea; designs own decisions and specs; gates depend on epics; epics depend on
-  designs, specs and stories; stories may have substories; facts depend on the project and on what
-  they are about. A _dependency_ means "must be done first", except for a fact, whose dependencies
-  say what it is about. Nothing should depend on a fact as a prerequisite.
+  depends on that idea; designs own decisions and specs. Gates are the project's milestones and are
+  set up before any epic: each depends on the gate before it and on its epics, and every epic
+  belongs to one gate. Epics depend on designs, specs and stories; stories may have substories;
+  facts depend on the project and on what they are about. A _dependency_ means "must be done
+  first", except for a fact, whose dependencies say what it is about. Nothing should depend on a
+  fact as a prerequisite.
 
 ## Part 1: Tool definitions
 
@@ -156,7 +158,7 @@ Annotations: **R** = read-only (safe to auto-approve), **W** = write, **D** = de
 | `select_project`       | W    | `project_id`                                    | Make a project the selected one.                                                                                                                                         |
 | `list_recent_projects` | R    | –                                               | Projects opened recently in any folder, newest first, with whether each is still found and can be switched to.                                                           |
 | `open_recent_project`  | W    | `dir`, `project_id`                             | Switch to a recent project in one step: opens its folder if needed and selects it.                                                                                       |
-| `get_project`          | R    | `project_id`                                    | Project screen as data: designs, decisions, epics (each with gate, `progress {done,total,pct}`, stories sorted in_review → in_progress → ready → blocked → merged/done). |
+| `get_project`          | R    | `project_id`                                    | Project screen as data: gates (milestone order), designs, decisions, epics (each with gate, `progress {done,total,pct}`, stories sorted in_review → in_progress → ready → blocked → merged/done). |
 
 ### Hexes
 
@@ -270,10 +272,12 @@ description: Get oriented in a Hexes workspace — find the open project, its st
 2. `get_selected_project`. If null, `list_projects`; if there is exactly one, `select_project` it,
    otherwise ask the user which. If the project they mean is in another folder,
    `list_recent_projects` and `open_recent_project` switch to it in one step.
-3. `get_project` for the overview: designs, decisions, epic progress.
+3. `get_project` for the overview: gates (milestones, in order), designs, decisions, epic progress.
 4. `get_ready_hexes_for_project` for the actionable queue.
-5. Summarize: project statement, epic progress, and the ready hexes (id, kind, title), calling out
-   any published ideas waiting for a design. The user can watch changes land in Studio as you make
+5. Summarize: project statement, the milestones (which are done and which is current: the first
+   gate not `done`), epic progress, and the ready hexes (id, kind, title), calling out any published
+   ideas waiting for a design. If the project has no gates yet, say so: they are set up (with
+   `hexes-plan-work`) before any epic is created. The user can watch changes land in Studio as you make
    them.
 
 Read-only except for selecting a project. Never create or change hexes while orienting.
@@ -338,11 +342,19 @@ Rules:
 ````markdown
 ---
 name: hexes-plan-work
-description: Break a goal into hexes (design → spec/decision → epic → stories → gate) with correct dependencies.
+description: Break a goal into hexes (gates → design → spec/decision → epic → stories) with correct dependencies.
 ---
 
 1. Orient (`hexes-orient`). `search_hexes` for existing hexes covering the goal — never duplicate.
-2. Create top-down, capturing each returned id:
+2. Establish the gates before any epic exists. Gates (`core.gate`) are the project's milestones, and
+   every epic belongs to one. Read `gates` from `get_project` (in milestone order). If the project
+   has none, propose a ladder to the user, for example Started, Viability, Preprod, Prod, Alpha,
+   Beta, Release, and agree on it with them before creating anything; milestones are their call.
+   Then create the gates in order, each depending on the gate before it, with a one-line
+   `description` of what reaching it means. The first is `ready` (nothing to wait on); the rest stay
+   `blocked`. If gates exist, use them; add or change one only when the user asks. Gates come first
+   even when you only write a design now: the design's epics will need them.
+3. Create top-down, capturing each returned id:
    - `core.design` (depends_on: [project_id]), left `blocked` (or `in_progress` while you draft it).
      Ask the user to bless it in Studio; you cannot. Break down only designs that are `blessed`. For
      a published `core.idea`, write exactly one design that depends on the project **and** the idea,
@@ -353,18 +365,20 @@ description: Break a goal into hexes (design → spec/decision → epic → stor
      depends on a spec stays `blocked` until they do.
    - `core.story` hexes: concrete, independently verifiable, one outcome each; `core.substory` for
      steps.
-   - `core.epic` (depends_on: its design, specs, and stories).
-   - `core.gate` (depends_on: its epics) for a milestone/release checkpoint.
-3. Always pass `project_id`. Use `depends_on` for prerequisites and `required_by` to hook a new hex
+   - `core.epic` (depends_on: its design, specs, and stories; `required_by: [gate_id]`, the gate
+     from step 2 it counts toward: the earliest unfinished gate it is needed for, or the one the
+     user names). Never create an epic without a gate; if none fits, ask the user rather than
+     inventing one.
+4. Always pass `project_id`. Use `depends_on` for prerequisites and `required_by` to hook a new hex
    into an existing one (e.g. a new story required by an existing epic).
-4. Statuses: leave `blocked` when there are unfinished dependencies; use `ready` only when every
+5. Statuses: leave `blocked` when there are unfinished dependencies; use `ready` only when every
    dependency is satisfied (`done`, `merged`, `answered` or `blessed`; otherwise the call is
    refused). Hexes with no dependencies can be `ready`. Designs and specs are never `ready`;
    questions are never `done`; work is never created `in_review` or `merged` (its pull requests set
    those).
-5. Put acceptance criteria in `description`; put tooling facts (`desired_language`, `git_branch`) in
+6. Put acceptance criteria in `description`; put tooling facts (`desired_language`, `git_branch`) in
    `meta`.
-6. When a hex will touch the codebase (stories, substories, bugs, and specs that pin down code), end
+7. When a hex will touch the codebase (stories, substories, bugs, and specs that pin down code), end
    its `description` with a `## Files` section listing every file the work is expected to create,
    modify, delete, copy, move or rename, one per line, paths relative to the repository root:
 
@@ -382,7 +396,8 @@ description: Break a goal into hexes (design → spec/decision → epic → stor
    Look in the codebase first so the paths you modify, delete, copy, move or rename really exist;
    mark a path you are unsure of with "(likely)". Leave the section out of designs, decisions, epics
    and gates, and out of any hex that changes no files.
-7. Finish with `get_project` and show the user the resulting tree and `get_ready_hexes_for_project`.
+8. Finish with `get_project` and show the user the resulting tree, gates first with the epics under
+   each, and `get_ready_hexes_for_project`.
 
 Never create `core.pull_request` hexes: they come from `open_pull_request` when work is done.
 
@@ -451,7 +466,10 @@ description: Audit the graph for stale, mis-wired or stuck hexes and propose fix
    `blessed` whose dependencies are all satisfied: they need a human. Flag any design or spec still
    marked `ready` (data from before blessing existed). Flag published `core.idea` hexes that no
    design depends on yet: they are waiting for one.
-5. Present findings as a list with a proposed action each. Apply only what the user approves, using
+5. Flag a project with epics but no gates, and any epic no gate depends on: each epic should count
+   toward one milestone. Propose the gate for each (`add_dependency` from the gate to the epic), and
+   propose setting up gates first, with the user, if there are none.
+6. Present findings as a list with a proposed action each. Apply only what the user approves, using
    `update_hex_status`, `add_dependency`, `remove_dependency`, `update_hex`.
 ```
 

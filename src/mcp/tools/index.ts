@@ -134,7 +134,8 @@ export function buildTools(s: HexService) {
     defineTool({
       name: "get_project",
       description:
-        "The project screen as data: the project hex, its designs, specs, decisions, questions and epics. Each epic " +
+        "The project screen as data: the project hex, its gates (milestones, in order, each with its " +
+        "epics' progress), designs, specs, decisions, questions and epics. Each epic " +
         "has its gate, progress {done,total,pct} and its stories sorted in_review → in_progress → " +
         "ready → blocked → merged/done.",
       kind: "read",
