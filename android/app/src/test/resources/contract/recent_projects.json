@@ -9,7 +9,8 @@
       "openedAt": 1700000003000,
       "found": true,
       "current": true,
-      "switchable": true
+      "switchable": true,
+      "needsMigration": true
     }
   ]
 }

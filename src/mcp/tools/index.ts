@@ -59,7 +59,9 @@ export function buildTools(s: HexService) {
     // ── workspace & projects ──────────────────────────────────────────────
     defineTool({
       name: "get_workspace",
-      description: "Show which project directory is open and which project is selected.",
+      description:
+        "Show which project is selected, where its data lives (schemaVersion 2: ~/.hx/projects/<id>; " +
+        "1: a folder's .hx/data.json) and its repo path.",
       kind: "read",
       input: z.object({}),
       run: () => s.state(),
@@ -88,7 +90,9 @@ export function buildTools(s: HexService) {
     }),
     defineTool({
       name: "list_projects",
-      description: "List every core.project hex with epic and story counts.",
+      description:
+        "List every project with epic and story counts: those in ~/.hx/projects, then those still in " +
+        "v1 folders (needsMigration: true).",
       kind: "read",
       input: z.object({}),
       run: () => s.listProjects(),
@@ -96,7 +100,7 @@ export function buildTools(s: HexService) {
     defineTool({
       name: "list_recent_projects",
       description:
-        "Projects opened recently, across every folder, newest first: dir, project_id, title, " +
+        "Projects opened recently, newest first: dir (a v1 folder or a v2 repo path), project_id, title, " +
         "whether each is still found, the current one, and whether it can be switched to.",
       kind: "read",
       input: z.object({}),
@@ -105,15 +109,16 @@ export function buildTools(s: HexService) {
     defineTool({
       name: "open_recent_project",
       description:
-        "Switch to a recent project in one step: opens its folder (if it is not the open one) " +
-        "and selects it. Take dir and project_id from list_recent_projects.",
+        "Switch to a recent project in one step: a v2 project is selected by id; for a v1 one, its " +
+        "folder is opened (if it is not the open one) and it is selected. Take dir and project_id " +
+        "from list_recent_projects.",
       kind: "write",
-      input: z.object({ dir: z.string().min(1), project_id: id }),
+      input: z.object({ dir: z.string().default(""), project_id: id }),
       run: ({ dir, project_id }) => s.openRecentProject(dir, project_id),
     }),
     defineTool({
       name: "get_selected_project",
-      description: "Get the project stored in the studio.selected_project hex, or null.",
+      description: "Get the selected project hex, or null.",
       kind: "read",
       input: z.object({}),
       run: async () => {
@@ -123,7 +128,9 @@ export function buildTools(s: HexService) {
     }),
     defineTool({
       name: "select_project",
-      description: "Make a project the selected project (updates the studio.selected_project hex).",
+      description:
+        "Make a project the selected project: a v2 project by id; a v1 one in the open folder or a " +
+        "recent one, which is opened.",
       kind: "write",
       input: z.object({ project_id: id }),
       run: async ({ project_id }) => {
