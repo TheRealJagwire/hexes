@@ -101,6 +101,8 @@ export interface ProjectView {
   epics: EpicView[];
   /** Pull requests are merged as soon as they are opened, and other branches updated. */
   autoMerge: boolean;
+  /** No repository yet (a v2 project without repo_path): its work waits until one is set. */
+  needsRepository: boolean;
 }
 
 /** A hex as one cell of the project hex map. */

@@ -90,6 +90,7 @@
         ]
       }
     ],
-    "autoMerge": true
+    "autoMerge": true,
+    "needsRepository": false
   }
 }

@@ -666,7 +666,7 @@ Deno.test("a v2 project without a repo_path refuses git tools", async () => {
       const p = hexes.find((h) => h.id === f.projectId)!;
       delete p.meta?.repo_path;
     });
-    const err = await assertRejects(() => s.startWork(f.storyId), DomainError, "no repo_path");
+    const err = await assertRejects(() => s.startWork(f.storyId), DomainError, "repository first");
     assertEquals(err.status, 409);
   } finally {
     await f.cleanup();
