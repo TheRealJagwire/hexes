@@ -136,6 +136,17 @@ export class Workspace {
     return new ProjectFile(path, id, repoPathOf(project) ?? this.projects.projectDir(id));
   }
 
+  /**
+   * The folder holding the data file being worked on and its `channels/`: the selected v2
+   * project's `~/.hx/projects/<id>`, else the open v1 directory's `.hx`; null with neither.
+   */
+  async dataDir(): Promise<string | null> {
+    const id = await this.selectedV2();
+    if (id) return this.projects.projectDir(id);
+    const dir = await this.current();
+    return dir ? `${dir}/.hx` : null;
+  }
+
   /** The data file being worked on: the selected v2 project's, else the open v1 directory's. */
   async file(): Promise<HexFile | ProjectFile> {
     const id = await this.selectedV2();

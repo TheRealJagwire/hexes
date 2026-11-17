@@ -1,14 +1,17 @@
 import type { ChannelInfo, ChannelSend } from "../../shared/views.ts";
 import type { Workspace } from "./workspace.ts";
 
-/** Where channel processes say they are listening: one file per process, under `.hx/`. */
-export const CHANNELS_DIR = ".hx/channels";
+/**
+ * Where channel processes say they are listening: one file per process, in this folder of the
+ * data folder (`<dir>/.hx/` for v1, `~/.hx/projects/<id>/` for v2).
+ */
+export const CHANNELS_DIR = "channels";
 export const HEARTBEAT_MS = 15_000;
 /** A channel whose heartbeat is older than this is gone (killed without cleaning up). */
 export const STALE_MS = 45_000;
 const MAX_SENT = 20;
 
-/** The channels listening on `dir` now, most recently started first. */
+/** The channels listening on the data folder `dir` now, most recently started first. */
 export async function readChannels(dir: string, now = Date.now()): Promise<ChannelInfo[]> {
   const found: ChannelInfo[] = [];
   try {
@@ -35,7 +38,7 @@ export class ChannelPresence {
   private readonly startedAt: number;
   private sent: ChannelSend[] = [];
   private timer: number | undefined;
-  /** The workspace the file was last written to, so it can be removed from there. */
+  /** The data folder the file was last written to, so it can be removed from there. */
   private writtenIn: string | null = null;
   private writing: Promise<void> = Promise.resolve();
 
@@ -69,7 +72,7 @@ export class ChannelPresence {
 
   private write(): Promise<void> {
     this.writing = this.writing.then(async () => {
-      const dir = await this.workspace.current().catch(() => null);
+      const dir = await this.workspace.dataDir().catch(() => null);
       if (this.writtenIn && this.writtenIn !== dir) await this.remove(this.writtenIn);
       this.writtenIn = null;
       if (!dir) return;

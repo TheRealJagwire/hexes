@@ -4,10 +4,12 @@ import type { Workspace } from "./workspace.ts";
 export interface ChangeEvent {
   /** Increases on every change, so a client can tell it missed one. */
   rev: number;
+  /** The data folder: `<dir>/.hx` for a v1 project, `~/.hx/projects/<id>` for a v2 one. */
   dir: string | null;
   /**
-   * `workspace` when the active directory switched, `data` when its hexes changed, `channels`
-   * when a channel process wrote or removed its file under `.hx/channels/`.
+   * `workspace` when the data folder switched (another folder or selected v2 project), `data`
+   * when its hexes changed, `channels` when a channel process wrote or removed its file under
+   * its `channels/`.
    */
   scope: "data" | "workspace" | "channels";
 }
@@ -15,9 +17,9 @@ export interface ChangeEvent {
 type Listener = (event: ChangeEvent) => void;
 
 /**
- * Tells subscribers when `.hx/data.json` of the active directory changes or the active
- * directory itself switches, no matter which process wrote it (Studio, MCP over stdio, git, an
- * editor). It watches the `.hx` directory rather than the file, because writes rename a temp
+ * Tells subscribers when `data.json` in the active data folder changes or the data folder itself
+ * switches, no matter which process wrote it (Studio, MCP over stdio, git, an editor). It
+ * watches the folder rather than the file, because writes rename a temp
  * file over `data.json` and that replaces the inode. A slow poll is the safety net for missed
  * file-system events. It only runs while somebody is subscribed.
  */
@@ -85,9 +87,9 @@ export class ChangeWatcher {
       let dir: string | null = null;
       let stamp = "";
       try {
-        dir = await this.workspace.current();
+        dir = await this.workspace.dataDir();
         if (dir) {
-          const s = await Deno.stat(`${dir}/.hx/data.json`);
+          const s = await Deno.stat(`${dir}/data.json`);
           stamp = `${s.mtime?.getTime()}:${s.size}:${s.ino}`;
         }
       } catch { /* mid-rename or gone: treat as unchanged and look again next tick */ }
@@ -113,10 +115,10 @@ export class ChangeWatcher {
     for (const listener of this.listeners) listener(event);
   }
 
-  /** Watches the active `.hx` folder and, unless pinned, the folder of the state file. */
+  /** Watches the active data folder and, unless pinned, the folder of the state file. */
   private async rewatch(dir: string | null): Promise<void> {
     const paths: string[] = [];
-    if (dir) paths.push(`${dir}/.hx`);
+    if (dir) paths.push(dir);
     if (!this.workspace.pinnedDir) paths.push(this.workspace.stateFile.replace(/\/[^/]*$/, ""));
     const existing: string[] = [];
     for (const p of paths) {

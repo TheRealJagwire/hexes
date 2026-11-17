@@ -178,13 +178,13 @@ Deno.test("a channel's presence file is written, refreshed, records sends and go
     presence,
     settleMs: 20,
   });
-  const file = `${f.dir}/${CHANNELS_DIR}/4242.json`;
+  const file = `${f.dir}/.hx/${CHANNELS_DIR}/4242.json`;
   const read = async () => JSON.parse(await Deno.readTextFile(file));
   try {
     await ch.start();
     await presence.start();
     assertEquals(await read(), { pid: 4242, startedAt: 1000, heartbeatAt: 1000, sent: [] });
-    assertEquals((await readChannels(f.dir, 1000)).map((c) => c.pid), [4242]);
+    assertEquals((await readChannels(`${f.dir}/.hx`, 1000)).map((c) => c.pid), [4242]);
 
     now = 2_000; // the heartbeat refreshes it
     const end = Date.now() + 2000;
@@ -203,14 +203,14 @@ Deno.test("a channel's presence file is written, refreshed, records sends and go
     assertEquals((await read()).sent, [{ hexId: d.id, event: "blessed", at: 3000 }]);
 
     // Older than 45 s without a heartbeat: gone, as after a kill -9.
-    assertEquals(await readChannels(f.dir, 3_000 + STALE_MS + 1), []);
+    assertEquals(await readChannels(`${f.dir}/.hx`, 3_000 + STALE_MS + 1), []);
   } finally {
     ch.stop();
     await presence.stop();
   }
   try {
     assertEquals(await Deno.stat(file).then(() => true, () => false), false);
-    assertEquals(await readChannels(f.dir), []);
+    assertEquals(await readChannels(`${f.dir}/.hx`), []);
   } finally {
     await f.cleanup();
   }

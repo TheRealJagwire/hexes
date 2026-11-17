@@ -104,7 +104,7 @@ export class HexesChannel {
   /** The active workspace's hexes; `[]` with no workspace, null when the file can't be read. */
   private async read(): Promise<Hex[] | null> {
     try {
-      if (!await this.opts.workspace.current()) return [];
+      if (!await this.opts.workspace.dataDir()) return [];
       return await (await this.opts.workspace.file()).read();
     } catch {
       return null;
