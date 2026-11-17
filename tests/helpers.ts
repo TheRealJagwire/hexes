@@ -1,4 +1,6 @@
+import { derivePrefix, generateId } from "../src/server/core/ids.ts";
 import { HexService } from "../src/server/core/service.ts";
+import { HexFile } from "../src/server/core/store.ts";
 import { Workspace } from "../src/server/core/workspace.ts";
 
 export interface Fixture {
@@ -9,19 +11,24 @@ export interface Fixture {
   cleanup: () => Promise<void>;
 }
 
-/** A fresh project in a temp directory, with a deterministic, strictly increasing clock. */
-export async function fixture(title = "Hexes Studio"): Promise<Fixture> {
+/**
+ * A fresh project in a temp directory, with a deterministic, strictly increasing clock. By
+ * default it is a schema-v1 project in `<dir>/.hx/data.json` (most tests exercise that layout);
+ * `{ v2: true }` creates it through `createProject`, in the temp `~/.hx` stand-in.
+ */
+export async function fixture(
+  title = "Hexes Studio",
+  opts: { v2?: boolean } = {},
+): Promise<Fixture> {
   const root = await Deno.makeTempDir({ prefix: "hexes-test-" });
   const workspace = new Workspace({ stateFile: `${root}/state.json`, home: `${root}/hx` });
   let clock = 1_700_000_000_000;
   const service = new HexService(workspace, () => clock += 1000);
   const dir = `${root}/proj`;
-  const { projectId } = await service.createProject({
-    dir,
-    title,
-    description: "A vision.",
-    gitInit: false,
-  });
+  const projectId = opts.v2
+    ? (await service.createProject({ dir, title, description: "A vision.", gitInit: false }))
+      .projectId
+    : await legacyProject(service, dir, title, clock += 1000);
   return {
     dir,
     service,
@@ -29,6 +36,38 @@ export async function fixture(title = "Hexes Studio"): Promise<Fixture> {
     projectId,
     cleanup: () => Deno.remove(root, { recursive: true }),
   };
+}
+
+/** Writes a schema-v1 project into `<dir>/.hx/data.json`, then opens and selects it. */
+export async function legacyProject(
+  service: HexService,
+  dir: string,
+  title: string,
+  createdAt = Date.now(),
+): Promise<string> {
+  const file = new HexFile(dir);
+  const taken = new Set((await file.exists() ? await file.read() : []).map((h) => h.id));
+  const projectId = await generateId(
+    derivePrefix(title, new Set()),
+    title,
+    "core.project",
+    createdAt,
+    taken,
+  );
+  await file.mutate((hexes) => {
+    hexes.push({
+      id: projectId,
+      title,
+      description: "A vision.",
+      kind: "core.project",
+      status: "done",
+      createdAtTimeInMs: createdAt,
+      lastUpdatedAtTimeInMs: createdAt,
+    });
+  }, { create: true });
+  await service.openWorkspace(dir);
+  await service.selectProject(projectId);
+  return projectId;
 }
 
 /** Runs git in `dir` for test setup; throws with git's message on failure. */

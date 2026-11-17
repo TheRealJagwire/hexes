@@ -76,8 +76,9 @@ export function buildTools(s: HexService) {
     defineTool({
       name: "create_project",
       description:
-        "Create a new project in a directory: writes .hx/data.json with a core.project hex whose " +
-        "description is the project statement, and optionally runs git init.",
+        "Create a new project for a repository directory: writes ~/.hx/projects/<id>/data.json " +
+        "with a core.project hex (description = the statement, meta.repo_path = dir, " +
+        "meta.schema_version = 2), selects it, and optionally runs git init in dir.",
       kind: "write",
       input: z.object({
         dir: z.string().min(1),

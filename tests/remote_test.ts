@@ -1,7 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import { createApp } from "../src/server/app.ts";
 import { ChangeWatcher } from "../src/server/core/watcher.ts";
-import { fixture } from "./helpers.ts";
+import { fixture, legacyProject } from "./helpers.ts";
 
 const TOKEN = "correct-horse-battery-staple";
 const phone = { remoteAddr: { hostname: "100.64.0.7" } };
@@ -77,7 +77,7 @@ Deno.test("recent workspaces are listed, most recent first, and flag missing one
   const f = await fixture();
   try {
     const second = `${f.dir}-b`;
-    await f.service.createProject({ dir: second, title: "B", description: "", gitInit: false });
+    await legacyProject(f.service, second, "B");
     let recent = await f.service.recentWorkspaces();
     assertEquals(recent.map((r) => r.dir), [second, f.dir]);
     assertEquals(recent[0]?.label, "proj-b");

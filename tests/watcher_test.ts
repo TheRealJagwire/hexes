@@ -3,7 +3,7 @@ import { createApp } from "../src/server/app.ts";
 import { ChannelPresence, readChannels } from "../src/server/core/channels.ts";
 import { HexFile } from "../src/server/core/store.ts";
 import { type ChangeEvent, ChangeWatcher } from "../src/server/core/watcher.ts";
-import { type Fixture, fixture } from "./helpers.ts";
+import { type Fixture, fixture, legacyProject } from "./helpers.ts";
 
 function collect(w: ChangeWatcher) {
   const events: ChangeEvent[] = [];
@@ -45,12 +45,7 @@ Deno.test("watcher notices the active directory switching", async () => {
   const { events, stop, waitFor } = collect(w);
   try {
     await w.snapshot();
-    const second = await f.service.createProject({
-      dir: `${f.dir}-b`,
-      title: "Second",
-      description: "",
-      gitInit: false,
-    });
+    const second = { projectId: await legacyProject(f.service, `${f.dir}-b`, "Second") };
     assert(second.projectId);
     assert(await waitFor(1), "no event for the switch");
     assertEquals(events[0]?.scope, "workspace");

@@ -33,9 +33,12 @@ import {
 import {
   allowedStatuses,
   DERIVED,
+  REPO_PATH_KEY,
   REQUIRES_RESPONSE,
   roleOf,
   satisfies,
+  SCHEMA_VERSION,
+  SCHEMA_VERSION_KEY,
   waitsOnDependencies,
 } from "../../shared/constants.ts";
 import {
@@ -222,6 +225,11 @@ export class HexService {
     await this.workspace.forgetProject(dir.trim() ? resolveDir(dir) : undefined, projectId);
   }
 
+  /**
+   * Creates a schema-v2 project: `~/.hx/projects/<id>/data.json` holding only the project hex,
+   * with `repo_path` set to `dir` (git-initialised on request). Nothing is written under
+   * `dir/.hx`. The new project is selected.
+   */
   async createProject(req: CreateProjectRequest): Promise<CreateProjectResult> {
     if (this.workspace.pinnedDir) {
       throw new DomainError(
@@ -230,9 +238,18 @@ export class HexService {
       );
     }
     const dir = resolveDir(req.dir);
-    const file = new HexFile(dir);
-    if (await file.exists()) {
+    if (await new HexFile(dir).exists()) {
       throw new DomainError(`${dir} already has a .hx/data.json. Open it instead.`, 409);
+    }
+    const store = this.workspace.projects;
+    const prefixes = new Set<string>();
+    for (const id of await store.list()) {
+      const project = (await store.file(id).read().catch(() => [])).find((h) => h.id === id);
+      if (repoPathOf(project) === dir) {
+        throw new DomainError(`${dir} is already the repo of project ${id}. Open it instead.`, 409);
+      }
+      const prefix = prefixOf(id);
+      if (prefix) prefixes.add(prefix);
     }
     try {
       await Deno.mkdir(dir, { recursive: true });
@@ -240,33 +257,28 @@ export class HexService {
       throw new DomainError(`Cannot create ${dir}: ${e instanceof Error ? e.message : e}`, 400);
     }
     const t = this.now();
-    const projectId = await file.mutate(async (hexes) => {
-      const prefix = derivePrefix(req.title, new Set());
-      const project = await this.newHex(hexes, {
-        prefix,
-        kind: "core.project",
-        title: req.title,
-        description: req.description,
-        // A stated vision is a finished artifact; designs and the rest hang off it.
-        status: "done",
-        createdAt: t,
-      });
-      await this.writeSelected(hexes, project.id);
-      return project.id;
+    const hexes: Hex[] = [];
+    const project = await this.newHex(hexes, {
+      prefix: derivePrefix(req.title, prefixes),
+      kind: "core.project",
+      title: req.title,
+      description: req.description,
+      // A stated vision is a finished artifact; designs and the rest hang off it.
+      status: "done",
+      createdAt: t,
+      meta: { [SCHEMA_VERSION_KEY]: SCHEMA_VERSION, [REPO_PATH_KEY]: dir },
+    });
+    await store.file(project.id).mutate((list) => {
+      list.push(...hexes);
     }, { create: true });
     const warnings: string[] = [];
     if (req.gitInit) {
       const warning = await gitInit(dir);
       if (warning) warnings.push(warning);
     }
-    await this.workspace.remember(dir);
-    await this.workspace.rememberProject({
-      dir,
-      projectId,
-      title: req.title,
-      openedAt: this.now(),
-    });
-    return { projectId, warnings };
+    await this.workspace.selectV2(project.id);
+    await this.recordRecent(undefined, project);
+    return { projectId: project.id, warnings };
   }
 
   // ── projects ─────────────────────────────────────────────────────────────
