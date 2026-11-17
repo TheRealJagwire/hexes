@@ -88,10 +88,18 @@ export const UpdateSeedRequestSchema = z.object({
 });
 export type UpdateSeedRequest = z.infer<typeof UpdateSeedRequestSchema>;
 
+/** `PUT /api/projects/:id/repo` (MCP `set_project_repo`): fork `seedId` into `dir`, or use `dir`. */
+export const SetProjectRepoSchema = z.object({
+  dir: trimmed.min(1, "a folder is required"),
+  seedId: trimmed.optional(),
+});
+export type SetProjectRepoRequest = z.infer<typeof SetProjectRepoSchema>;
+
 export const DirRequestSchema = z.object({ dir: trimmed.min(1, "directory is required") });
 
 export const CreateProjectRequestSchema = z.object({
-  dir: trimmed.min(1, "location is required"),
+  /** The repository folder; empty to pick one later (fork a seed or choose a folder). */
+  dir: trimmed.default(""),
   title: trimmed.min(1, "title is required"),
   description: z.string().default(""),
   gitInit: z.boolean().default(true),

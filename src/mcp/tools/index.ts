@@ -81,7 +81,9 @@ export function buildTools(s: HexService) {
         "meta.schema_version = 2), selects it, and optionally runs git init in dir.",
       kind: "write",
       input: z.object({
-        dir: z.string().min(1),
+        dir: z.string().default("").describe(
+          "The repository folder; leave empty to pick one later with set_project_repo",
+        ),
         title: z.string().min(1),
         statement: z.string().default("").describe("Project statement / vision"),
         git_init: z.boolean().default(true),
@@ -171,6 +173,24 @@ export function buildTools(s: HexService) {
       }),
       run: ({ project_id, near, depth, file, query, include_retired }) =>
         s.facts(project_id, { near, depth, file, query, includeRetired: include_retired }),
+    }),
+
+    defineTool({
+      name: "set_project_repo",
+      description:
+        "Give a project its repository (until it has one, its stories and bugs are not ready). " +
+        "With seed_id: clone that repository seed into dir (missing or empty), rename its " +
+        "origin remote to seed, and record meta.repo_ref_hx. Without: use dir, an existing git " +
+        "working tree. Sets meta.repo_path. Forking creates a folder on the user's disk: " +
+        "recommend a seed (list_seeds) with a sentence on why it fits, and only fork once the " +
+        "person says so.",
+      kind: "write",
+      input: z.object({
+        project_id: id,
+        dir: z.string().min(1).describe("Target folder; ~ is expanded"),
+        seed_id: id.optional(),
+      }),
+      run: ({ project_id, dir, seed_id }) => s.setProjectRepo(project_id, { dir, seedId: seed_id }),
     }),
 
     // ── repository seeds ─────────────────────────────────────────────────

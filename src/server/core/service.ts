@@ -36,6 +36,7 @@ import {
   allowedStatuses,
   DERIVED,
   REPO_PATH_KEY,
+  REPO_REF_KEY,
   REQUIRES_RESPONSE,
   roleOf,
   satisfies,
@@ -269,24 +270,24 @@ export class HexService {
         409,
       );
     }
-    const dir = resolveDir(req.dir);
-    if (await new HexFile(dir).exists()) {
+    // No folder: the project starts without a repository and gets one later.
+    const dir = req.dir.trim() ? resolveDir(req.dir) : null;
+    if (dir && await new HexFile(dir).exists()) {
       throw new DomainError(`${dir} already has a .hx/data.json. Open it instead.`, 409);
     }
     const store = this.workspace.projects;
     const prefixes = new Set<string>();
     for (const id of await store.list()) {
-      const project = (await store.file(id).read().catch(() => [])).find((h) => h.id === id);
-      if (repoPathOf(project) === dir) {
-        throw new DomainError(`${dir} is already the repo of project ${id}. Open it instead.`, 409);
-      }
       const prefix = prefixOf(id);
       if (prefix) prefixes.add(prefix);
     }
-    try {
-      await Deno.mkdir(dir, { recursive: true });
-    } catch (e) {
-      throw new DomainError(`Cannot create ${dir}: ${e instanceof Error ? e.message : e}`, 400);
+    if (dir) {
+      await this.assertRepoFree(dir, null);
+      try {
+        await Deno.mkdir(dir, { recursive: true });
+      } catch (e) {
+        throw new DomainError(`Cannot create ${dir}: ${e instanceof Error ? e.message : e}`, 400);
+      }
     }
     const t = this.now();
     const hexes: Hex[] = [];
@@ -298,13 +299,13 @@ export class HexService {
       // A stated vision is a finished artifact; designs and the rest hang off it.
       status: "done",
       createdAt: t,
-      meta: { [SCHEMA_VERSION_KEY]: SCHEMA_VERSION, [REPO_PATH_KEY]: dir },
+      meta: { [SCHEMA_VERSION_KEY]: SCHEMA_VERSION, ...(dir ? { [REPO_PATH_KEY]: dir } : {}) },
     });
     await store.file(project.id).mutate((list) => {
       list.push(...hexes);
     }, { create: true });
     const warnings: string[] = [];
-    if (req.gitInit) {
+    if (dir && req.gitInit) {
       const warning = await gitInit(dir);
       if (warning) warnings.push(warning);
     }
@@ -374,6 +375,103 @@ export class HexService {
       if (JSON.stringify(seed) !== before) seed.lastUpdatedAtTimeInMs = this.now();
       return seed;
     }, { create: true });
+  }
+
+  /** Refuses `dir` when it is already another project's repository. */
+  private async assertRepoFree(dir: string, except: string | null): Promise<void> {
+    const store = this.workspace.projects;
+    for (const id of await store.list()) {
+      if (id === except) continue;
+      const project = (await store.file(id).read().catch(() => [])).find((h) => h.id === id);
+      if (repoPathOf(project) === dir) {
+        throw new DomainError(`${dir} is already the repo of project ${id}. Open it instead.`, 409);
+      }
+    }
+  }
+
+  /**
+   * Gives a v2 project its repository: with `seedId`, clones that seed into `dir` (which must be
+   * missing or empty), renames its `origin` remote to `seed` and records `repo_ref_hx`; without,
+   * uses `dir`, which must already be a git working tree. Either way sets `repo_path`.
+   */
+  async setProjectRepo(
+    projectId: string,
+    req: { dir: string; seedId?: string | undefined },
+  ): Promise<Hex> {
+    if (!await this.workspace.hasProject(projectId)) {
+      throw new DomainError(
+        `${projectId} is not in ~/.hx/projects; migrate it first (or check the id)`,
+        409,
+      );
+    }
+    const dir = resolveDir(req.dir);
+    await this.assertRepoFree(dir, projectId);
+    let seedId: string | null = null;
+    if (req.seedId) {
+      const seed = (await this.listSeeds({ includeRetired: true })).find((s) =>
+        s.hex.id === req.seedId
+      );
+      if (!seed) throw new DomainError(`No seed with id ${req.seedId}`, 404);
+      if (seed.hex.status !== "available") {
+        throw new DomainError(`Seed ${req.seedId} is retired`, 409);
+      }
+      await this.forkSeed(seed, dir);
+      seedId = seed.hex.id;
+    } else {
+      const isDir = await Deno.stat(dir).then((s) => s.isDirectory, () => false);
+      const tree = isDir && (await new Git(dir).try("rev-parse", "--is-inside-work-tree"))
+            .stdout === "true";
+      if (!tree) throw new DomainError(`${dir} is not a git working tree`, 422);
+    }
+    return await this.workspace.projects.file(projectId).mutate((hexes) => {
+      const project = hexes.find((h) => h.id === projectId && h.kind === "core.project");
+      if (!project) throw new DomainError(`No project with id ${projectId}`, 404);
+      const meta: Record<string, string> = { ...project.meta, [REPO_PATH_KEY]: dir };
+      if (seedId) meta[REPO_REF_KEY] = seedId;
+      else delete meta[REPO_REF_KEY];
+      project.meta = meta;
+      project.lastUpdatedAtTimeInMs = this.now();
+      return project;
+    });
+  }
+
+  /** Clones a seed into `dir` and renames `origin` to `seed`; on failure leaves nothing behind. */
+  private async forkSeed(seed: SeedView, dir: string): Promise<void> {
+    let existed = false;
+    try {
+      existed = (await Deno.stat(dir)).isDirectory;
+      for await (const _ of Deno.readDir(dir)) {
+        throw new DomainError(`${dir} is not empty; fork into a new or empty folder`, 409);
+      }
+    } catch (e) {
+      if (e instanceof DomainError) throw e;
+      if (!(e instanceof Deno.errors.NotFound)) throw e;
+    }
+    const parent = dir.replace(/\/[^/]*$/, "") || "/";
+    await Deno.mkdir(parent, { recursive: true });
+    const clone = await new Git(parent).try(
+      "clone",
+      "--branch",
+      seed.branch,
+      seed.gitUrl,
+      dir,
+    );
+    const renamed = clone.ok && (await new Git(dir).try("remote", "rename", "origin", "seed")).ok;
+    if (!renamed) {
+      if (existed) {
+        try {
+          for await (const e of Deno.readDir(dir)) {
+            await Deno.remove(`${dir}/${e.name}`, { recursive: true }).catch(() => {});
+          }
+        } catch { /* already gone */ }
+      } else {
+        await Deno.remove(dir, { recursive: true }).catch(() => {});
+      }
+      throw new DomainError(
+        `Could not fork ${seed.hex.id}: ${clone.ok ? "renaming its remote failed" : clone.stderr}`,
+        422,
+      );
+    }
   }
 
   // ── projects ─────────────────────────────────────────────────────────────

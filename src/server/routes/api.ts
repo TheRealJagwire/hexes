@@ -7,6 +7,7 @@ import {
   CreateSeedRequestSchema,
   DirRequestSchema,
   HexIdSchema,
+  SetProjectRepoSchema,
   StatusSchema,
   UpdateHexRequestSchema,
   UpdateSeedRequestSchema,
@@ -158,6 +159,10 @@ export function apiRoutes(
     "/projects/:id/graph",
     async (c) => c.json(await service.projectGraph(c.req.param("id"))),
   );
+  api.put("/projects/:id/repo", async (c) => {
+    const req = SetProjectRepoSchema.parse(await c.req.json());
+    return c.json(await service.setProjectRepo(c.req.param("id"), req));
+  });
   api.put("/projects/:id/auto-merge", async (c) => {
     const { enabled } = AutoMergeSchema.parse(await c.req.json());
     return c.json(await service.setAutoMerge(c.req.param("id"), enabled));
