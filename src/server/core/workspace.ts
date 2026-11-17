@@ -179,6 +179,33 @@ export class Workspace {
     await this.writeState({ recentProjects: [entry, ...rest].slice(0, RECENT_LIMIT) });
   }
 
+  /**
+   * After a v1 folder's projects moved to ~/.hx/projects: their recent entries lose the folder,
+   * the folder leaves the recent list, and when it was the open one, its selected project (if it
+   * moved) becomes the selected v2 project.
+   */
+  async adoptMigrated(dir: string, ids: readonly string[], selected: string | null): Promise<void> {
+    const moved = new Set(ids);
+    const seen = new Set<string>();
+    const recentProjects: RecentProjectEntry[] = [];
+    for (const e of await this.recentProjects()) {
+      const next = e.dir === dir && moved.has(e.projectId)
+        ? { projectId: e.projectId, title: e.title, openedAt: e.openedAt }
+        : e;
+      const key = `${next.dir ?? ""}\n${next.projectId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      recentProjects.push(next);
+    }
+    const wasOpen = await this.lastDir() === dir;
+    await this.writeState({
+      recentProjects,
+      recent: (await this.recent()).filter((d) => d !== dir),
+      ...(wasOpen ? { lastDir: null } : {}),
+      ...(wasOpen && selected ? { selectedProjectId: selected } : {}),
+    });
+  }
+
   async forgetProject(dir: string | undefined, projectId: string): Promise<void> {
     const list = await this.recentProjects();
     const rest = list.filter((e) => !sameProject(e, { dir, projectId }));
