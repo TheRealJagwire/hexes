@@ -4,6 +4,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { buildServer } from "../src/mcp/build.ts";
 import { createApp } from "../src/server/app.ts";
 import { DomainError } from "../src/server/core/errors.ts";
+import { migrateToV2 } from "../src/server/core/migrate_v2.ts";
 import { branchName } from "../src/server/core/service.ts";
 import { parseUnifiedDiff } from "../src/shared/diff.ts";
 import { type Fixture, fixture, git, initRepo } from "./helpers.ts";
@@ -622,6 +623,52 @@ Deno.test("a target checked out in a linked worktree is merged there", async () 
     assertEquals(await git(wt, "status", "--porcelain"), "");
   } finally {
     await Deno.remove(wt, { recursive: true }).catch(() => {});
+    await f.cleanup();
+  }
+});
+
+Deno.test("a v2 project runs git in its repo_path and keeps patches in its own folder", async () => {
+  const f = await repoFixture();
+  try {
+    const s = f.service;
+    // Move the project to ~/.hx/projects; the repo no longer holds any hex data.
+    await migrateToV2(f.dir, f.workspace.projects, f.workspace);
+    assertEquals((await s.state()).schemaVersion, 2);
+    await Deno.remove(`${f.dir}/.gitignore`);
+    await git(f.dir, "commit", "-q", "-am", "no .hx ignore needed");
+
+    const started = await s.startWork(f.storyId);
+    assertEquals(await git(f.dir, "branch", "--show-current"), started.meta?.git_branch);
+    await commitFile(f.dir, "grid.ts", "export const size = 3;\n");
+    const pr = await s.openPullRequest(f.storyId, {});
+    const merged = await s.mergePullRequest(pr.id);
+    assertEquals(merged.meta?.merge_sha, await git(f.dir, "rev-parse", "main"));
+
+    const v2Diffs = `${f.workspace.projects.projectDir(f.projectId)}/diffs`;
+    assert((await Deno.readTextFile(`${v2Diffs}/${pr.id}.patch`)).includes("grid.ts"));
+    await assertRejects(() => Deno.stat(`${f.dir}/.hx/diffs/${pr.id}.patch`));
+
+    await s.setMeta(pr.id, "merge_sha", "0".repeat(40));
+    const saved = await s.pullRequestDiff(pr.id);
+    assertEquals(saved.source, "snapshot");
+    assertEquals(saved.files.map((x) => x.path), ["grid.ts"]);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("a v2 project without a repo_path refuses git tools", async () => {
+  const f = await repoFixture();
+  try {
+    const s = f.service;
+    await migrateToV2(f.dir, f.workspace.projects, f.workspace);
+    await f.workspace.projects.file(f.projectId).mutate((hexes) => {
+      const p = hexes.find((h) => h.id === f.projectId)!;
+      delete p.meta?.repo_path;
+    });
+    const err = await assertRejects(() => s.startWork(f.storyId), DomainError, "no repo_path");
+    assertEquals(err.status, 409);
+  } finally {
     await f.cleanup();
   }
 });

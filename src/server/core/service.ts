@@ -73,7 +73,7 @@ import { DomainError } from "./errors.ts";
 import { Git } from "./git.ts";
 import { derivePrefix, generateId } from "./ids.ts";
 import { ensureMigrated } from "./migrate.ts";
-import { HexFile } from "./store.ts";
+import { HexFile, ProjectFile } from "./store.ts";
 import { gitInit, resolveDir, type Workspace } from "./workspace.ts";
 
 export interface SearchQuery {
@@ -852,11 +852,34 @@ export class HexService {
 
   // ── branches & pull requests ─────────────────────────────────────────────
 
-  /** Git for the open workspace, after the checks every branch operation needs. */
+  /**
+   * Where git runs and merged patches are kept for the project being worked on: a v2 project's
+   * repo_path and `~/.hx/projects/<id>/diffs`; for v1, the folder holding `.hx/` and its
+   * `.hx/diffs`.
+   */
+  private async repo(): Promise<{ dir: string; diffs: string; v2: boolean }> {
+    const file = await this.workspace.file();
+    if (file instanceof ProjectFile) {
+      const project = (await file.read()).find((h) => h.id === file.projectId);
+      const dir = repoPathOf(project);
+      if (!dir) {
+        throw new DomainError(
+          `Project ${file.projectId} has no repo_path; set it in the project statement`,
+          409,
+        );
+      }
+      return { dir, diffs: `${file.folder}/diffs`, v2: true };
+    }
+    return { dir: file.dir, diffs: `${file.dir}/.hx/diffs`, v2: false };
+  }
+
+  /** Git for the open project, after the checks every branch operation needs. */
   private async git(): Promise<Git> {
-    const git = new Git((await this.workspace.file()).dir);
+    const repo = await this.repo();
+    const git = new Git(repo.dir);
     await git.assertRepo();
-    await git.assertDataIgnored();
+    // v2 data lives outside the repo, so branch switches cannot touch it.
+    if (!repo.v2) await git.assertDataIgnored();
     return git;
   }
 
@@ -1021,7 +1044,7 @@ export class HexService {
         `${mergeSha}^1`,
         mergeSha,
       );
-      const diffs = `${git.dir}/.hx/diffs`;
+      const { diffs } = await this.repo();
       await Deno.mkdir(diffs, { recursive: true });
       await Deno.writeTextFile(`${diffs}/${id}.patch`, patch + "\n");
       const others = await this.conflictsOfOpenPullRequests(git, target, id);
@@ -1292,8 +1315,8 @@ export class HexService {
     const pr = this.require(idx, id);
     if (pr.kind !== PULL_REQUEST_KIND) throw new DomainError(`${id} is not a pull request`, 422);
     const m = pr.meta ?? {};
-    const dir = (await this.workspace.file()).dir;
-    const git = new Git(dir);
+    const repo = await this.repo();
+    const git = new Git(repo.dir);
     let text: string | null = null;
     let source: PullRequestDiff["source"] = "git";
     const range = pr.status === "merged" && m.merge_sha
@@ -1311,7 +1334,7 @@ export class HexService {
     }
     if (text === null) {
       try {
-        text = await Deno.readTextFile(`${dir}/.hx/diffs/${id}.patch`);
+        text = await Deno.readTextFile(`${repo.diffs}/${id}.patch`);
         source = "snapshot";
       } catch {
         throw new DomainError("This pull request's commits are gone and no saved diff exists", 404);
