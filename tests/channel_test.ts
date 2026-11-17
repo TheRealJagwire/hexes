@@ -8,7 +8,7 @@ import {
 } from "../src/server/core/channels.ts";
 import type { HexService } from "../src/server/core/service.ts";
 import { ChangeWatcher } from "../src/server/core/watcher.ts";
-import { type Fixture, fixture } from "./helpers.ts";
+import { type Fixture, fixture, legacyProject } from "./helpers.ts";
 
 function design(s: HexService, projectId: string, title: string) {
   return s.createHex({
@@ -123,12 +123,7 @@ Deno.test("starting does not replay earlier blessings", async () => {
 
 Deno.test("switching workspace re-baselines without sending", async () => {
   const f = await fixture();
-  const second = await f.service.createProject({
-    dir: `${f.dir}-b`,
-    title: "Second",
-    description: "",
-    gitInit: false,
-  });
+  const second = { projectId: await legacyProject(f.service, `${f.dir}-b`, "Second") };
   const old = await design(f.service, second.projectId!, "Blessed before the channel saw it");
   await f.service.updateHex(old.id, { status: "blessed" });
   await f.workspace.open(f.dir);

@@ -23,12 +23,15 @@ Deno.test("a colliding id grows the new hex's hash and leaves createdAt alone", 
   assert(HEX_ID_RE.test(third));
 });
 
-Deno.test("createProject writes the project and selected_project hexes", async () => {
+Deno.test("a v1 fixture project is selected in its folder", async () => {
   const f = await fixture();
   try {
     const state = await f.service.state();
-    assertEquals(state.dir, f.dir);
-    assertEquals(state.selectedProjectId, f.projectId);
+    assertEquals([state.dir, state.selectedProjectId, state.schemaVersion], [
+      f.dir,
+      f.projectId,
+      1,
+    ]);
     assert(HEX_ID_RE.test(f.projectId));
     assert(f.projectId.startsWith("hx-hexes-"));
     const projects = await f.service.listProjects();
@@ -38,6 +41,51 @@ Deno.test("createProject writes the project and selected_project hexes", async (
       DomainError,
       "already has",
     );
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("createProject writes a v2 project under ~/.hx and leaves the repo clean", async () => {
+  const f = await fixture("Hexes Studio", { v2: true });
+  try {
+    const s = f.service;
+    const file = f.workspace.projects.projectFile(f.projectId);
+    const hexes = JSON.parse(await Deno.readTextFile(file));
+    assertEquals(hexes.length, 1, "only the project hex");
+    assertEquals([hexes[0].id, hexes[0].kind, hexes[0].meta], [f.projectId, "core.project", {
+      schema_version: "2",
+      repo_path: f.dir,
+    }]);
+    assertEquals((await Deno.stat(f.dir)).isDirectory, true);
+    await assertRejects(() => Deno.stat(`${f.dir}/.hx`), Deno.errors.NotFound);
+
+    const state = await s.state();
+    assertEquals([state.selectedProjectId, state.schemaVersion, state.repoPath], [
+      f.projectId,
+      2,
+      f.dir,
+    ]);
+    const [recent] = await f.workspace.recentProjects();
+    assertEquals([recent?.projectId, recent?.dir], [f.projectId, undefined]);
+
+    // The same folder cannot become a second project's repo.
+    const again = await assertRejects(
+      () => s.createProject({ dir: f.dir, title: "Again", description: "", gitInit: false }),
+      DomainError,
+      "already the repo",
+    );
+    assertEquals(again.status, 409);
+
+    // Another title with the same leading word gets a fresh prefix.
+    const { projectId: other } = await s.createProject({
+      dir: `${f.dir}-2`,
+      title: "Hexes Two",
+      description: "",
+      gitInit: false,
+    });
+    assert(other.startsWith("hx-hexes2-"), other);
+    assertEquals(await s.selectedProjectId(), other);
   } finally {
     await f.cleanup();
   }

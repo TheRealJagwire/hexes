@@ -6,7 +6,7 @@ import { createApp } from "../src/server/app.ts";
 import { DomainError } from "../src/server/core/errors.ts";
 import { HexService } from "../src/server/core/service.ts";
 import { Workspace } from "../src/server/core/workspace.ts";
-import { fixture } from "./helpers.ts";
+import { fixture, legacyProject } from "./helpers.ts";
 
 const ids = (w: Workspace) => w.recentProjects().then((l) => l.map((e) => e.projectId));
 
@@ -18,12 +18,7 @@ Deno.test("creating, opening and selecting projects records them, newest first",
     assertEquals([alpha?.dir, alpha?.projectId, alpha?.title], [f.dir, f.projectId, "Alpha"]);
 
     const betaDir = f.dir.replace(/\/proj$/, "/beta");
-    const { projectId: beta } = await s.createProject({
-      dir: betaDir,
-      title: "Beta",
-      description: "",
-      gitInit: false,
-    });
+    const beta = await legacyProject(s, betaDir, "Beta");
     assertEquals(await ids(f.workspace), [beta, f.projectId]);
 
     // Opening Alpha's folder brings its selected project back to the front, once.
@@ -92,12 +87,7 @@ Deno.test("recent projects switch folders in one step and notice what is gone", 
   try {
     const s = f.service;
     const betaDir = f.dir.replace(/\/proj$/, "/beta");
-    const { projectId: beta } = await s.createProject({
-      dir: betaDir,
-      title: "Beta",
-      description: "",
-      gitInit: false,
-    });
+    const beta = await legacyProject(s, betaDir, "Beta");
     let list = await s.recentProjects();
     assertEquals(list.map((r) => [r.title, r.folder, r.found, r.current, r.switchable]), [
       ["Beta", "beta", true, true, true],
@@ -131,12 +121,7 @@ Deno.test("while pinned, other folders' recent projects cannot be switched to", 
   const f = await fixture("Alpha");
   try {
     const betaDir = f.dir.replace(/\/proj$/, "/beta");
-    const { projectId: beta } = await f.service.createProject({
-      dir: betaDir,
-      title: "Beta",
-      description: "",
-      gitInit: false,
-    });
+    const beta = await legacyProject(f.service, betaDir, "Beta");
     const pinned = new HexService(
       new Workspace({ pinnedDir: f.dir, stateFile: f.workspace.stateFile }),
     );
@@ -161,12 +146,7 @@ Deno.test("recent projects over REST and MCP", async () => {
   await client.connect(clientT);
   try {
     const betaDir = f.dir.replace(/\/proj$/, "/beta");
-    const { projectId: beta } = await f.service.createProject({
-      dir: betaDir,
-      title: "Beta",
-      description: "",
-      gitInit: false,
-    });
+    const beta = await legacyProject(f.service, betaDir, "Beta");
     const app = createApp(f.service);
     const call = async (method: string, path: string, body?: unknown) => {
       const res = await app.request(`/api${path}`, {
