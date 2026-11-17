@@ -44,7 +44,7 @@ export function apiRoutes(
 ): Hono {
   const api = new Hono();
   const channelsState = async (): Promise<ChannelsState> => {
-    const dir = await service.workspace.current().catch(() => null);
+    const dir = await service.workspace.dataDir().catch(() => null);
     return { channels: dir ? await readChannels(dir) : [] };
   };
 
