@@ -91,6 +91,10 @@ class ApiClient(
     suspend fun projects(): List<ProjectSummary> =
         get("/api/projects", ListSerializer(ProjectSummary.serializer()))
 
+    /** Repository seeds offered to fork from (read-only here; managed in Studio). */
+    suspend fun seeds(): List<SeedView> =
+        get("/api/seeds", ListSerializer(SeedView.serializer()))
+
     suspend fun recentProjects(): List<RecentProject> =
         get("/api/projects/recent", ListSerializer(RecentProject.serializer()))
 

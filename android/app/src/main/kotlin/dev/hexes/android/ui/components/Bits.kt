@@ -67,7 +67,7 @@ val Mono = FontFamily.Monospace
 fun statusColors(status: Status): Pair<Color, Color> {
     val c = Hexes.colors
     return when (status) {
-        Status.Ready -> c.ready to c.readyBg
+        Status.Ready, Status.Available -> c.ready to c.readyBg
         Status.Published -> c.published to c.publishedBg
         Status.Draft -> c.draft to c.draftBg
         Status.InProgress, Status.InReview -> c.accent to c.accentBg

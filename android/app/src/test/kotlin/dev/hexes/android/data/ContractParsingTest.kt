@@ -91,6 +91,16 @@ class ContractParsingTest {
     }
 
     @Test
+    fun seeds() {
+        val seeds = parse("seeds", ListSerializer(SeedView.serializer()))
+        assertEquals(1, seeds.size)
+        assertEquals("Deno starter", seeds[0].hex.title)
+        assertEquals(Status.Available, seeds[0].hex.status)
+        assertEquals("https://example.com/deno-starter.git", seeds[0].gitUrl)
+        assertEquals("main", seeds[0].branch)
+    }
+
+    @Test
     fun statuses() {
         val table = parse("statuses", StatusTable.serializer())
         assertEquals(listOf(Status.Blocked, Status.InProgress, Status.Blessed, Status.Done), table.allowed("core.design"))

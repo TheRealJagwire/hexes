@@ -36,6 +36,7 @@ import dev.hexes.android.ui.diff.DiffScreen
 import dev.hexes.android.ui.hex.HexScreen
 import dev.hexes.android.ui.project.ProjectScreen
 import dev.hexes.android.ui.projects.ProjectsScreen
+import dev.hexes.android.ui.projects.SeedsScreen
 import dev.hexes.android.ui.settings.SettingsScreen
 import dev.hexes.android.ui.theme.Hexes
 import dev.hexes.android.ui.welcome.WelcomeScreen
@@ -49,6 +50,7 @@ object Routes {
     const val Settings = "settings"
     const val Welcome = "welcome"
     const val Projects = "projects"
+    const val Seeds = "seeds"
     const val ProjectPattern = "project/{id}"
     const val HexPattern = "hex/{id}"
     const val DiffPattern = "hex/{id}/diff/{pr}"
@@ -107,8 +109,10 @@ fun HexesNavHost() {
                     onOpenProject = { nav.navigate(Routes.project(it)) },
                     onSettings = { nav.navigate(Routes.Settings) },
                     onSwitchFolder = { nav.navigate(Routes.Welcome) },
+                    onSeeds = { nav.navigate(Routes.Seeds) },
                 )
             }
+            composable(Routes.Seeds) { SeedsScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.ProjectPattern, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                 val id = it.arguments?.getString("id").orEmpty()
                 ProjectScreen(
