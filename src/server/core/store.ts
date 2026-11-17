@@ -3,12 +3,17 @@ import { DomainError } from "./errors.ts";
 
 const locks = new Map<string, Promise<unknown>>();
 
-/** The `.hx/data.json` file of one project directory. Every operation re-reads from disk. */
-export class HexFile {
-  readonly path: string;
+/** A hex list on disk at `path`. Every operation re-reads from disk. */
+export class DataFile {
+  constructor(readonly path: string) {}
 
-  constructor(readonly dir: string) {
-    this.path = `${dir}/.hx/data.json`;
+  /** The folder holding the file. */
+  get folder(): string {
+    return this.path.replace(/\/[^/]*$/, "");
+  }
+
+  protected notFound(): string {
+    return `No data file at ${this.path}`;
   }
 
   async exists(): Promise<boolean> {
@@ -25,9 +30,7 @@ export class HexFile {
     try {
       text = await Deno.readTextFile(this.path);
     } catch (e) {
-      if (e instanceof Deno.errors.NotFound) {
-        throw new DomainError(`No .hx/data.json in ${this.dir}`, 404);
-      }
+      if (e instanceof Deno.errors.NotFound) throw new DomainError(this.notFound(), 404);
       throw e;
     }
     let json: unknown;
@@ -67,9 +70,71 @@ export class HexFile {
   }
 
   private async write(hexes: Hex[]): Promise<void> {
-    await Deno.mkdir(`${this.dir}/.hx`, { recursive: true });
+    await Deno.mkdir(this.folder, { recursive: true });
     const tmp = `${this.path}.${crypto.randomUUID().slice(0, 8)}.tmp`;
     await Deno.writeTextFile(tmp, JSON.stringify(hexes, null, 2) + "\n");
     await Deno.rename(tmp, this.path);
+  }
+}
+
+/** The v1 `.hx/data.json` file of one project directory. */
+export class HexFile extends DataFile {
+  constructor(readonly dir: string) {
+    super(`${dir}/.hx/data.json`);
+  }
+
+  protected override notFound(): string {
+    return `No .hx/data.json in ${this.dir}`;
+  }
+}
+
+function homeDir(): string {
+  return Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? "/";
+}
+
+/** The root of per-user hex data: `$HEXES_HOME`, else `~/.hx`. */
+export function hexesHome(): string {
+  return (Deno.env.get("HEXES_HOME") || `${homeDir()}/.hx`).replace(/\/+$/, "");
+}
+
+/**
+ * Schema-version-2 storage: one folder per project, `<home>/projects/<id>/data.json`, holding
+ * only that project's hexes.
+ */
+export class ProjectStore {
+  readonly home: string;
+
+  constructor(home: string = hexesHome()) {
+    this.home = home.replace(/\/+$/, "");
+  }
+
+  get projectsDir(): string {
+    return `${this.home}/projects`;
+  }
+
+  projectDir(id: string): string {
+    return `${this.projectsDir}/${id}`;
+  }
+
+  projectFile(id: string): string {
+    return `${this.projectDir(id)}/data.json`;
+  }
+
+  file(id: string): DataFile {
+    return new DataFile(this.projectFile(id));
+  }
+
+  /** Ids of the projects that have a data file, sorted. */
+  async list(): Promise<string[]> {
+    const ids: string[] = [];
+    try {
+      for await (const entry of Deno.readDir(this.projectsDir)) {
+        if (entry.isDirectory && await this.file(entry.name).exists()) ids.push(entry.name);
+      }
+    } catch (e) {
+      if (e instanceof Deno.errors.NotFound) return [];
+      throw e;
+    }
+    return ids.sort();
   }
 }
