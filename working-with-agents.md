@@ -67,7 +67,14 @@ retrying blindly.
   never assume a fixed length; ids are opaque.
 - **Kinds** are `<category>.<qualifier>`. Core kinds: `core.idea`, `core.project`, `core.design`,
   `core.spec`, `core.decision`, `core.gate`, `core.epic`, `core.story`, `core.substory`, `core.bug`,
-  `core.question`, `core.fact`. Custom kinds are allowed. `studio.selected_project` is internal.
+  `core.question`, `core.fact`. Custom kinds are allowed. `studio.selected_project` is internal (v1
+  files only; a v2 project's selection lives in Studio's per-user state).
+- **Where hexes live**: each project in `~/.hx/projects/<id>/data.json` (`HEXES_HOME` moves the
+  root), with `meta.repo_path` naming the repository its branches and pull requests run in and
+  `meta.schema_version = "2"`. Older (v1) projects still in a repo's `.hx/data.json` keep working
+  and show `needsMigration: true`; moving them is a person's choice from Studio's prompt (the old
+  file is kept as `.hx/data.json.migrated-v1`). There is no migrate tool. Never edit the data files
+  directly; use the tools.
 - **Statuses** depend on the kind. Projects, epics, gates and decisions go `blocked` → `ready` →
   `in_progress` → `verified` → `done`. These kinds differ:
   - **Work** (story, substory, bug, custom kinds): `blocked` → `ready` → `in_progress` → `in_review`
@@ -125,7 +132,8 @@ retrying blindly.
      with its dependents unblocked. No status change follows.
   - Hexes runs git in the project's own repository. Merges never switch branches: a branch that is
     checked out is merged in place and must have no uncommitted changes to tracked files; any other
-    branch is merged without touching a working tree. `.hx/` must be in `.gitignore`.
+    branch is merged without touching a working tree. Git runs in the project's `meta.repo_path`
+    (refused with a 409 when it has none); a v1 project's `.hx/` must be in `.gitignore`.
   - Other open PRs do not need updating after a merge: a branch merely behind main merges fine. Each
     merge checks them, and only those that now conflict get `meta.merge_conflicts` (the files).
     `update_pull_request_branch` merges main into such a branch; if that conflicts too, switch to
@@ -138,9 +146,9 @@ retrying blindly.
   depends on that idea; designs own decisions and specs. Gates are the project's milestones and are
   set up before any epic: each depends on the gate before it and on its epics, and every epic
   belongs to one gate. Epics depend on designs, specs and stories; stories may have substories;
-  facts depend on the project and on what they are about. A _dependency_ means "must be done
-  first", except for a fact, whose dependencies say what it is about. Nothing should depend on a
-  fact as a prerequisite.
+  facts depend on the project and on what they are about. A _dependency_ means "must be done first",
+  except for a fact, whose dependencies say what it is about. Nothing should depend on a fact as a
+  prerequisite.
 
 ## Part 1: Tool definitions
 
@@ -148,16 +156,16 @@ Annotations: **R** = read-only (safe to auto-approve), **W** = write, **D** = de
 
 ### Workspace & projects
 
-| Tool                   | Kind | Input                                           | Purpose                                                                                                                                                                  |
-| ---------------------- | ---- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `get_workspace`        | R    | –                                               | Which directory is open and which project is selected. Start here.                                                                                                       |
-| `open_workspace`       | W    | `dir`                                           | Open a directory containing `.hx/data.json` (`~` expanded).                                                                                                              |
-| `create_project`       | W    | `dir`, `title`, `statement=""`, `git_init=true` | Write `.hx/data.json` with a `core.project` hex; `statement` becomes its description.                                                                                    |
-| `list_projects`        | R    | –                                               | All `core.project` hexes with epic/story counts.                                                                                                                         |
-| `get_selected_project` | R    | –                                               | The selected project hex, or `null`.                                                                                                                                     |
-| `select_project`       | W    | `project_id`                                    | Make a project the selected one.                                                                                                                                         |
-| `list_recent_projects` | R    | –                                               | Projects opened recently in any folder, newest first, with whether each is still found and can be switched to.                                                           |
-| `open_recent_project`  | W    | `dir`, `project_id`                             | Switch to a recent project in one step: opens its folder if needed and selects it.                                                                                       |
+| Tool                   | Kind | Input                                           | Purpose                                                                                                                                                                                           |
+| ---------------------- | ---- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_workspace`        | R    | –                                               | The selected project, its `schemaVersion` (2: `~/.hx/projects/<id>`; 1: a repo's `.hx/data.json`), `repoPath` and `dataPath`. Start here.                                                         |
+| `open_workspace`       | W    | `dir`                                           | Open a v1 directory containing `.hx/data.json` (`~` expanded). Projects in `~/.hx/projects` are opened with `select_project`.                                                                     |
+| `create_project`       | W    | `dir`, `title`, `statement=""`, `git_init=true` | Write `~/.hx/projects/<id>/data.json` with a `core.project` hex (`meta.repo_path = dir`, `meta.schema_version = "2"`) and select it; `statement` becomes its description.                         |
+| `list_projects`        | R    | –                                               | Every project with epic/story counts: those in `~/.hx/projects`, then v1 ones with `needsMigration: true`.                                                                                        |
+| `get_selected_project` | R    | –                                               | The selected project hex, or `null`.                                                                                                                                                              |
+| `select_project`       | W    | `project_id`                                    | Make a project the selected one.                                                                                                                                                                  |
+| `list_recent_projects` | R    | –                                               | Projects opened recently in any folder, newest first, with whether each is still found and can be switched to.                                                                                    |
+| `open_recent_project`  | W    | `dir=""`, `project_id`                          | Switch to a recent project in one step: a v2 one by id; a v1 one opens its folder if needed and selects it.                                                                                       |
 | `get_project`          | R    | `project_id`                                    | Project screen as data: gates (milestone order), designs, decisions, epics (each with gate, `progress {done,total,pct}`, stories sorted in_review → in_progress → ready → blocked → merged/done). |
 
 ### Hexes
@@ -274,11 +282,11 @@ description: Get oriented in a Hexes workspace — find the open project, its st
    `list_recent_projects` and `open_recent_project` switch to it in one step.
 3. `get_project` for the overview: gates (milestones, in order), designs, decisions, epic progress.
 4. `get_ready_hexes_for_project` for the actionable queue.
-5. Summarize: project statement, the milestones (which are done and which is current: the first
-   gate not `done`), epic progress, and the ready hexes (id, kind, title), calling out any published
+5. Summarize: project statement, the milestones (which are done and which is current: the first gate
+   not `done`), epic progress, and the ready hexes (id, kind, title), calling out any published
    ideas waiting for a design. If the project has no gates yet, say so: they are set up (with
-   `hexes-plan-work`) before any epic is created. The user can watch changes land in Studio as you make
-   them.
+   `hexes-plan-work`) before any epic is created. The user can watch changes land in Studio as you
+   make them.
 
 Read-only except for selecting a project. Never create or change hexes while orienting.
 ```

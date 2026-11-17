@@ -1,9 +1,10 @@
 # Hexes Studio
 
 Track a project as **hexes**: atomic tracked things (project, design, spec, decision, gate, epic,
-story, substory, bug, fact…) stored in `.hx/data.json`. Studio is the UI; an MCP server exposes the
-same actions to agents. See `design/SPEC.md` for the product spec and `questions.md` for the
-decisions made along the way.
+story, substory, bug, fact…) stored per project in `~/.hx/projects/<id>/data.json` (see
+[Where hexes live](#where-hexes-live)). Studio is the UI; an MCP server exposes the same actions to
+agents. See `design/SPEC.md` for the product spec and `questions.md` for the decisions made along
+the way.
 
 Stack: Deno 2, Hono, Preact 11 + signals, Tailwind CSS 4, strict TypeScript, MCP SDK + zod, and
 [Zuke](https://jsr.io/@zuke/core) for the build.
@@ -67,13 +68,41 @@ both directions but never through the project, ordered by distance and each with
 reached it. `file=<repo path>` keeps facts whose `meta.files` lists it, `query=` matches titles as
 hex search does, and `include_retired=1` adds retired facts. Filters combine.
 
+## Where hexes live
+
+Each project has its own folder outside any repository (schema version 2):
+
+```
+~/.hx/projects/<project-id>/
+  data.json          the project hex and every hex of that project
+  diffs/<pr>.patch   what each merged pull request changed, kept in case the commits disappear
+  channels/          one file per listening hexes-channel process
+```
+
+`HEXES_HOME` moves the `~/.hx` root (tests use it). The project hex records where its code lives and
+which layout it uses in its meta: `repo_path` (the git working tree that branches, pull requests and
+merges run in) and `schema_version` (`"2"`). Creating a project writes this folder and sets
+`repo_path` to the folder you chose; nothing is written into the repository.
+
+Older projects (schema version 1) kept their hexes in the repository, in `<repo>/.hx/data.json`,
+several projects to a file. Studio still opens them, tags them "v1" in the project list, and when
+one is open shows a notification: "Move this project's data to ~/.hx/projects?". **Migrate** splits
+the file into one folder per project (with `repo_path` set to that repository and its saved diffs
+copied over), selects the moved project and reloads; **Not now** hides the offer until you open the
+project again. Migration is all or nothing: it stops before writing if a target folder already
+exists, removes what it wrote if anything fails, and only then renames the old file to
+`<repo>/.hx/data.json.migrated-v1`, which stays as a backup for you to delete. Only a person
+migrates: agents have no tool for it. `HEXES_DIR` pins Studio to one v1 folder (tests and old
+setups); while it is set, the `~/.hx` projects are not used and migration is refused.
+
 ## Per-user state
 
-Studio remembers, per user, the folder it last opened, recent folders and recently opened projects
-(`recentProjects`: folder, project id, title and when, newest first, at most 10). They live in
+Studio remembers, per user, the selected project (`selectedProjectId`, for one in `~/.hx/projects`),
+the v1 folder it last opened, recent folders and recently opened projects (`recentProjects`: project
+id, title and when, plus the folder for a v1 project; newest first, at most 10). They live in
 `~/.config/hexes/state.json` (under `$XDG_CONFIG_HOME` when set; `HEXES_STATE_FILE` overrides the
-path), never in a project's repository. The projects screen lists recent projects from every folder,
-so switching to one in another folder takes a single click.
+path), never in a project's repository. The projects screen lists every project, so switching to one
+takes a single click.
 
 ## Branches and pull requests
 
@@ -85,13 +114,14 @@ own status shows where it stands: opening a pull request makes it `in_review`, m
 `merged` (and unblocks what waits on it), and closing an unmerged one puts it back to `in_progress`.
 Only pull requests set `in_review` and `merged`; the status menus don't offer them, and a hex with a
 branch can't be marked `done` by hand. Each epic on the project page counts its stories in review.
-Hexes runs git in the project's own repository, so `.hx/` must be in `.gitignore` and uncommitted
-changes block a switch. Merging never switches branches: a branch that is checked out is merged in
-place (and must be clean), any other without touching a working tree. Other open pull requests don't
-need updating after a merge; only those that now conflict with main are flagged, and "Update from
-main" merges main into a pull request's branch the same switch-free way. After a merge, the work hex
-links to a diff view of what landed; the diff is also saved under `.hx/diffs/` in case the commits
-disappear.
+Hexes runs git in the project's repository (its `repo_path`; for a v1 project, the folder holding
+`.hx/`, which must then be in `.gitignore`), and uncommitted changes block a switch. Merging never
+switches branches: a branch that is checked out is merged in place (and must be clean), any other
+without touching a working tree. Other open pull requests don't need updating after a merge; only
+those that now conflict with main are flagged, and "Update from main" merges main into a pull
+request's branch the same switch-free way. After a merge, the work hex links to a diff view of what
+landed; the diff is also saved in the project's `diffs/` folder (for a v1 project, `.hx/diffs/`) in
+case the commits disappear.
 
 ## Auto-merge
 
@@ -137,9 +167,9 @@ first, and the dependency links between them.
 ## MCP server
 
 Studio serves MCP itself over streamable HTTP at `http://localhost:8000/mcp`, sharing one service
-with the UI, and `.mcp.json` points Claude Code at it (start Studio first). It works on the folder
-last opened in Studio, or on `HEXES_DIR` if set. The stdio entry (`deno task mcp`) still exists for
-clients that need a spawned process.
+with the UI, and `.mcp.json` points Claude Code at it (start Studio first). It works on the project
+selected in Studio (or, for a v1 project, the folder last opened), or on `HEXES_DIR` if set. The
+stdio entry (`deno task mcp`) still exists for clients that need a spawned process.
 
 ## Waking the agent
 
@@ -219,7 +249,7 @@ and back it up: an update must be signed with the same key to install over the o
 
 ```
 src/shared/   zod schemas, constants and the pure graph logic (ready, progress, breadcrumbs)
-src/server/   core/ (store, workspace, HexService), routes/ (Hono API), guard.ts, app.ts
+src/server/   core/ (store, workspace, HexService, migrate_v2), routes/ (Hono API), guard.ts, app.ts
 src/mcp/      tool definitions (tools/), the stdio entry and hexes-channel
 src/client/   Preact app: screens/, components/, lib/, styles/app.css (theme tokens)
 tests/        deno test
