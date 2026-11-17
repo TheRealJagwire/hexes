@@ -81,7 +81,7 @@ Deno.test("ideas are drafted and published by people, and never wait on dependen
     assert(!wf.statuses.includes("draft") && !wf.statuses.includes("published"), kind);
     assert(
       waitsOnDependencies(kind === "default" ? "x.task" : kind) ||
-        kind === "core.pull_request" || kind === "core.fact",
+        kind === "core.pull_request" || kind === "core.fact" || kind === "core.seed",
     );
   }
 });
@@ -143,11 +143,14 @@ Deno.test("facts are known or retired, by anyone, and never wait on what they ar
   }
   for (const [kind, wf] of workflows()) {
     if (kind === "core.fact") continue;
-    assert(!wf.statuses.includes("known") && !wf.statuses.includes("retired"), kind);
+    assert(!wf.statuses.includes("known"), kind);
+    // Seeds are retired too, when no longer offered.
+    if (kind !== "core.seed") assert(!wf.statuses.includes("retired"), kind);
   }
   // A new hex starts blocked, unless its kind has no blocked.
   assertEquals(defaultStatus("core.story"), "blocked");
   assertEquals(defaultStatus("core.design"), "blocked");
   assertEquals(defaultStatus("core.fact"), "known");
   assertEquals(defaultStatus("core.idea"), "draft");
+  assertEquals(defaultStatus("core.seed"), "available");
 });

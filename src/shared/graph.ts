@@ -4,6 +4,9 @@ import {
   roleOf,
   satisfies,
   SCHEMA_VERSION_KEY,
+  SEED_DESCRIPTION_LIMIT,
+  SEED_GIT_URL_KEY,
+  SEED_KIND,
   SELECTED_PROJECT_KIND,
   type Status,
   STATUSES,
@@ -122,6 +125,16 @@ export function repoPathOf(project: Hex | undefined): string | null {
   return project?.meta?.[REPO_PATH_KEY] || null;
 }
 
+/** What is wrong with a seed as written: an over-long description, a missing git URL. */
+export function seedWarnings(seed: Pick<Hex, "description" | "meta">): string[] {
+  const warnings: string[] = [];
+  if (seed.description.length > SEED_DESCRIPTION_LIMIT) {
+    warnings.push(`description is over ${SEED_DESCRIPTION_LIMIT} characters`);
+  }
+  if (!seed.meta?.[SEED_GIT_URL_KEY]) warnings.push(`meta.${SEED_GIT_URL_KEY} is missing`);
+  return warnings;
+}
+
 /** The meta key set on an archived epic: the ISO time it was archived. */
 export const ARCHIVED_KEY = "archived";
 
@@ -153,6 +166,7 @@ const NOT_WORK = new Set([
   "core.question",
   IDEA_KIND,
   FACT_KIND,
+  SEED_KIND,
   PULL_REQUEST_KIND,
 ]);
 
@@ -184,6 +198,7 @@ const STORY_ORDER: Record<Status, number> = {
   ready: 3,
   blessed: 3,
   published: 3,
+  available: 3,
   blocked: 4,
   draft: 4,
   done: 5,
@@ -306,6 +321,7 @@ const SUMMARY_ORDER: Record<Status, number> = {
   in_progress: 7,
   blessed: 8,
   published: 9,
+  available: 9,
   ready: 10,
   draft: 11,
   blocked: 12,

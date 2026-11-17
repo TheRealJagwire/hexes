@@ -131,6 +131,15 @@ export class ProjectStore {
     return new DataFile(this.projectFile(id));
   }
 
+  /** The repository seeds shared by every project: `<home>/seeds/data.json`. */
+  get seedsFile(): string {
+    return `${this.home}/seeds/data.json`;
+  }
+
+  seeds(): DataFile {
+    return new DataFile(this.seedsFile);
+  }
+
   /** Ids of the projects that have a data file, sorted. */
   async list(): Promise<string[]> {
     const ids: string[] = [];

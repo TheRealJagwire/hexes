@@ -40,6 +40,7 @@ const COLOURS: Record<Status, [string, string]> = {
   retired: ["--muted", "--line-soft"],
   draft: ["--draft", "--draft-bg"],
   published: ["--published", "--published-bg"],
+  available: ["--ready", "--ready-bg"],
 };
 
 const KIND_LABELS: Record<string, string> = {

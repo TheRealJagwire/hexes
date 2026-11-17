@@ -61,6 +61,10 @@
       "retired": {
         "role": "terminal",
         "satisfies": false
+      },
+      "available": {
+        "role": "actionable",
+        "satisfies": true
       }
     },
     "kinds": {
@@ -142,6 +146,13 @@
       "core.fact": {
         "statuses": [
           "known",
+          "retired"
+        ],
+        "promoteTo": null
+      },
+      "core.seed": {
+        "statuses": [
+          "available",
           "retired"
         ],
         "promoteTo": null
