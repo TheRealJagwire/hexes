@@ -1,7 +1,9 @@
 import {
   HEX_ID_RE,
+  REPO_PATH_KEY,
   roleOf,
   satisfies,
+  SCHEMA_VERSION_KEY,
   SELECTED_PROJECT_KIND,
   type Status,
   STATUSES,
@@ -107,6 +109,17 @@ export const AUTO_MERGE_KEY = "auto_merge";
  */
 export function autoMergeOn(project: Hex | undefined): boolean {
   return project?.meta?.[AUTO_MERGE_KEY] !== "off";
+}
+
+/** A project's data-file schema version: `meta.schema_version`, or 1 when it has none. */
+export function schemaVersionOf(project: Hex | undefined): number {
+  const n = Number.parseInt(project?.meta?.[SCHEMA_VERSION_KEY] ?? "", 10);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+/** The git working tree a project works on (`meta.repo_path`), or null when it is not set. */
+export function repoPathOf(project: Hex | undefined): string | null {
+  return project?.meta?.[REPO_PATH_KEY] || null;
 }
 
 /** The meta key set on an archived epic: the ISO time it was archived. */

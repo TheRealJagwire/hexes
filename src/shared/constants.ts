@@ -155,6 +155,12 @@ export const CORE_KINDS = [
   "pull_request",
 ] as const;
 
+/** The data-file schema written by this version: per-project folders under ~/.hx/projects. */
+export const SCHEMA_VERSION = "2";
+/** Project meta keys: the schema version of its data file, and its git working tree. */
+export const SCHEMA_VERSION_KEY = "schema_version";
+export const REPO_PATH_KEY = "repo_path";
+
 export const SELECTED_PROJECT_KIND = "studio.selected_project";
 export const SELECTED_PROJECT_PREFIX = "studio";
 
