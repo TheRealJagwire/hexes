@@ -176,6 +176,8 @@ export const SEED_PREFIX = "seed";
 export const SEED_DESCRIPTION_LIMIT = 600;
 export const SEED_GIT_URL_KEY = "git_url";
 export const SEED_BRANCH_KEY = "branch";
+/** Project meta key: the seed (`hx-seed-…`) its repository was forked from. */
+export const REPO_REF_KEY = "repo_ref_hx";
 
 export const SELECTED_PROJECT_KIND = "studio.selected_project";
 export const SELECTED_PROJECT_PREFIX = "studio";
