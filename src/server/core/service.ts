@@ -26,6 +26,7 @@ import {
   readyHexes,
   reconcileReadiness,
   repoPathOf,
+  seedWarnings,
   sortEpics,
   sortGates,
   summarize,
@@ -39,16 +40,22 @@ import {
   satisfies,
   SCHEMA_VERSION,
   SCHEMA_VERSION_KEY,
+  SEED_BRANCH_KEY,
+  SEED_GIT_URL_KEY,
+  SEED_KIND,
+  SEED_PREFIX,
   waitsOnDependencies,
 } from "../../shared/constants.ts";
 import {
   type CreateHexRequest,
   type CreateProjectRequest,
+  type CreateSeedRequest,
   type Hex,
   SELECTED_PROJECT_KIND,
   SELECTED_PROJECT_PREFIX,
   type Status,
   type UpdateHexRequest,
+  type UpdateSeedRequest,
 } from "../../shared/schemas.ts";
 import type {
   CreateProjectResult,
@@ -67,6 +74,7 @@ import type {
   PullRequestDiff,
   RecentProject,
   RecentWorkspace,
+  SeedView,
   WorkspaceState,
 } from "../../shared/views.ts";
 import { parseUnifiedDiff } from "../../shared/diff.ts";
@@ -302,6 +310,69 @@ export class HexService {
     await this.workspace.selectV2(project.id);
     await this.recordRecent(undefined, project);
     return { projectId: project.id, warnings };
+  }
+
+  // ── repository seeds ─────────────────────────────────────────────────────
+  // Shared by every project, in ~/.hx/seeds/data.json: never in a project's file.
+
+  /** Available seeds, oldest first; retired ones too with `includeRetired`. */
+  async listSeeds(opts: { includeRetired?: boolean | undefined } = {}): Promise<SeedView[]> {
+    const file = this.workspace.projects.seeds();
+    const hexes = await file.exists() ? await file.read() : [];
+    return hexes
+      .filter((h) => h.kind === SEED_KIND && (opts.includeRetired || h.status === "available"))
+      .sort(byCreated)
+      .map(seedView);
+  }
+
+  async createSeed(req: CreateSeedRequest): Promise<SeedView> {
+    const gitUrl = req.gitUrl.trim();
+    if (!gitUrl) throw new DomainError("A seed needs a git URL", 400);
+    const t = this.now();
+    const seed = await this.workspace.projects.seeds().mutate((hexes) =>
+      this.newHex(hexes, {
+        prefix: SEED_PREFIX,
+        kind: SEED_KIND,
+        title: req.title,
+        description: req.description,
+        status: "available",
+        createdAt: t,
+        meta: { [SEED_GIT_URL_KEY]: gitUrl, [SEED_BRANCH_KEY]: req.branch?.trim() || "main" },
+      }), { create: true });
+    return seedView(seed);
+  }
+
+  async updateSeed(id: string, patch: UpdateSeedRequest): Promise<SeedView> {
+    return seedView(
+      await this.mutateSeed(id, (seed) => {
+        if (patch.title !== undefined) seed.title = patch.title;
+        if (patch.description !== undefined) seed.description = patch.description;
+        const meta = { ...seed.meta };
+        if (patch.gitUrl !== undefined) meta[SEED_GIT_URL_KEY] = patch.gitUrl;
+        if (patch.branch !== undefined) meta[SEED_BRANCH_KEY] = patch.branch;
+        seed.meta = meta;
+      }),
+    );
+  }
+
+  /** Stops offering a seed; `restore` offers it again. */
+  async retireSeed(id: string, restore = false): Promise<SeedView> {
+    return seedView(
+      await this.mutateSeed(id, (seed) => {
+        seed.status = restore ? "available" : "retired";
+      }),
+    );
+  }
+
+  private mutateSeed(id: string, fn: (seed: Hex) => void): Promise<Hex> {
+    return this.workspace.projects.seeds().mutate((hexes) => {
+      const seed = hexes.find((h) => h.id === id && h.kind === SEED_KIND);
+      if (!seed) throw new DomainError(`No seed with id ${id}`, 404);
+      const before = JSON.stringify(seed);
+      fn(seed);
+      if (JSON.stringify(seed) !== before) seed.lastUpdatedAtTimeInMs = this.now();
+      return seed;
+    }, { create: true });
   }
 
   // ── projects ─────────────────────────────────────────────────────────────
@@ -1600,4 +1671,13 @@ function initials(title: string): string {
     ? (words[0]?.[0] ?? "") + (words[1]?.[0] ?? "")
     : (words[0] ?? "?").slice(0, 2);
   return letters.toUpperCase();
+}
+
+function seedView(hex: Hex): SeedView {
+  return {
+    hex,
+    gitUrl: hex.meta?.[SEED_GIT_URL_KEY] ?? "",
+    branch: hex.meta?.[SEED_BRANCH_KEY] ?? "main",
+    warnings: seedWarnings(hex),
+  };
 }

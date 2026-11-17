@@ -48,6 +48,14 @@ export interface InspectResult {
   error?: string | undefined;
 }
 
+/** A repository seed (`core.seed`) with what is wrong with it as written. */
+export interface SeedView {
+  hex: Hex;
+  gitUrl: string;
+  branch: string;
+  warnings: string[];
+}
+
 export interface ProjectSummary {
   id: string;
   title: string;

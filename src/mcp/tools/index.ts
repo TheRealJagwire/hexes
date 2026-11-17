@@ -173,6 +173,60 @@ export function buildTools(s: HexService) {
         s.facts(project_id, { near, depth, file, query, includeRetired: include_retired }),
     }),
 
+    // ── repository seeds ─────────────────────────────────────────────────
+    defineTool({
+      name: "list_seeds",
+      description:
+        "Repository seeds (core.seed): git repositories shared by every project that a new " +
+        "project can be forked from. Each has a short description of its stack, what works out " +
+        "of the box and what it fits; use it to judge fit. Only available seeds unless " +
+        "include_retired.",
+      kind: "read",
+      input: z.object({ include_retired: z.boolean().optional() }),
+      run: ({ include_retired }) => s.listSeeds({ includeRetired: include_retired }),
+    }),
+    defineTool({
+      name: "create_seed",
+      description:
+        "Add a repository seed, shared across projects. Keep the description to about 5 lines: " +
+        "the stack, what works out of the box, and what it is a good and a poor fit for (over " +
+        "600 characters is flagged in warnings). git_url is anything git clone accepts.",
+      kind: "write",
+      input: z.object({
+        title: z.string().min(1),
+        description: z.string().default(""),
+        git_url: z.string().min(1),
+        branch: z.string().optional().describe("Defaults to main"),
+      }),
+      run: ({ title, description, git_url, branch }) =>
+        s.createSeed({ title, description, gitUrl: git_url, branch }),
+    }),
+    defineTool({
+      name: "update_seed",
+      description:
+        "Change a repository seed's title, description (about 5 lines), git_url or branch. " +
+        "Only what is given changes.",
+      kind: "write",
+      input: z.object({
+        seed_id: id,
+        title: z.string().min(1).optional(),
+        description: z.string().optional(),
+        git_url: z.string().min(1).optional(),
+        branch: z.string().min(1).optional(),
+      }),
+      run: ({ seed_id, title, description, git_url, branch }) =>
+        s.updateSeed(seed_id, { title, description, gitUrl: git_url, branch }),
+    }),
+    defineTool({
+      name: "retire_seed",
+      description:
+        "Stop offering a repository seed (status retired); restore: true offers it again. " +
+        "Projects already forked from it are unaffected.",
+      kind: "write",
+      input: z.object({ seed_id: id, restore: z.boolean().optional() }),
+      run: ({ seed_id, restore }) => s.retireSeed(seed_id, restore ?? false),
+    }),
+
     // ── hexes ─────────────────────────────────────────────────────────────
     defineTool({
       name: "get_hex_by_id",
