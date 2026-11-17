@@ -70,6 +70,24 @@ export const UpdateHexRequestSchema = z.object({
 });
 export type UpdateHexRequest = z.infer<typeof UpdateHexRequestSchema>;
 
+/** `POST /api/seeds` (MCP `create_seed`). */
+export const CreateSeedRequestSchema = z.object({
+  title: trimmed.min(1, "title is required"),
+  description: z.string().default(""),
+  gitUrl: trimmed.min(1, "git URL is required"),
+  branch: trimmed.optional(),
+});
+export type CreateSeedRequest = z.infer<typeof CreateSeedRequestSchema>;
+
+/** `PATCH /api/seeds/:id` (MCP `update_seed`): only what is given changes. */
+export const UpdateSeedRequestSchema = z.object({
+  title: trimmed.min(1).optional(),
+  description: z.string().optional(),
+  gitUrl: trimmed.min(1).optional(),
+  branch: trimmed.min(1).optional(),
+});
+export type UpdateSeedRequest = z.infer<typeof UpdateSeedRequestSchema>;
+
 export const DirRequestSchema = z.object({ dir: trimmed.min(1, "directory is required") });
 
 export const CreateProjectRequestSchema = z.object({

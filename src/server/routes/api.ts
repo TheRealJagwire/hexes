@@ -4,10 +4,12 @@ import { z, ZodError } from "zod";
 import {
   CreateHexRequestSchema,
   CreateProjectRequestSchema,
+  CreateSeedRequestSchema,
   DirRequestSchema,
   HexIdSchema,
   StatusSchema,
   UpdateHexRequestSchema,
+  UpdateSeedRequestSchema,
 } from "../../shared/schemas.ts";
 import {
   DEFAULT_WORKFLOW,
@@ -173,6 +175,24 @@ export function apiRoutes(
       }),
     );
   });
+  // Repository seeds: shared by every project.
+  api.get("/seeds", async (c) => {
+    const r = c.req.query("retired");
+    return c.json(await service.listSeeds({ includeRetired: r === "1" || r === "true" }));
+  });
+  api.post("/seeds", async (c) => {
+    const req = CreateSeedRequestSchema.parse(await c.req.json());
+    return c.json(await service.createSeed(req), 201);
+  });
+  api.patch("/seeds/:id", async (c) => {
+    const patch = UpdateSeedRequestSchema.parse(await c.req.json());
+    return c.json(await service.updateSeed(c.req.param("id"), patch));
+  });
+  api.post("/seeds/:id/retire", async (c) => c.json(await service.retireSeed(c.req.param("id"))));
+  api.post(
+    "/seeds/:id/restore",
+    async (c) => c.json(await service.retireSeed(c.req.param("id"), true)),
+  );
   api.post("/selected-project", async (c) => {
     const { id } = SelectSchema.parse(await c.req.json());
     await service.selectProject(id);
