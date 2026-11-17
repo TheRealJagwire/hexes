@@ -237,6 +237,9 @@ export function Welcome() {
                 placeholder="~/code/my-project"
                 onBrowse={() => browse(setNewDir, "create")}
               />
+              <span class="-mt-3 text-[13px] text-muted">
+                Leave empty to pick a repository later (fork a seed or choose a folder).
+              </span>
               <div class="flex flex-col gap-2">
                 <label for="new-title" class="label">Project title</label>
                 <input
@@ -292,7 +295,7 @@ export function Welcome() {
               )}
               <button
                 type="submit"
-                disabled={busy !== null || !newDir.trim() || !title.trim() || warnings !== null}
+                disabled={busy !== null || !title.trim() || warnings !== null}
                 class="btn mt-auto h-12 border-[1.5px] border-accent bg-transparent font-semibold text-accent"
               >
                 {busy === "create" ? "Creating…" : "Create project"}

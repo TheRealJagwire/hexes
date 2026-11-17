@@ -13,6 +13,7 @@ import { ProjectScreen } from "../screens/Project.tsx";
 import { HexMapScreen } from "../screens/HexMap.tsx";
 import { DiffScreen } from "../screens/PullRequests.tsx";
 import { Projects } from "../screens/Projects.tsx";
+import { Seeds } from "../screens/Seeds.tsx";
 import { Welcome } from "../screens/Welcome.tsx";
 
 /** `/`: first run → welcome; a selected project → its screen; otherwise the project list. */
@@ -85,6 +86,7 @@ function Routes() {
   if (path === "/") return <Start />;
   if (path === "/welcome") return <Welcome />;
   if (path === "/projects") return <Projects />;
+  if (path === "/seeds") return <Seeds />;
   if ((m = matchPath("/p/:id", path))) return <ProjectScreen id={m.id as string} />;
   if ((m = matchPath("/p/:id/new", path))) {
     return <CreateHex projectId={m.id as string} emergedFrom={query.get("emergedFrom")} />;

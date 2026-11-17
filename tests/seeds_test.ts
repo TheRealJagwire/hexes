@@ -160,3 +160,20 @@ Deno.test("seeds over REST and MCP", async () => {
     await f.cleanup();
   }
 });
+
+Deno.test("a project never takes the seed or studio prefix", async () => {
+  const f = await fixture("Alpha", { v2: true });
+  try {
+    for (const title of ["Seed Demo", "Studio Thing"]) {
+      const { projectId } = await f.service.createProject({
+        dir: "",
+        title,
+        description: "",
+        gitInit: false,
+      });
+      assert(!/^hx-(seed|studio)-/.test(projectId), projectId);
+    }
+  } finally {
+    await f.cleanup();
+  }
+});

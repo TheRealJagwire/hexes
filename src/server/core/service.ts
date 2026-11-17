@@ -276,7 +276,8 @@ export class HexService {
       throw new DomainError(`${dir} already has a .hx/data.json. Open it instead.`, 409);
     }
     const store = this.workspace.projects;
-    const prefixes = new Set<string>();
+    // Reserved prefixes stay off projects: seeds and Studio's own hexes use them.
+    const prefixes = new Set<string>([SEED_PREFIX, SELECTED_PROJECT_PREFIX]);
     for (const id of await store.list()) {
       const prefix = prefixOf(id);
       if (prefix) prefixes.add(prefix);

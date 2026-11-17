@@ -1,8 +1,10 @@
 import type {
   CreateHexRequest,
   CreateProjectRequest,
+  CreateSeedRequest,
   Hex,
   UpdateHexRequest,
+  UpdateSeedRequest,
 } from "../../shared/schemas.ts";
 import type {
   AgentActivity,
@@ -19,6 +21,7 @@ import type {
   ProjectView,
   PullRequestDiff,
   RecentProject,
+  SeedView,
   WorkspaceState,
 } from "../../shared/views.ts";
 
@@ -84,6 +87,18 @@ export const api = {
   /** Turns a project's auto-merge on or off; returns the project hex. */
   setAutoMerge: (id: string, enabled: boolean) =>
     request<Hex>("PUT", `/projects/${id}/auto-merge`, { enabled }),
+  /** Gives a project its repository: forks `seedId` into `dir`, or uses `dir` as it is. */
+  setProjectRepo: (id: string, dir: string, seedId?: string) =>
+    request<Hex>("PUT", `/projects/${id}/repo`, seedId ? { dir, seedId } : { dir }),
+  /** Repository seeds, shared by every project. */
+  seeds: (includeRetired = false) =>
+    request<SeedView[]>("GET", `/seeds${includeRetired ? "?retired=1" : ""}`),
+  createSeed: (req: Omit<CreateSeedRequest, "branch"> & { branch?: string }) =>
+    request<SeedView>("POST", "/seeds", req),
+  updateSeed: (id: string, patch: UpdateSeedRequest) =>
+    request<SeedView>("PATCH", `/seeds/${id}`, patch),
+  retireSeed: (id: string) => request<SeedView>("POST", `/seeds/${id}/retire`, {}),
+  restoreSeed: (id: string) => request<SeedView>("POST", `/seeds/${id}/restore`, {}),
   selectProject: (id: string) => request<{ ok: true }>("POST", "/selected-project", { id }),
   recentProjects: () => request<RecentProject[]>("GET", "/projects/recent"),
   /** Opens the project's folder when needed and selects it, in one step. */
