@@ -95,6 +95,32 @@ exists, removes what it wrote if anything fails, and only then renames the old f
 migrates: agents have no tool for it. `HEXES_DIR` pins Studio to one v1 folder (tests and old
 setups); while it is set, the `~/.hx` projects are not used and migration is refused.
 
+## Repository seeds
+
+A **seed** (`core.seed`) is a git repository that new projects can be forked from: a starter app, a
+template, a previous project worth reusing. Seeds belong to no project; every project on the machine
+shares them, in `~/.hx/seeds/data.json` (ids `hx-seed-…`). Manage them on Studio's **Repository
+seeds** screen (from the projects list) or with the `list_seeds`, `create_seed`, `update_seed` and
+`retire_seed` tools. A seed is `available` until retired.
+
+Each seed holds a title, `meta.git_url` (anything `git clone` accepts, a remote URL or a local
+path), `meta.branch` (default `main`) and a **short** description: about five lines on the stack,
+what works out of the box, and what it is a good and a poor fit for, so you or an agent can tell at
+a glance whether it suits a project. Past 600 characters Studio and the tools flag it.
+
+A project can be created without a folder. Until it has a repository, its stories and bugs are left
+out of the ready lists, branch work is refused, and each epic shows "waiting for a repository"; its
+designs, specs and questions stay workable, so it can be planned first. The project page then offers
+two ways to give it one (MCP `set_project_repo`, REST `PUT /api/projects/:id/repo`):
+
+- **Fork a seed** into a new or empty folder: Hexes clones the seed's branch, renames its `origin`
+  remote to `seed` (so nothing is pushed back to the seed; add your own remote when you want one),
+  and records the seed in the project's `meta.repo_ref_hx`.
+- **Use an existing folder** that is already a git repository.
+
+Either sets `meta.repo_path`. A folder can be one project's repository only. Older (v1) projects
+always have a repository, their folder.
+
 ## Per-user state
 
 Studio remembers, per user, the selected project (`selectedProjectId`, for one in `~/.hx/projects`),
