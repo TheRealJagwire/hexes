@@ -6,6 +6,7 @@
     "dir": "/home/user/demo",
     "selectedProjectId": "hx-contract-16d",
     "schemaVersion": 1,
-    "repoPath": "/home/user/demo"
+    "repoPath": "/home/user/demo",
+    "dataPath": "/home/user/demo/.hx/data.json"
   }
 }

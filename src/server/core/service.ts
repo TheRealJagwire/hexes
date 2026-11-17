@@ -108,12 +108,26 @@ export class HexService {
     if (v2) {
       const file = await this.workspace.projectFile(v2);
       const repoPath = repoPathOf(buildIndex(await file.read()).byId.get(v2));
-      return { ...base, dir: repoPath, selectedProjectId: v2, schemaVersion: 2, repoPath };
+      return {
+        ...base,
+        dir: repoPath,
+        selectedProjectId: v2,
+        schemaVersion: 2,
+        repoPath,
+        dataPath: file.path,
+      };
     }
     const dir = await this.workspace.current();
     let selectedProjectId: string | null = null;
     if (dir) selectedProjectId = selectedProjectOf(buildIndex(await new HexFile(dir).read()));
-    return { ...base, dir, selectedProjectId, schemaVersion: 1, repoPath: dir };
+    return {
+      ...base,
+      dir,
+      selectedProjectId,
+      schemaVersion: 1,
+      repoPath: dir,
+      dataPath: dir ? new HexFile(dir).path : null,
+    };
   }
 
   inspect(dir: string): Promise<InspectResult> {
@@ -307,7 +321,7 @@ export class HexService {
   async listProjects(): Promise<ProjectSummary[]> {
     const out: ProjectSummary[] = [];
     const seen = new Set<string>();
-    const add = (idx: HexIndex, needsMigration: boolean) => {
+    const add = (idx: HexIndex, where: { v1Dir: string } | null) => {
       for (const p of projects(idx)) {
         if (seen.has(p.id)) continue;
         seen.add(p.id);
@@ -320,19 +334,23 @@ export class HexService {
           initial: initials(p.title),
           epics: own.filter((h) => h.kind === "core.epic").length,
           stories: own.filter((h) => h.kind === "core.story").length,
-          needsMigration,
+          needsMigration: where !== null,
+          repoPath: where ? where.v1Dir : repoPathOf(p),
+          dataPath: where
+            ? new HexFile(where.v1Dir).path
+            : this.workspace.projects.projectFile(p.id),
         });
       }
     };
     if (!this.workspace.pinnedDir) {
       for (const id of await this.workspace.projects.list()) {
         const idx = await this.workspace.projects.file(id).read().then(buildIndex, () => null);
-        if (idx) add(idx, false);
+        if (idx) add(idx, null);
       }
     }
     for (const dir of await this.v1Dirs()) {
       const idx = await new HexFile(dir).read().then(buildIndex, () => null);
-      if (idx) add(idx, true);
+      if (idx) add(idx, { v1Dir: dir });
     }
     return out;
   }
