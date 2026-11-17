@@ -398,6 +398,134 @@ function ArchiveButton({ epic, onChange }: { epic: EpicView; onChange: () => voi
   );
 }
 
+/** True while the project has no repository: epics show that instead of progress. */
+const NeedsRepo = createContext(false);
+
+/**
+ * Shown on a project with no repository: fork a seed into a new folder, or point at a git
+ * repository that already exists. Until then the project's stories and bugs wait.
+ */
+function RepoPanel({ projectId, onSet }: { projectId: string; onSet: () => void }) {
+  const seeds = useResource(() => api.seeds(), []);
+  const [mode, setMode] = useState<"fork" | "folder">("fork");
+  const [seedId, setSeedId] = useState("");
+  const [dir, setDir] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const list = seeds.status === "ready" ? seeds.data : [];
+  const chosen = list.find((s) => s.hex.id === seedId) ?? null;
+  const browse = async () => {
+    try {
+      const picked = await api.pickDirectory();
+      if (picked.dir) setDir(picked.dir);
+    } catch (e) {
+      notifyError(e);
+    }
+  };
+  const submit = async (e: Event) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      if (mode === "fork" && chosen) {
+        await api.setProjectRepo(projectId, dir, chosen.hex.id);
+        notify(`Forked ${chosen.hex.title} into ${dir}`);
+      } else {
+        await api.setProjectRepo(projectId, dir);
+        notify(`Using ${dir}`);
+      }
+      onSet();
+    } catch (err) {
+      setError(notifyError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const tab = (m: "fork" | "folder", label: string) => (
+    <button
+      type="button"
+      aria-pressed={mode === m}
+      onClick={() => setMode(m)}
+      class={`btn text-sm ${mode === m ? "border-accent text-accent" : ""}`}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <section
+      aria-label="Repository"
+      class="flex flex-col gap-4 rounded-2xl border border-dashed border-accent bg-panel px-8 py-6"
+    >
+      <div class="flex flex-col gap-1">
+        <h2 class="m-0 text-lg font-semibold">No repository yet</h2>
+        <p class="m-0 text-[15px] text-muted">
+          Stories and bugs wait until this project has somewhere to be built.
+        </p>
+      </div>
+      <div class="flex gap-2">
+        {tab("fork", "Fork a seed")}
+        {tab("folder", "Use an existing folder")}
+      </div>
+      <form onSubmit={submit} class="flex flex-col gap-3">
+        {mode === "fork" && (
+          <div class="flex flex-col gap-2">
+            <label for="repo-seed" class="label">Seed</label>
+            {seeds.status === "ready" && list.length === 0
+              ? (
+                <span class="text-sm text-muted">
+                  No seeds yet. <Link href="/seeds">Add one</Link>, or use an existing folder.
+                </span>
+              )
+              : (
+                <select
+                  id="repo-seed"
+                  value={seedId}
+                  onChange={(e) => setSeedId(e.currentTarget.value)}
+                  class="field"
+                >
+                  <option value="">Pick a seed…</option>
+                  {list.map((s) => <option key={s.hex.id} value={s.hex.id}>{s.hex.title}</option>)}
+                </select>
+              )}
+            {chosen && (
+              <p class="m-0 whitespace-pre-line text-sm leading-normal text-muted">
+                {chosen.hex.description || chosen.gitUrl}
+              </p>
+            )}
+          </div>
+        )}
+        <div class="flex flex-col gap-2">
+          <label for="repo-dir" class="label">
+            {mode === "fork" ? "New folder to fork into" : "Git repository folder"}
+          </label>
+          <div class="flex gap-2">
+            <input
+              id="repo-dir"
+              type="text"
+              value={dir}
+              placeholder="~/code/my-project"
+              spellcheck={false}
+              onInput={(e) => setDir(e.currentTarget.value)}
+              class="field field-mono flex-1"
+            />
+            <button type="button" class="btn" onClick={() => void browse()}>Browse…</button>
+          </div>
+        </div>
+        {error && <span role="alert" class="text-[13px] text-blocked">{error}</span>}
+        <div>
+          <button
+            type="submit"
+            disabled={busy || !dir.trim() || (mode === "fork" && !chosen)}
+            class="btn-primary"
+          >
+            {busy ? "Working…" : mode === "fork" ? "Fork" : "Set"}
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
 function EpicAccordion(
   { epic, defaultOpen, onChange }: { epic: EpicView; defaultOpen: boolean; onChange: () => void },
 ) {
@@ -420,6 +548,7 @@ function EpicAccordion(
   }, [focusStory]);
   const { done, total, pct } = epic.progress;
   const inReview = epic.stories.filter((s) => s.status === "in_review").length;
+  const needsRepo = useContext(NeedsRepo);
   return (
     <div
       data-hex-row={epic.hex.id}
@@ -450,16 +579,20 @@ function EpicAccordion(
             </span>
             {here && <WorkingLabel tool={working.tool} />}
           </div>
-          <div class="flex items-center gap-3.5">
-            <div class="flex flex-col items-end gap-0.5">
-              <span class="text-xl font-bold tabular-nums">{pct}%</span>
-              <span class="font-mono text-xs text-muted">
-                {inReview > 0 && <span class="text-accent">{inReview} in review ·</span>}{" "}
-                {done}/{total} done
-              </span>
-            </div>
-            <ProgressRing done={done} total={total} pct={pct} />
-          </div>
+          {needsRepo
+            ? <span class="font-mono text-xs text-muted">waiting for a repository</span>
+            : (
+              <div class="flex items-center gap-3.5">
+                <div class="flex flex-col items-end gap-0.5">
+                  <span class="text-xl font-bold tabular-nums">{pct}%</span>
+                  <span class="font-mono text-xs text-muted">
+                    {inReview > 0 && <span class="text-accent">{inReview} in review ·</span>}{" "}
+                    {done}/{total} done
+                  </span>
+                </div>
+                <ProgressRing done={done} total={total} pct={pct} />
+              </div>
+            )}
         </button>
         <ArchiveButton epic={epic} onChange={onChange} />
       </div>
@@ -806,8 +939,19 @@ export function ProjectScreen({ id }: { id: string }) {
     );
   }
 
-  const { project, ideas, designs, specs, decisions, questions, facts, gates, epics, autoMerge } =
-    res.data;
+  const {
+    project,
+    ideas,
+    designs,
+    specs,
+    decisions,
+    questions,
+    facts,
+    gates,
+    epics,
+    autoMerge,
+    needsRepository,
+  } = res.data;
   // Auto-merge has its own switch below.
   const repoPath = project.meta?.repo_path;
   const meta = Object.entries(project.meta ?? {}).filter(([k]) =>
@@ -867,6 +1011,8 @@ export function ProjectScreen({ id }: { id: string }) {
             </div>
           </section>
 
+          {needsRepository && <RepoPanel projectId={id} onSet={res.reload} />}
+
           <GateStepper gates={gates} />
 
           <div class="flex flex-col gap-2.5">
@@ -890,7 +1036,9 @@ export function ProjectScreen({ id }: { id: string }) {
                 No epics yet. Use “Create hex” and pick <code class="font-mono">core.epic</code>.
               </p>
             )}
-            <EpicList epics={epics} onChange={res.reload} />
+            <NeedsRepo.Provider value={needsRepository}>
+              <EpicList epics={epics} onChange={res.reload} />
+            </NeedsRepo.Provider>
           </div>
         </Page>
       </Focus.Provider>

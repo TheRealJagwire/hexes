@@ -139,9 +139,12 @@ export function Projects() {
             Pick a project to open it. Recent ones from other folders switch folders too.
           </p>
         </div>
-        <Link href="/welcome" class="btn text-sm">
-          <Plus /> New project
-        </Link>
+        <div class="flex gap-2">
+          <Link href="/seeds" class="btn text-sm">Repository seeds</Link>
+          <Link href="/welcome" class="btn text-sm">
+            <Plus /> New project
+          </Link>
+        </div>
       </div>
 
       <RecentProjects />
