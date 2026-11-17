@@ -2,10 +2,21 @@ import { signal } from "@preact/signals";
 
 export type ToastKind = "success" | "failure" | "info";
 
+/** A button on a toast. Running it does not close the toast by itself. */
+export interface ToastAction {
+  label: string;
+  run: () => void;
+  /** The main choice, drawn as a filled button. */
+  primary?: boolean;
+}
+
 export interface Toast {
   id: number;
   kind: ToastKind;
   text: string;
+  actions?: ToastAction[] | undefined;
+  /** Called when the toast goes, whether closed, expired or pushed out. */
+  onClose?: (() => void) | undefined;
   /** Milliseconds until it goes by itself; null keeps it until updated or closed. */
   ttl: number | null;
 }
@@ -39,11 +50,17 @@ export class ToastStore {
     },
   ) {}
 
-  show(text: string, kind: ToastKind = "success", ttl: number | null = TTL[kind]): ToastHandle {
+  show(
+    text: string,
+    kind: ToastKind = "success",
+    ttl: number | null = TTL[kind],
+    extra: Pick<Toast, "actions" | "onClose"> = {},
+  ): ToastHandle {
     const id = this.next++;
-    let list = [...this.items.value, { id, kind, text, ttl }];
+    let list: Toast[] = [...this.items.value, { id, kind, text, ttl, ...extra }];
     while (list.length > MAX_TOASTS) {
       this.stop(list[0]!.id);
+      list[0]!.onClose?.();
       list = list.slice(1);
     }
     this.items.value = list;
@@ -61,7 +78,9 @@ export class ToastStore {
   close(id: number): void {
     this.stop(id);
     this.paused.delete(id);
+    const gone = this.items.value.find((t) => t.id === id);
     this.items.value = this.items.value.filter((t) => t.id !== id);
+    gone?.onClose?.();
   }
 
   pause(id: number): void {

@@ -18,7 +18,25 @@ function ToastCard({ toast }: { toast: Toast }) {
       onFocusIn={() => toasts.pause(toast.id)}
       onFocusOut={() => toasts.resume(toast.id)}
     >
-      <span class="min-w-0 flex-1 break-words">{toast.text}</span>
+      <div class="min-w-0 flex-1">
+        <span class="break-words">{toast.text}</span>
+        {toast.actions?.length
+          ? (
+            <div class="mt-2 flex gap-2">
+              {toast.actions.map((a) => (
+                <button
+                  key={a.label}
+                  type="button"
+                  onClick={a.run}
+                  class={a.primary ? "btn btn-primary" : "btn"}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          )
+          : null}
+      </div>
       <button
         type="button"
         aria-label="Dismiss"

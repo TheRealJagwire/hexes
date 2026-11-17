@@ -76,6 +76,7 @@ import { DomainError } from "./errors.ts";
 import { Git } from "./git.ts";
 import { derivePrefix, generateId } from "./ids.ts";
 import { ensureMigrated } from "./migrate.ts";
+import { type MigrateResult, migrateToV2 } from "./migrate_v2.ts";
 import { HexFile, ProjectFile } from "./store.ts";
 import { gitInit, resolveDir, type Workspace } from "./workspace.ts";
 
@@ -218,6 +219,14 @@ export class HexService {
     if (await this.workspace.current() !== target) await this.workspace.open(target);
     await this.selectV1(target, projectId);
     return await this.state();
+  }
+
+  /**
+   * Moves a v1 folder's projects to ~/.hx/projects (schema v2), all or nothing. A person's
+   * action, offered by Studio; agents get no tool for it.
+   */
+  migrateProject(dir: string): Promise<MigrateResult> {
+    return migrateToV2(resolveDir(dir), this.workspace.projects, this.workspace, { now: this.now });
   }
 
   /** Drops a project from the recent list. An empty `dir` means a v2 project. */
