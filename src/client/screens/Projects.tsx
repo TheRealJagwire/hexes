@@ -200,7 +200,17 @@ export function Projects() {
                 </text>
               </svg>
               <div class="flex min-w-0 flex-[1_1_320px] flex-col gap-1.5">
-                <span class="text-lg font-semibold">{p.title}</span>
+                <span class="flex items-center gap-2 text-lg font-semibold">
+                  {p.title}
+                  {p.needsMigration && (
+                    <span
+                      title="Still in its folder's .hx/data.json; Studio offers to move it to ~/.hx/projects when you open it"
+                      class="rounded border border-line px-1.5 py-px font-mono text-[11px] font-normal text-muted"
+                    >
+                      v1
+                    </span>
+                  )}
+                </span>
                 {p.blurb && <span class="text-sm leading-normal text-muted">{p.blurb}</span>}
               </div>
               <div class="flex flex-col items-end gap-1.5">

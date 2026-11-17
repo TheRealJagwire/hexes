@@ -66,6 +66,9 @@ export const api = {
     request<CreateProjectResult>("POST", "/workspace/create", req),
   pickDirectory: () => request<{ dir: string | null }>("POST", "/workspace/pick", {}),
   projects: () => request<ProjectSummary[]>("GET", "/projects"),
+  /** Moves a v1 folder's projects to ~/.hx/projects. */
+  migrateProject: (dir: string) =>
+    request<{ projects: string[] }>("POST", "/projects/migrate", { dir }),
   project: (id: string) => request<ProjectView>("GET", `/projects/${id}`),
   projectGraph: (id: string) => request<ProjectGraph>("GET", `/projects/${id}/graph`),
   facts: (projectId: string, q: FactsQuery = {}) => {

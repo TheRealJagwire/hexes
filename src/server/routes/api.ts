@@ -141,6 +141,11 @@ export function apiRoutes(
     const { dir, projectId } = RecentProjectSchema.parse(await c.req.json());
     return c.json(await service.openRecentProject(dir, projectId));
   });
+  // A person's action from Studio: there is deliberately no MCP tool for it.
+  api.post("/projects/migrate", async (c) => {
+    const { dir } = DirRequestSchema.parse(await c.req.json());
+    return c.json(await service.migrateProject(dir));
+  });
   api.post("/projects/recent/forget", async (c) => {
     const { dir, projectId } = RecentProjectSchema.parse(await c.req.json());
     await service.forgetRecentProject(dir, projectId);

@@ -95,3 +95,37 @@ Deno.test("bodiless DELETEs pass the guard over a real connection", async () => 
     await f.cleanup();
   }
 });
+
+Deno.test("api: POST /projects/migrate moves a v1 folder; conflicts are 409, nothing left is 404", async () => {
+  const f = await fixture();
+  try {
+    const app = createApp(f.service);
+    const migrate = async () => {
+      const res = await app.request("/api/projects/migrate", {
+        method: "POST",
+        headers: J,
+        body: JSON.stringify({ dir: f.dir }),
+      });
+      return { status: res.status, body: await res.json() };
+    };
+
+    // A folder already there for the project: refused, nothing moved.
+    const target = f.workspace.projects.projectDir(f.projectId);
+    await Deno.mkdir(target, { recursive: true });
+    const conflict = await migrate();
+    assertEquals(conflict.status, 409);
+    assertEquals(typeof conflict.body.error, "string");
+    await Deno.remove(target);
+
+    const ok = await migrate();
+    assertEquals([ok.status, ok.body], [200, { projects: [f.projectId] }]);
+    const state = await (await app.request("/api/state", { headers: H })).json();
+    assertEquals([state.selectedProjectId, state.schemaVersion], [f.projectId, 2]);
+
+    const again = await migrate();
+    assertEquals(again.status, 404);
+    assertEquals(typeof again.body.error, "string");
+  } finally {
+    await f.cleanup();
+  }
+});
