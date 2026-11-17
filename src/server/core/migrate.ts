@@ -6,7 +6,7 @@ import {
   reconcileReadiness,
 } from "../../shared/graph.ts";
 import type { Hex, Status } from "../../shared/schemas.ts";
-import type { HexFile } from "./store.ts";
+import type { DataFile } from "./store.ts";
 
 /**
  * Statuses a kind used before it got its own workflow, and what they became. A question that
@@ -76,7 +76,7 @@ function reconcileDependents(hexes: Hex[], ids: readonly string[], now: number):
 const migrated = new Map<string, Promise<void>>();
 
 /** Migrates a data file the first time this process uses it, writing only when something changed. */
-export function ensureMigrated(file: HexFile, now: () => number = Date.now): Promise<void> {
+export function ensureMigrated(file: DataFile, now: () => number = Date.now): Promise<void> {
   let done = migrated.get(file.path);
   if (!done) {
     done = file.mutate((hexes) => {

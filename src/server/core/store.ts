@@ -88,6 +88,13 @@ export class HexFile extends DataFile {
   }
 }
 
+/** A v2 project's data file. `dir` is where its git work happens: its repo_path. */
+export class ProjectFile extends DataFile {
+  constructor(path: string, readonly projectId: string, readonly dir: string) {
+    super(path);
+  }
+}
+
 function homeDir(): string {
   return Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? "/";
 }

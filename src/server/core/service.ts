@@ -25,6 +25,7 @@ import {
   pullRequestsOf,
   readyHexes,
   reconcileReadiness,
+  repoPathOf,
   sortEpics,
   sortGates,
   summarize,
@@ -71,6 +72,7 @@ import { searchHexes } from "../../shared/search.ts";
 import { DomainError } from "./errors.ts";
 import { Git } from "./git.ts";
 import { derivePrefix, generateId } from "./ids.ts";
+import { ensureMigrated } from "./migrate.ts";
 import { HexFile } from "./store.ts";
 import { gitInit, resolveDir, type Workspace } from "./workspace.ts";
 
@@ -94,15 +96,20 @@ export class HexService {
   // ── workspace ────────────────────────────────────────────────────────────
 
   async state(): Promise<WorkspaceState> {
+    const base = {
+      pinned: this.workspace.pinnedDir !== null,
+      lastDir: await this.workspace.lastDir(),
+    };
+    const v2 = await this.workspace.selectedV2();
+    if (v2) {
+      const file = await this.workspace.projectFile(v2);
+      const repoPath = repoPathOf(buildIndex(await file.read()).byId.get(v2));
+      return { ...base, dir: repoPath, selectedProjectId: v2, schemaVersion: 2, repoPath };
+    }
     const dir = await this.workspace.current();
     let selectedProjectId: string | null = null;
     if (dir) selectedProjectId = selectedProjectOf(buildIndex(await new HexFile(dir).read()));
-    return {
-      dir,
-      pinned: this.workspace.pinnedDir !== null,
-      lastDir: await this.workspace.lastDir(),
-      selectedProjectId,
-    };
+    return { ...base, dir, selectedProjectId, schemaVersion: 1, repoPath: dir };
   }
 
   inspect(dir: string): Promise<InspectResult> {
@@ -138,35 +145,63 @@ export class HexService {
   /** Projects opened before, across folders, newest first, checked against what is on disk. */
   async recentProjects(): Promise<RecentProject[]> {
     const entries = await this.workspace.recentProjects();
-    const { dir: openDir, selectedProjectId } = await this.state();
+    const { dir: openDir, selectedProjectId, schemaVersion } = await this.state();
     const pinned = this.workspace.pinnedDir;
     const indexes = new Map<string, HexIndex | null>();
     const out: RecentProject[] = [];
     for (const e of entries) {
-      if (!indexes.has(e.dir)) {
-        indexes.set(e.dir, await new HexFile(e.dir).read().then(buildIndex, () => null));
+      if (e.dir === undefined) {
+        const file = this.workspace.projects.file(e.projectId);
+        const project = pinned
+          ? undefined
+          : (await file.read().then(buildIndex, () => null))?.byId.get(e.projectId);
+        const found = project?.kind === "core.project";
+        const repo = found ? repoPathOf(project) ?? "" : "";
+        out.push({
+          dir: repo,
+          projectId: e.projectId,
+          title: found ? project.title : e.title,
+          folder: repo.split("/").filter(Boolean).pop() ?? e.projectId,
+          openedAt: e.openedAt,
+          found,
+          current: schemaVersion === 2 && e.projectId === selectedProjectId,
+          switchable: pinned === null,
+          needsMigration: false,
+        });
+        continue;
       }
-      const project = indexes.get(e.dir)?.byId.get(e.projectId);
+      const dir = e.dir;
+      if (!indexes.has(dir)) {
+        indexes.set(dir, await new HexFile(dir).read().then(buildIndex, () => null));
+      }
+      const project = indexes.get(dir)?.byId.get(e.projectId);
       const found = project?.kind === "core.project";
       out.push({
-        dir: e.dir,
+        dir,
         projectId: e.projectId,
         title: found ? project.title : e.title,
-        folder: e.dir.split("/").filter(Boolean).pop() ?? e.dir,
+        folder: dir.split("/").filter(Boolean).pop() ?? dir,
         openedAt: e.openedAt,
         found,
-        current: e.dir === openDir && e.projectId === selectedProjectId,
-        switchable: pinned === null || pinned === e.dir,
+        current: schemaVersion === 1 && dir === openDir && e.projectId === selectedProjectId,
+        switchable: pinned === null || pinned === dir,
+        needsMigration: true,
       });
     }
     return out;
   }
 
   /**
-   * Switches to a recent project in one step: opens its folder when it is not the open one, then
-   * selects it. Checks the project exists first, so a stale entry leaves the open folder alone.
+   * Switches to a recent project in one step. A v2 project is selected by id; for a v1 one, its
+   * folder is opened when it is not the open one, then it is selected. Checks the project exists
+   * first, so a stale entry leaves the open folder alone.
    */
   async openRecentProject(dir: string, projectId: string): Promise<WorkspaceState> {
+    if (await this.workspace.hasProject(projectId)) {
+      await this.selectProject(projectId);
+      return await this.state();
+    }
+    if (!dir.trim()) throw new DomainError(`No project with id ${projectId}`, 404);
     const target = resolveDir(dir);
     const pinned = this.workspace.pinnedDir;
     if (pinned && pinned !== target) {
@@ -178,13 +213,13 @@ export class HexService {
     );
     if (!project) throw new DomainError(`${projectId} is no longer in ${target}`, 404);
     if (await this.workspace.current() !== target) await this.workspace.open(target);
-    await this.selectProject(projectId);
+    await this.selectV1(target, projectId);
     return await this.state();
   }
 
-  /** Drops a project from the recent list. */
+  /** Drops a project from the recent list. An empty `dir` means a v2 project. */
   async forgetRecentProject(dir: string, projectId: string): Promise<void> {
-    await this.workspace.forgetProject(resolveDir(dir), projectId);
+    await this.workspace.forgetProject(dir.trim() ? resolveDir(dir) : undefined, projectId);
   }
 
   async createProject(req: CreateProjectRequest): Promise<CreateProjectResult> {
@@ -244,41 +279,99 @@ export class HexService {
     return (await this.workspace.file()).mutate(fn);
   }
 
+  /**
+   * Every project: those in ~/.hx/projects, then those still in v1 folders (the open one and
+   * recent ones), which need migrating. A v1 copy of a project already moved is left out.
+   */
   async listProjects(): Promise<ProjectSummary[]> {
-    const idx = await this.index();
-    return projects(idx).map((p) => {
-      const prefix = prefixOf(p.id);
-      const own = prefix ? projectHexes(idx, prefix) : [];
-      return {
-        id: p.id,
-        title: p.title,
-        blurb: blurb(p.description),
-        initial: initials(p.title),
-        epics: own.filter((h) => h.kind === "core.epic").length,
-        stories: own.filter((h) => h.kind === "core.story").length,
-      };
-    });
+    const out: ProjectSummary[] = [];
+    const seen = new Set<string>();
+    const add = (idx: HexIndex, needsMigration: boolean) => {
+      for (const p of projects(idx)) {
+        if (seen.has(p.id)) continue;
+        seen.add(p.id);
+        const prefix = prefixOf(p.id);
+        const own = prefix ? projectHexes(idx, prefix) : [];
+        out.push({
+          id: p.id,
+          title: p.title,
+          blurb: blurb(p.description),
+          initial: initials(p.title),
+          epics: own.filter((h) => h.kind === "core.epic").length,
+          stories: own.filter((h) => h.kind === "core.story").length,
+          needsMigration,
+        });
+      }
+    };
+    if (!this.workspace.pinnedDir) {
+      for (const id of await this.workspace.projects.list()) {
+        const idx = await this.workspace.projects.file(id).read().then(buildIndex, () => null);
+        if (idx) add(idx, false);
+      }
+    }
+    for (const dir of await this.v1Dirs()) {
+      const idx = await new HexFile(dir).read().then(buildIndex, () => null);
+      if (idx) add(idx, true);
+    }
+    return out;
+  }
+
+  /** v1 folders worth looking in: the open (or pinned) one first, then recent ones. */
+  private async v1Dirs(): Promise<string[]> {
+    const open = await this.workspace.current();
+    if (this.workspace.pinnedDir) return open ? [open] : [];
+    const dirs = [...(open ? [open] : []), ...await this.workspace.recent()];
+    return [...new Set(dirs)];
   }
 
   async selectedProjectId(): Promise<string | null> {
-    return selectedProjectOf(await this.index());
+    return (await this.state()).selectedProjectId;
   }
 
+  /**
+   * Selects a project: a v2 one by id in state.json; a v1 one in the open folder, or in a recent
+   * folder, which is opened first.
+   */
   async selectProject(id: string): Promise<void> {
-    const file = await this.workspace.file();
+    if (await this.workspace.hasProject(id)) {
+      const file = await this.workspace.projectFile(id);
+      const project = (await file.read()).find((h) => h.id === id && h.kind === "core.project");
+      if (!project) throw new DomainError(`No project with id ${id}`, 404);
+      await this.workspace.selectV2(id);
+      await this.recordRecent(undefined, project);
+      return;
+    }
+    for (const dir of await this.v1Dirs()) {
+      const has = await new HexFile(dir).read().then(
+        (hexes) => hexes.some((h) => h.id === id && h.kind === "core.project"),
+        () => false,
+      );
+      if (!has) continue;
+      if (await this.workspace.current() !== dir) await this.workspace.open(dir);
+      await this.selectV1(dir, id);
+      return;
+    }
+    throw new DomainError(`No project with id ${id}`, 404);
+  }
+
+  /** Selects a project in a v1 folder's `studio.selected_project` hex, leaving any v2 selection. */
+  private async selectV1(dir: string, id: string): Promise<void> {
+    const file = new HexFile(dir);
+    await ensureMigrated(file);
     const project = await file.mutate(async (hexes) => {
       const project = hexes.find((h) => h.id === id && h.kind === "core.project");
       if (!project) throw new DomainError(`No project with id ${id}`, 404);
       await this.writeSelected(hexes, id);
       return project;
     });
-    await this.recordRecent(file.dir, project);
+    await this.workspace.remember(dir);
+    await this.recordRecent(dir, project);
   }
 
-  /** Puts a project at the front of the per-user recent list, for switching back later. */
-  private async recordRecent(dir: string, project: Hex): Promise<void> {
+  /** Puts a project at the front of the per-user recent list; `dir` only for a v1 project. */
+  private async recordRecent(dir: string | undefined, project: Hex): Promise<void> {
     await this.workspace.rememberProject({
-      dir,
+      ...(dir ? { dir } : {}),
       projectId: project.id,
       title: project.title,
       openedAt: this.now(),

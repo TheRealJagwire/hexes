@@ -42,7 +42,7 @@ Deno.test("the recent list is capped, survives a corrupt file and keeps other st
   const root = await Deno.makeTempDir({ prefix: "hexes-recent-" });
   try {
     const stateFile = `${root}/state.json`;
-    const w = new Workspace({ stateFile });
+    const w = new Workspace({ stateFile, home: `${root}/hx` });
     await Deno.writeTextFile(stateFile, "{ not json");
     assertEquals(await w.recentProjects(), []);
     await Deno.writeTextFile(

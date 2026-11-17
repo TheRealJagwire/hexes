@@ -23,6 +23,10 @@ export interface WorkspaceState {
   /** The directory used last time, offered as a default on the welcome screen. */
   lastDir: string | null;
   selectedProjectId: string | null;
+  /** 2 when the selected project lives in ~/.hx/projects/<id>; 1 for a folder's `.hx/data.json`. */
+  schemaVersion: 1 | 2;
+  /** The git working tree the selected project works on, when known. */
+  repoPath: string | null;
 }
 
 /** A workspace the server has opened before. Clients treat `id` as opaque; `dir` is detail. */
@@ -49,6 +53,8 @@ export interface ProjectSummary {
   initial: string;
   epics: number;
   stories: number;
+  /** Still in a folder's `.hx/data.json` (schema v1), not yet moved to ~/.hx/projects. */
+  needsMigration: boolean;
 }
 
 export interface EpicView {
@@ -210,6 +216,7 @@ export interface PullRequestDiff {
 
 /** `GET /api/projects/recent`: a project opened before, in this folder or another. */
 export interface RecentProject {
+  /** The v1 folder holding it, or a v2 project's repo_path ("" when it has none). */
   dir: string;
   projectId: string;
   /** The project's title now when its folder is readable, else as last seen. */
@@ -223,6 +230,8 @@ export interface RecentProject {
   current: boolean;
   /** False when HEXES_DIR pins Studio to another folder. */
   switchable: boolean;
+  /** Still in a folder's `.hx/data.json` (schema v1). */
+  needsMigration: boolean;
 }
 
 /** Which facts to fetch: every filter given must hold. */

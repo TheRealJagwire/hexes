@@ -2,20 +2,26 @@ import { DataFileSchema } from "../../shared/schemas.ts";
 import type { InspectResult } from "../../shared/views.ts";
 import { DomainError } from "./errors.ts";
 import { ensureMigrated } from "./migrate.ts";
-import { HexFile } from "./store.ts";
+import { repoPathOf } from "../../shared/graph.ts";
+import { DataFile, HexFile, ProjectFile, ProjectStore } from "./store.ts";
 
 export interface WorkspaceOptions {
   /** Fixes the directory (the HEXES_DIR env var); `open` is then refused. */
   pinnedDir?: string | undefined;
   /** Where the last-opened directory is remembered between runs. */
   stateFile?: string | undefined;
+  /** The root of per-project (schema v2) data; `~/.hx` or `$HEXES_HOME` by default. */
+  home?: string | undefined;
 }
 
 const RECENT_LIMIT = 10;
 
-/** A project opened before, remembered across folders for switching back to it. */
+/**
+ * A project opened before, remembered for switching back to it. `dir` is set for a v1 project
+ * (the folder holding its `.hx/data.json`) and absent for a v2 one, found by id alone.
+ */
 export interface RecentProjectEntry {
-  dir: string;
+  dir?: string;
   projectId: string;
   title: string;
   openedAt: number;
@@ -23,7 +29,7 @@ export interface RecentProjectEntry {
 
 function isRecentProjectEntry(v: unknown): v is RecentProjectEntry {
   const e = v as Partial<RecentProjectEntry> | null;
-  return typeof e?.dir === "string" && typeof e.projectId === "string" &&
+  return (e?.dir === undefined || typeof e.dir === "string") && typeof e?.projectId === "string" &&
     typeof e.title === "string" && typeof e.openedAt === "number";
 }
 
@@ -57,16 +63,19 @@ export function resolveDir(input: string): string {
 export class Workspace {
   readonly pinnedDir: string | null;
   readonly stateFile: string;
+  readonly projects: ProjectStore;
 
   constructor(opts: WorkspaceOptions = {}) {
     this.pinnedDir = opts.pinnedDir ? resolveDir(opts.pinnedDir) : null;
     this.stateFile = opts.stateFile ?? defaultStateFile();
+    this.projects = new ProjectStore(opts.home);
   }
 
   static fromEnv(): Workspace {
     return new Workspace({
       pinnedDir: Deno.env.get("HEXES_DIR"),
       stateFile: Deno.env.get("HEXES_STATE_FILE"),
+      home: Deno.env.get("HEXES_HOME"),
     });
   }
 
@@ -97,13 +106,44 @@ export class Workspace {
     return typeof dir === "string" ? dir : null;
   }
 
-  /** The active directory if it still has a data file. */
+  /** The open v1 directory (one holding `.hx/data.json`) if it still has a data file. */
   async current(): Promise<string | null> {
     const dir = this.pinnedDir ?? await this.lastDir();
     return dir && await new HexFile(dir).exists() ? dir : null;
   }
 
-  async file(): Promise<HexFile> {
+  /** Whether a v2 project with this id has a data file. Never while pinned by HEXES_DIR. */
+  async hasProject(id: string): Promise<boolean> {
+    return !this.pinnedDir && await this.projects.file(id).exists();
+  }
+
+  /** The selected v2 project's id, when one is selected and its data file exists. */
+  async selectedV2(): Promise<string | null> {
+    if (this.pinnedDir) return null;
+    const id = (await this.readState()).selectedProjectId;
+    return typeof id === "string" && await this.hasProject(id) ? id : null;
+  }
+
+  /** Selects a v2 project; the v1 directory is kept only as a fallback. */
+  async selectV2(id: string): Promise<void> {
+    await this.writeState({ selectedProjectId: id });
+  }
+
+  /** The selected v2 project's file, its `dir` being the project's repo_path when it has one. */
+  async projectFile(id: string): Promise<ProjectFile> {
+    const path = this.projects.projectFile(id);
+    const project = (await new DataFile(path).read()).find((h) => h.id === id);
+    return new ProjectFile(path, id, repoPathOf(project) ?? this.projects.projectDir(id));
+  }
+
+  /** The data file being worked on: the selected v2 project's, else the open v1 directory's. */
+  async file(): Promise<HexFile | ProjectFile> {
+    const id = await this.selectedV2();
+    if (id) {
+      const file = await this.projectFile(id);
+      await ensureMigrated(file);
+      return file;
+    }
     const dir = await this.current();
     if (!dir) {
       throw new DomainError("No project directory is open. Open or create one first.", 409);
@@ -122,7 +162,8 @@ export class Workspace {
   async remember(dir: string): Promise<void> {
     if (this.pinnedDir) return;
     const recent = [dir, ...(await this.recent()).filter((d) => d !== dir)].slice(0, RECENT_LIMIT);
-    await this.writeState({ lastDir: dir, recent });
+    // Opening a v1 folder leaves any selected v2 project.
+    await this.writeState({ lastDir: dir, recent, selectedProjectId: null });
   }
 
   /** Projects opened before, across folders, most recent first (at most RECENT_LIMIT). */
@@ -138,7 +179,7 @@ export class Workspace {
     await this.writeState({ recentProjects: [entry, ...rest].slice(0, RECENT_LIMIT) });
   }
 
-  async forgetProject(dir: string, projectId: string): Promise<void> {
+  async forgetProject(dir: string | undefined, projectId: string): Promise<void> {
     const list = await this.recentProjects();
     const rest = list.filter((e) => !sameProject(e, { dir, projectId }));
     if (rest.length !== list.length) await this.writeState({ recentProjects: rest });
@@ -181,8 +222,11 @@ export class Workspace {
   }
 }
 
-function sameProject(a: { dir: string; projectId: string }, b: { dir: string; projectId: string }) {
-  return a.dir === b.dir && a.projectId === b.projectId;
+function sameProject(
+  a: { dir?: string | undefined; projectId: string },
+  b: { dir?: string | undefined; projectId: string },
+) {
+  return (a.dir || undefined) === (b.dir || undefined) && a.projectId === b.projectId;
 }
 
 /** Runs `git init` unless the directory is already a repo. Returns a warning on failure. */

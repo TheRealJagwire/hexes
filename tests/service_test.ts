@@ -4,7 +4,7 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import { generateId, hashHex } from "../src/server/core/ids.ts";
 import { DomainError } from "../src/server/core/errors.ts";
 import { HEX_ID_RE } from "../src/shared/schemas.ts";
-import { fixture } from "./helpers.ts";
+import { type Fixture, fixture } from "./helpers.ts";
 
 Deno.test("hash is 3 hex chars and deterministic", async () => {
   const a = await hashHex("do a thing", "core.story", 1);
@@ -783,6 +783,90 @@ Deno.test("GET /api/projects/:id/facts serves facts() with its query parameters"
     assertEquals((await get("?include_retired=1")).json.facts.length, 2);
     assertEquals((await get("?depth=9")).status, 422);
     assertEquals((await get("?near=hx-nope-123")).status, 404);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+/** Seeds a schema-v2 project straight into the fixture's ~/.hx stand-in. */
+async function seedV2(f: Fixture, id: string, title: string, repo: string): Promise<void> {
+  await f.workspace.projects.file(id).mutate((hexes) => {
+    hexes.push({
+      id,
+      title,
+      description: "",
+      kind: "core.project",
+      status: "done",
+      createdAtTimeInMs: 1,
+      lastUpdatedAtTimeInMs: 1,
+      meta: { schema_version: "2", repo_path: repo },
+    });
+  }, { create: true });
+}
+
+Deno.test("a v2 project is selected by id in state.json, never by a selected-project hex", async () => {
+  const f = await fixture("Alpha");
+  try {
+    const s = f.service;
+    await seedV2(f, "hx-beta-0b1", "Beta", "/code/beta");
+    await s.selectProject("hx-beta-0b1");
+
+    const state = await s.state();
+    assertEquals(
+      [state.selectedProjectId, state.schemaVersion, state.repoPath, state.dir],
+      ["hx-beta-0b1", 2, "/code/beta", "/code/beta"],
+    );
+    assertEquals(await s.selectedProjectId(), "hx-beta-0b1");
+    const saved = JSON.parse(await Deno.readTextFile(f.workspace.stateFile));
+    assertEquals(saved.selectedProjectId, "hx-beta-0b1");
+    const v2 = await f.workspace.projects.file("hx-beta-0b1").read();
+    assertEquals(v2.filter((h) => h.kind.startsWith("studio.")), []);
+
+    // Reads and writes now go to the v2 file.
+    const created = await s.createHex({
+      projectId: "hx-beta-0b1",
+      kind: "core.design",
+      title: "Beta design",
+      description: "",
+      status: "blocked",
+      requiredBy: [],
+      dependsOn: ["hx-beta-0b1"],
+      meta: {},
+    });
+    assertEquals(
+      (await f.workspace.projects.file("hx-beta-0b1").read()).some((h) => h.id === created.id),
+      true,
+    );
+
+    // The recent entry for a v2 project has no folder.
+    const [recent] = await s.recentProjects();
+    assertEquals(
+      [recent?.projectId, recent?.dir, recent?.current, recent?.needsMigration],
+      ["hx-beta-0b1", "/code/beta", true, false],
+    );
+
+    // Selecting the v1 project goes back to its folder.
+    await s.selectProject(f.projectId);
+    const back = await s.state();
+    assertEquals([back.selectedProjectId, back.schemaVersion, back.dir], [
+      f.projectId,
+      1,
+      f.dir,
+    ]);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("listProjects shows v2 projects, then v1 ones marked as needing migration", async () => {
+  const f = await fixture("Alpha");
+  try {
+    await seedV2(f, "hx-beta-0b1", "Beta", "/code/beta");
+    const list = await f.service.listProjects();
+    assertEquals(list.map((p) => [p.title, p.needsMigration]), [["Beta", false], [
+      "Alpha",
+      true,
+    ]]);
   } finally {
     await f.cleanup();
   }

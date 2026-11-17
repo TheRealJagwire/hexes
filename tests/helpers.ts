@@ -12,7 +12,7 @@ export interface Fixture {
 /** A fresh project in a temp directory, with a deterministic, strictly increasing clock. */
 export async function fixture(title = "Hexes Studio"): Promise<Fixture> {
   const root = await Deno.makeTempDir({ prefix: "hexes-test-" });
-  const workspace = new Workspace({ stateFile: `${root}/state.json` });
+  const workspace = new Workspace({ stateFile: `${root}/state.json`, home: `${root}/hx` });
   let clock = 1_700_000_000_000;
   const service = new HexService(workspace, () => clock += 1000);
   const dir = `${root}/proj`;
