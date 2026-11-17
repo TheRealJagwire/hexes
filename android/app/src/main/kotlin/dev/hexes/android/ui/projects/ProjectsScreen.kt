@@ -44,7 +44,10 @@ import kotlinx.coroutines.launch
 
 class ProjectsViewModel(private val container: AppContainer) : ViewModel() {
     val projects = ResourceLoader(viewModelScope, container.live.version) { container.api().projects() }
-    val workspace = ResourceLoader(viewModelScope, container.live.version) { container.api().state().dir }
+    /** The open data file: ~/.hx/projects/<id>/data.json, or a folder's .hx/data.json. */
+    val workspace = ResourceLoader(viewModelScope, container.live.version) {
+        container.api().state().let { it.dataPath ?: it.dir?.let { d -> "$d/.hx/data.json" } }
+    }
     val recent = RecentProjectsController(container, viewModelScope)
 
     /** Remember the choice on the server, as the web app does when you open a project. */
@@ -58,6 +61,7 @@ fun ProjectsScreen(
     onOpenProject: (String) -> Unit,
     onSettings: () -> Unit,
     onSwitchFolder: () -> Unit,
+    onSeeds: () -> Unit = {},
 ) {
     val vm = containerViewModel { ProjectsViewModel(it) }
     val projects by vm.projects.state.collectAsStateWithLifecycle()
@@ -68,11 +72,12 @@ fun ProjectsScreen(
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.readable().padding(horizontal = 20.dp, vertical = 12.dp)) {
             TopBar("Projects", onBack = null) {
+                TextButton(onClick = onSeeds) { Text("Seeds") }
                 TextButton(onClick = onSwitchFolder) { Text("+ New") }
                 TextButton(onClick = onSettings) { Text("Settings") }
             }
             (workspace as? Resource.Ready<String?>)?.data?.let {
-                Text("$it/.hx/data.json", color = c.muted, fontFamily = Mono, style = MaterialTheme.typography.bodySmall)
+                Text(it, color = c.muted, fontFamily = Mono, style = MaterialTheme.typography.bodySmall)
             }
             OutlinedTextField(
                 value = filter,

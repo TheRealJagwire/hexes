@@ -1,0 +1,23 @@
+{
+  "status": 200,
+  "body": [
+    {
+      "hex": {
+        "id": "hx-seed-dfa",
+        "title": "Deno starter",
+        "description": "Deno + Hono + Preact; tests and lint set up. Good for small web apps.",
+        "kind": "core.seed",
+        "createdAtTimeInMs": 1700000013000,
+        "lastUpdatedAtTimeInMs": 1700000013000,
+        "status": "available",
+        "meta": {
+          "git_url": "https://example.com/deno-starter.git",
+          "branch": "main"
+        }
+      },
+      "gitUrl": "https://example.com/deno-starter.git",
+      "branch": "main",
+      "warnings": []
+    }
+  ]
+}

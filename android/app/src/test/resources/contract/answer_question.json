@@ -6,12 +6,12 @@
     "description": "",
     "kind": "core.question",
     "createdAtTimeInMs": 1700000009000,
-    "lastUpdatedAtTimeInMs": 1700000014000,
+    "lastUpdatedAtTimeInMs": 1700000015000,
     "status": "answered",
     "meta": {
       "answer": "Yes, always.",
-      "answered_at": "2023-11-14T22:13:34.000Z",
-      "decision": "hx-contract-ded"
+      "answered_at": "2023-11-14T22:13:35.000Z",
+      "decision": "hx-contract-69d"
     }
   }
 }

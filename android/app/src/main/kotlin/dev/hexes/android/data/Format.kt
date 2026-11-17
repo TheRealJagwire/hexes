@@ -54,7 +54,7 @@ fun statusSummary(statuses: List<Status>): String {
         Status.Done, Status.Answered, Status.Known, Status.Merged, Status.Closed, Status.Retired,
         Status.Verified, Status.InReview,
         Status.PullRequested,
-        Status.InProgress, Status.Blessed, Status.Published, Status.Ready, Status.Draft, Status.Blocked,
+        Status.InProgress, Status.Blessed, Status.Published, Status.Available, Status.Ready, Status.Draft, Status.Blocked,
         Status.Unknown,
     )
     return order.mapNotNull { status ->

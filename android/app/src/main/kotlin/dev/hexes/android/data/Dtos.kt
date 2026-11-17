@@ -31,6 +31,8 @@ enum class Status(val wire: String, val finished: Boolean = false) {
     Published("published"),
     Known("known", finished = true),
     Retired("retired", finished = true),
+    /** A repository seed that is offered to fork from. */
+    Available("available"),
     Unknown("unknown"),
     ;
 
@@ -143,6 +145,10 @@ data class WorkspaceState(
     val pinned: Boolean,
     val lastDir: String?,
     val selectedProjectId: String?,
+    /** 2: the project lives in ~/.hx/projects/<id>; 1: in a folder's .hx/data.json. Absent from older servers. */
+    val schemaVersion: Int = 1,
+    val repoPath: String? = null,
+    val dataPath: String? = null,
 )
 
 @Serializable
@@ -161,6 +167,10 @@ data class ProjectSummary(
     val initial: String,
     val epics: Int,
     val stories: Int,
+    /** Still in a folder's .hx/data.json, not yet moved to ~/.hx/projects. Absent from older servers. */
+    val needsMigration: Boolean = false,
+    val repoPath: String? = null,
+    val dataPath: String = "",
 )
 
 @Serializable
@@ -171,9 +181,24 @@ data class EpicView(
     val stories: List<Hex>,
 )
 
+/** A milestone with its epics' progress. */
+@Serializable
+data class GateView(val hex: HexSummary, val epics: Progress)
+
+/** A repository seed (core.seed) that projects can be forked from, shared by every project. */
+@Serializable
+data class SeedView(
+    val hex: Hex,
+    val gitUrl: String,
+    val branch: String,
+    val warnings: List<String> = emptyList(),
+)
+
 @Serializable
 data class ProjectView(
     val project: Hex,
+    /** Milestones in order. Absent from servers older than gates. */
+    val gates: List<GateView> = emptyList(),
     val designs: List<HexSummary>,
     /** Absent from servers older than the Specs list. */
     val specs: List<HexSummary> = emptyList(),
@@ -186,6 +211,8 @@ data class ProjectView(
     val epics: List<EpicView>,
     /** Studio merges pull requests as soon as they're opened. Absent from older servers, where it's off. */
     val autoMerge: Boolean = false,
+    /** No repository yet: the project's stories and bugs wait until one is set (in Studio). */
+    val needsRepository: Boolean = false,
 )
 
 @Serializable
@@ -309,6 +336,8 @@ data class RecentProject(
     val found: Boolean,
     val current: Boolean,
     val switchable: Boolean,
+    /** Still in a folder's .hx/data.json. Absent from older servers. */
+    val needsMigration: Boolean = false,
 )
 
 /** `POST /api/projects/open` and `/api/projects/recent/forget`. */

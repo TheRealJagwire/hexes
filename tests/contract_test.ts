@@ -65,7 +65,14 @@ Deno.test("api responses match the contract fixtures", async () => {
     });
     await call("PATCH", `/hexes/${idea.id}`, { status: "published" });
 
+    await call("POST", "/seeds", {
+      title: "Deno starter",
+      description: "Deno + Hono + Preact; tests and lint set up. Good for small web apps.",
+      gitUrl: "https://example.com/deno-starter.git",
+    });
+
     const checks: Record<string, { status: number; body: unknown }> = {
+      seeds: await call("GET", "/seeds"),
       state: await call("GET", "/state"),
       projects: await call("GET", "/projects"),
       project_view: await call("GET", `/projects/${f.projectId}`),

@@ -99,6 +99,20 @@ private fun ProjectContent(view: ProjectView, onBack: () -> Unit, onOpenHex: (St
             }
         }
         item { Statement(project, onOpenHex) }
+        if (view.needsRepository) {
+            item {
+                Panel(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("No repository yet", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Pick one in Studio: fork a seed or choose a folder. Stories and bugs wait until then.",
+                            color = c.muted,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
+        }
         item { HexGroup("Ideas", view.ideas, onOpenHex) }
         item { HexGroup("Designs", view.designs, onOpenHex) }
         item { HexGroup("Specs", view.specs, onOpenHex) }
@@ -110,7 +124,7 @@ private fun ProjectContent(view: ProjectView, onBack: () -> Unit, onOpenHex: (St
             item { Text("No epics yet. Use \"+ Hex\" and pick core.epic.", color = c.muted) }
         }
         items(view.epics, key = { it.hex.id }) { epic ->
-            EpicAccordion(epic, defaultOpen = epic.hex.id == view.epics.first().hex.id, onOpenHex)
+            EpicAccordion(epic, defaultOpen = epic.hex.id == view.epics.first().hex.id, onOpenHex, view.needsRepository)
         }
         item { Column(Modifier.padding(bottom = 24.dp)) {} }
     }
@@ -217,7 +231,7 @@ internal fun SummaryRow(h: HexSummary, onOpenHex: (String) -> Unit) {
 }
 
 @Composable
-private fun EpicAccordion(epic: EpicView, defaultOpen: Boolean, onOpenHex: (String) -> Unit) {
+private fun EpicAccordion(epic: EpicView, defaultOpen: Boolean, onOpenHex: (String) -> Unit, needsRepository: Boolean = false) {
     val c = Hexes.colors
     var open by rememberSaveable(epic.hex.id) { mutableStateOf(defaultOpen) }
     var openStory by rememberSaveable(epic.hex.id + "-story") { mutableStateOf<String?>(null) }
@@ -238,11 +252,15 @@ private fun EpicAccordion(epic: EpicView, defaultOpen: Boolean, onOpenHex: (Stri
                     )
                     Text(epic.hex.title, style = MaterialTheme.typography.titleMedium)
                 }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("${epic.progress.pct}%", style = MaterialTheme.typography.titleLarge)
-                    Text("${epic.progress.done}/${epic.progress.total} done", color = c.muted, fontFamily = Mono, style = MaterialTheme.typography.bodySmall)
+                if (needsRepository) {
+                    Text("waiting for a repository", color = c.muted, fontFamily = Mono, style = MaterialTheme.typography.bodySmall)
+                } else {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("${epic.progress.pct}%", style = MaterialTheme.typography.titleLarge)
+                        Text("${epic.progress.done}/${epic.progress.total} done", color = c.muted, fontFamily = Mono, style = MaterialTheme.typography.bodySmall)
+                    }
+                    ProgressRing(epic.progress)
                 }
-                ProgressRing(epic.progress)
             }
             if (open) {
                 Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
