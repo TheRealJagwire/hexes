@@ -23,6 +23,7 @@ export const PILL: Record<Status, string> = {
   retired: "text-muted bg-line-soft",
   draft: "text-draft bg-draft-bg",
   published: "text-published bg-published-bg",
+  available: "text-ready bg-ready-bg",
 };
 
 /** What a person can pick for `kind`: pull requests set `in_review` and `merged`, not people. */

@@ -45,6 +45,7 @@ const STATUS_TEXT: Record<Status, string> = {
   retired: "text-muted",
   draft: "text-draft",
   published: "text-published",
+  available: "text-ready",
 };
 
 /** Project crumbs go to the project screen; everything else to its hex screen. */

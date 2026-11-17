@@ -16,6 +16,7 @@ export const STATUSES = [
   "published",
   "known",
   "retired",
+  "available",
 ] as const;
 export type Status = (typeof STATUSES)[number];
 
@@ -54,6 +55,8 @@ export const STATUS_INFO: Record<Status, StatusInfo> = {
   // Facts: the statement holds, or it no longer does (kept for the record). Neither is work.
   known: { role: "terminal", satisfies: true },
   retired: { role: "terminal", satisfies: false },
+  // Repository seeds: offered to fork from (or `retired`, no longer offered). Not work.
+  available: { role: "actionable", satisfies: true },
 };
 
 /** Statuses that are a person's approval or a person's idea, so agents (over MCP) may not set them. */
@@ -104,6 +107,8 @@ export const KIND_WORKFLOWS: Readonly<Record<string, KindWorkflow>> = {
   "core.idea": { statuses: ["draft", "published", "done"], promoteTo: null },
   // No `blocked`: a fact is never held back by the hexes it is about.
   "core.fact": { statuses: ["known", "retired"], promoteTo: null },
+  // Shared across projects; never blocked by anything.
+  "core.seed": { statuses: ["available", "retired"], promoteTo: null },
   // Only ever created by opening a PR, so never blocked or promoted.
   "core.pull_request": { statuses: ["pull_requested", "merged", "closed"], promoteTo: null },
 };
@@ -160,6 +165,17 @@ export const SCHEMA_VERSION = "2";
 /** Project meta keys: the schema version of its data file, and its git working tree. */
 export const SCHEMA_VERSION_KEY = "schema_version";
 export const REPO_PATH_KEY = "repo_path";
+
+/**
+ * A repository seed: a git repository that projects can be forked from, shared by every project
+ * on the machine and kept in `~/.hx/seeds/data.json`, outside any project.
+ */
+export const SEED_KIND = "core.seed";
+export const SEED_PREFIX = "seed";
+/** A seed's description should let an agent judge fit at a glance: warn past this many characters. */
+export const SEED_DESCRIPTION_LIMIT = 600;
+export const SEED_GIT_URL_KEY = "git_url";
+export const SEED_BRANCH_KEY = "branch";
 
 export const SELECTED_PROJECT_KIND = "studio.selected_project";
 export const SELECTED_PROJECT_PREFIX = "studio";
