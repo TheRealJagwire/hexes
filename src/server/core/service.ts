@@ -14,6 +14,7 @@ import {
   findCycle,
   findProject,
   gateProgress,
+  hasRepository,
   type HexIndex,
   IDEA_KIND,
   isWorkKind,
@@ -520,6 +521,7 @@ export class HexService {
       facts: own.filter((h) => h.kind === FACT_KIND).reverse().map(summarize),
       epics,
       autoMerge: autoMergeOn(project),
+      needsRepository: !hasRepository(project),
     };
   }
 
@@ -974,7 +976,7 @@ export class HexService {
       const dir = repoPathOf(project);
       if (!dir) {
         throw new DomainError(
-          `Project ${file.projectId} has no repo_path; set it in the project statement`,
+          "Set this project's repository first (fork a seed or pick a folder)",
           409,
         );
       }

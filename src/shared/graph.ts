@@ -90,10 +90,20 @@ export function isReady(idx: HexIndex, hex: Hex): boolean {
     (!waitsOnDependencies(hex.kind) || dependenciesDone(idx, hex));
 }
 
+/**
+ * Ready hexes, oldest first. A project's work (stories, bugs, …) is held back while the project
+ * has no repository: it cannot be built anywhere. Its planning stays ready.
+ */
 export function readyHexes(idx: HexIndex, prefix?: string): Hex[] {
+  const withoutRepo = new Set(
+    idx.hexes
+      .filter((h) => h.kind === "core.project" && !hasRepository(h))
+      .map((h) => prefixOf(h.id)),
+  );
   return idx.hexes
     .filter((h) => !h.kind.startsWith("studio.") && (!prefix || prefixOf(h.id) === prefix))
     .filter((h) => isReady(idx, h))
+    .filter((h) => !(isWorkKind(h.kind) && withoutRepo.has(prefixOf(h.id))))
     .sort(byCreated);
 }
 
@@ -123,6 +133,15 @@ export function schemaVersionOf(project: Hex | undefined): number {
 /** The git working tree a project works on (`meta.repo_path`), or null when it is not set. */
 export function repoPathOf(project: Hex | undefined): string | null {
   return project?.meta?.[REPO_PATH_KEY] || null;
+}
+
+/**
+ * Whether a project has somewhere to build its work: a v1 project always does (its folder); a
+ * v2 one once `meta.repo_path` is set.
+ */
+export function hasRepository(project: Hex | undefined): boolean {
+  if (!project) return true;
+  return schemaVersionOf(project) < 2 || repoPathOf(project) !== null;
 }
 
 /** What is wrong with a seed as written: an over-long description, a missing git URL. */
