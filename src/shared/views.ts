@@ -27,6 +27,8 @@ export interface WorkspaceState {
   schemaVersion: 1 | 2;
   /** The git working tree the selected project works on, when known. */
   repoPath: string | null;
+  /** The data file being worked on (`~/.hx/projects/<id>/data.json` or `<dir>/.hx/data.json`). */
+  dataPath: string | null;
 }
 
 /** A workspace the server has opened before. Clients treat `id` as opaque; `dir` is detail. */
@@ -55,6 +57,10 @@ export interface ProjectSummary {
   stories: number;
   /** Still in a folder's `.hx/data.json` (schema v1), not yet moved to ~/.hx/projects. */
   needsMigration: boolean;
+  /** The git working tree it works on: `meta.repo_path`, or the folder of a v1 project. */
+  repoPath: string | null;
+  /** Its data file. */
+  dataPath: string;
 }
 
 export interface EpicView {

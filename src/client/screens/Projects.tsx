@@ -116,8 +116,8 @@ export function Projects() {
       <Brand asLink={false} />
       <div class="flex items-center gap-2.5">
         <ThemeToggle />
-        {state.status === "ready" && state.data.dir && (
-          <span class="font-mono text-[13px] text-muted">{state.data.dir}/.hx/data.json</span>
+        {state.status === "ready" && state.data.dataPath && (
+          <span class="font-mono text-[13px] text-muted">{state.data.dataPath}</span>
         )}
       </div>
     </Header>
@@ -215,6 +215,11 @@ export function Projects() {
               </div>
               <div class="flex flex-col items-end gap-1.5">
                 <span class="font-mono text-[13px] text-ink-2">{p.id}</span>
+                {p.repoPath && (
+                  <span class="font-mono text-xs text-muted" title={p.dataPath}>
+                    {p.repoPath}
+                  </span>
+                )}
                 <span class="text-[13px] text-muted">
                   {plural(p.epics, "epic")} · {plural(p.stories, "story")}
                 </span>

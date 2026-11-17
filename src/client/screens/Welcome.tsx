@@ -2,7 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { api } from "../lib/api.ts";
 import { notify, notifyError } from "../lib/toasts.ts";
 import { navigate } from "../lib/router.tsx";
-import type { InspectResult } from "../../shared/views.ts";
+import type { InspectResult, ProjectSummary } from "../../shared/views.ts";
 import { Folder, HexPlus } from "../components/Icons.tsx";
 import { Brand, Header, ThemeToggle } from "../components/Layout.tsx";
 
@@ -51,6 +51,21 @@ export function Welcome() {
   const [busy, setBusy] = useState<"open" | "create" | null>(null);
   const [error, setError] = useState<{ where: "open" | "create"; message: string } | null>(null);
   const [warnings, setWarnings] = useState<{ projectId: string; items: string[] } | null>(null);
+  const [saved, setSaved] = useState<ProjectSummary[]>([]);
+
+  // Projects already in ~/.hx/projects, to open with one click.
+  useEffect(() => {
+    api.projects().then((list) => setSaved(list.filter((p) => !p.needsMigration)), () => {});
+  }, []);
+
+  const openSaved = async (p: ProjectSummary) => {
+    try {
+      await api.selectProject(p.id);
+      navigate(`/p/${p.id}`);
+    } catch (e) {
+      notifyError(e);
+    }
+  };
 
   useEffect(() => {
     api.state().then((s) => s.lastDir && setOpenDir((cur) => cur || s.lastDir || "")).catch(
@@ -127,11 +142,34 @@ export function Welcome() {
             Track every piece of a project as a hex.
           </h1>
           <p class="m-0 text-[17px] leading-relaxed text-muted">
-            Open a folder that already has a{" "}
-            <code class="font-mono text-ink">.hx/data.json</code>, or start a new project and Studio
-            will set up the folder and git repo for you.
+            Start a new project for a repository, or open one you have. Studio keeps each project's
+            hexes in{" "}
+            <code class="font-mono text-ink">~/.hx/projects/&lt;id&gt;</code>, outside the repo.
           </p>
         </div>
+
+        {saved.length > 0 && (
+          <section aria-labelledby="saved-h" class="flex flex-col gap-3">
+            <h2 id="saved-h" class="m-0 text-xl font-semibold">Your projects</h2>
+            <ul class="m-0 flex list-none flex-col gap-2 p-0">
+              {saved.map((p) => (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    onClick={() => void openSaved(p)}
+                    class="card flex w-full flex-wrap items-center gap-4 px-6 py-4 text-left hover:border-line-hover"
+                  >
+                    <span class="text-lg font-semibold text-ink">{p.title}</span>
+                    <span class="font-mono text-[13px] text-ink-2">{p.id}</span>
+                    {p.repoPath && (
+                      <span class="ml-auto font-mono text-xs text-muted">{p.repoPath}</span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <div class="flex flex-wrap items-stretch gap-6">
           <section
@@ -140,11 +178,12 @@ export function Welcome() {
           >
             <div class="flex items-center gap-3">
               <Folder size={22} />
-              <h2 id="open-h" class="m-0 text-xl font-semibold">Open existing</h2>
+              <h2 id="open-h" class="m-0 text-xl font-semibold">Open an older project</h2>
             </div>
             <p class="m-0 text-[15px] leading-normal text-muted">
-              Pick a directory containing a <code class="font-mono text-ink">.hx</code>{" "}
-              folder. Studio reads every hex from its data.json.
+              Pick a repository that still keeps its hexes in{" "}
+              <code class="font-mono text-ink">.hx/data.json</code>. Once it is open, Studio offers
+              to move them to <code class="font-mono text-ink">~/.hx/projects</code>.
             </p>
             <div class="flex flex-col gap-2">
               <DirField
@@ -163,7 +202,7 @@ export function Welcome() {
                   {inspect.found
                     ? `✓ found .hx/data.json · ${inspect.hexCount} hexes · ${inspect.projectCount} ${
                       inspect.projectCount === 1 ? "project" : "projects"
-                    }`
+                    } · will offer migration`
                     : `✗ ${inspect.error ?? "not found"}`}
                 </span>
               )}
@@ -192,7 +231,7 @@ export function Welcome() {
             <form onSubmit={create} class="flex flex-1 flex-col gap-5">
               <DirField
                 id="new-dir"
-                label="Location"
+                label="Repository folder"
                 value={newDir}
                 onInput={setNewDir}
                 placeholder="~/code/my-project"
@@ -229,8 +268,8 @@ export function Welcome() {
                   class="size-[18px] accent-accent"
                 />
                 <label for="git-init">
-                  Initialize a git repo and create{" "}
-                  <code class="font-mono text-ink">.hx/data.json</code>
+                  Initialize a git repo there if it has none. The hexes go in{" "}
+                  <code class="font-mono text-ink">~/.hx/projects</code>.
                 </label>
               </div>
               {error?.where === "create" && (

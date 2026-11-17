@@ -809,7 +809,10 @@ export function ProjectScreen({ id }: { id: string }) {
   const { project, ideas, designs, specs, decisions, questions, facts, gates, epics, autoMerge } =
     res.data;
   // Auto-merge has its own switch below.
-  const meta = Object.entries(project.meta ?? {}).filter(([k]) => k !== AUTO_MERGE_KEY);
+  const repoPath = project.meta?.repo_path;
+  const meta = Object.entries(project.meta ?? {}).filter(([k]) =>
+    k !== AUTO_MERGE_KEY && k !== "repo_path" && k !== "schema_version"
+  );
   return (
     <Working.Provider value={working}>
       <Focus.Provider value={focus}>
@@ -847,6 +850,14 @@ export function ProjectScreen({ id }: { id: string }) {
               <ClampedDescription text={project.description} href={`/h/${project.id}`} />
             )}
             <div class="flex flex-wrap gap-2.5 font-mono text-xs text-muted">
+              {repoPath && (
+                <span
+                  class="rounded-md border border-line px-2.5 py-[5px]"
+                  title="The git repository this project works on (meta.repo_path)"
+                >
+                  repo: {repoPath}
+                </span>
+              )}
               {meta.map(([k, v]) => (
                 <span key={k} class="rounded-md border border-line px-2.5 py-[5px]">{k}: {v}</span>
               ))}

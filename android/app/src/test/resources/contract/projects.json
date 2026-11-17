@@ -8,7 +8,9 @@
       "initial": "CD",
       "epics": 1,
       "stories": 1,
-      "needsMigration": true
+      "needsMigration": true,
+      "repoPath": "/home/user/demo",
+      "dataPath": "/home/user/demo/.hx/data.json"
     }
   ]
 }

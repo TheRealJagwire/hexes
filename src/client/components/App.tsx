@@ -21,7 +21,7 @@ function Start() {
   useEffect(() => {
     if (res.status !== "ready") return;
     const { dir, selectedProjectId } = res.data;
-    navigate(!dir ? "/welcome" : selectedProjectId ? `/p/${selectedProjectId}` : "/projects", {
+    navigate(selectedProjectId ? `/p/${selectedProjectId}` : dir ? "/projects" : "/welcome", {
       replace: true,
     });
   }, [res.status]);

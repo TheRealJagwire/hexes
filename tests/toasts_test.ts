@@ -82,6 +82,7 @@ const state = (over: Partial<WorkspaceState>): WorkspaceState => ({
   selectedProjectId: "hx-a-001",
   schemaVersion: 1,
   repoPath: "/code/a",
+  dataPath: "/code/a/.hx/data.json",
   ...over,
 });
 
