@@ -99,7 +99,6 @@ fun HexesNavHost() {
             composable(Routes.Welcome) {
                 WelcomeScreen(
                     onBack = if (nav.previousBackStackEntry != null) ({ nav.popBackStack() }) else null,
-                    onOpened = { nav.goHome() },
                     onCreated = { projectId -> nav.navigate(Routes.project(projectId)) { popUpTo(0) { inclusive = true } } },
                     onOpenProject = { projectId -> nav.navigate(Routes.project(projectId)) { popUpTo(0) { inclusive = true } } },
                 )

@@ -37,7 +37,8 @@ class ContractParsingTest {
     fun state() {
         val s = parse("state", WorkspaceState.serializer())
         assertEquals(false, s.pinned)
-        assertNotNull(s.selectedProjectId)
+        assertEquals(2, s.schemaVersion)
+        assertNotNull(s.dataPath)
     }
 
     @Test
@@ -132,7 +133,8 @@ class ContractParsingTest {
         val r = parse("recent_projects", ListSerializer(RecentProject.serializer())).single()
         assertEquals("Contract Demo", r.title)
         assertEquals("proj", r.folder)
-        assertTrue(r.found && r.current && r.switchable)
+        assertTrue(r.found && r.switchable)
+        assertFalse("nothing is selected", r.current)
     }
 
     @Test
@@ -216,19 +218,13 @@ class ContractParsingTest {
     }
 
     @Test
-    fun recentWorkspaces() {
-        val list = parse("recent_workspaces", ListSerializer(RecentWorkspace.serializer()))
-        assertTrue(list.single().found)
-    }
-
-    @Test
     fun updatedHex() {
         assertEquals("Board (v1)", parse("update_hex", Hex.serializer()).title)
     }
 
     @Test
     fun errors() {
-        assertEquals("No hex with id hx-nope-000", parse("error_not_found", ApiError.serializer(), 404).error)
+        assertEquals("No hex with id hx-contract-000", parse("error_not_found", ApiError.serializer(), 404).error)
         assertEquals(409, fixture("error_stale_edit").first)
         parse("error_stale_edit", ApiError.serializer(), 409)
     }

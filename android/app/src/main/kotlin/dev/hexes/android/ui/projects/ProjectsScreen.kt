@@ -44,15 +44,15 @@ import kotlinx.coroutines.launch
 
 class ProjectsViewModel(private val container: AppContainer) : ViewModel() {
     val projects = ResourceLoader(viewModelScope, container.live.version) { container.api().projects() }
-    /** The open data file: ~/.hx/projects/<id>/data.json, or a folder's .hx/data.json. */
+    /** Where the data is: ~/.hx/projects, or a pinned folder's .hx/data.json. */
     val workspace = ResourceLoader(viewModelScope, container.live.version) {
         container.api().state().let { it.dataPath ?: it.dir?.let { d -> "$d/.hx/data.json" } }
     }
     val recent = RecentProjectsController(container, viewModelScope)
 
-    /** Remember the choice on the server, as the web app does when you open a project. */
-    fun select(id: String) {
-        viewModelScope.launch { runCatching { container.api().selectProject(id) } }
+    /** Puts the project first in the recent list, as the web app does when you open one. */
+    fun opened(id: String) {
+        viewModelScope.launch { runCatching { container.api().projectOpened(id) } }
     }
 }
 
@@ -110,11 +110,11 @@ fun ProjectsScreen(
                         }
                         items(rows, key = { it.id }) { p ->
                             ProjectCard(p) {
-                                vm.select(p.id)
+                                vm.opened(p.id)
                                 onOpenProject(p.id)
                             }
                         }
-                        item { TextButton(onClick = onSwitchFolder) { Text("Open another folder") } }
+                        item { TextButton(onClick = onSwitchFolder) { Text("Create a project") } }
                     }
                 }
             }

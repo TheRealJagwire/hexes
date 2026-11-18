@@ -85,7 +85,7 @@ Deno.test("api responses match the contract fixtures", async () => {
       }),
       statuses: await call("GET", "/statuses"),
       recent_projects: await call("GET", "/projects/recent"),
-      error_not_found: await call("GET", "/hexes/hx-nope-000"),
+      error_not_found: await call("GET", "/hexes/hx-contract-000"),
       error_stale_edit: await call("PATCH", `/hexes/${epic.id}`, {
         title: "x",
         expectedUpdatedAtTimeInMs: 1,

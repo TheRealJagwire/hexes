@@ -95,7 +95,7 @@ class ApiClientTest {
 
     @Test
     fun stateAndProjectsParse() = runBlocking {
-        server.enqueue(ok("""{"dir":"/x","pinned":false,"lastDir":"/x","selectedProjectId":null}"""))
+        server.enqueue(ok("""{"dir":"/x","pinned":true,"schemaVersion":1}"""))
         server.enqueue(ok("""[{"id":"hx-a-123","title":"A","blurb":"","initial":"A","epics":0,"stories":2}]"""))
         assertEquals("/x", client().state().dir)
         assertEquals(2, client().projects().single().stories)
@@ -114,21 +114,14 @@ class ApiClientTest {
     }
 
     @Test
-    fun selectingAProjectPostsJson() = runBlocking {
+    fun openingAProjectRecordsItWithoutSelecting() = runBlocking {
         server.enqueue(ok("""{"ok":true}"""))
-        client().selectProject("hx-a-123")
+        client().projectOpened("hx-a-123")
         val request = server.takeRequest()
         assertEquals("POST", request.method)
-        assertEquals("/api/selected-project", request.url.encodedPath)
+        assertEquals("/api/projects/hx-a-123/opened", request.url.encodedPath)
         assertTrue(request.headers["Content-Type"]!!.startsWith("application/json"))
-        assertEquals("""{"id":"hx-a-123"}""", request.body!!.utf8())
-    }
-
-    @Test
-    fun openingAWorkspaceReturnsTheNewState() = runBlocking {
-        server.enqueue(ok("""{"dir":"/p","pinned":false,"lastDir":"/p","selectedProjectId":null}"""))
-        assertEquals("/p", client().openWorkspace("~/p").dir)
-        assertEquals("""{"dir":"~/p"}""", server.takeRequest().body!!.utf8())
+        assertEquals("{}", request.body!!.utf8())
     }
 
     @Test
