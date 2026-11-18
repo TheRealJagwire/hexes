@@ -82,18 +82,43 @@ Each project has its own folder outside any repository (schema version 2):
 `HEXES_HOME` moves the `~/.hx` root (tests use it). The project hex records where its code lives and
 which layout it uses in its meta: `repo_path` (the git working tree that branches, pull requests and
 merges run in) and `schema_version` (`"2"`). Creating a project writes this folder and sets
-`repo_path` to the folder you chose; nothing is written into the repository.
+`repo_path` to the folder you chose; the only thing written into the repository is
+`.hx/project.json` (below).
 
 Older projects (schema version 1) kept their hexes in the repository, in `<repo>/.hx/data.json`,
-several projects to a file. Studio still opens them, tags them "v1" in the project list, and when
-one is open shows a notification: "Move this project's data to ~/.hx/projects?". **Migrate** splits
-the file into one folder per project (with `repo_path` set to that repository and its saved diffs
-copied over), selects the moved project and reloads; **Not now** hides the offer until you open the
-project again. Migration is all or nothing: it stops before writing if a target folder already
-exists, removes what it wrote if anything fails, and only then renames the old file to
-`<repo>/.hx/data.json.migrated-v1`, which stays as a backup for you to delete. Only a person
-migrates: agents have no tool for it. `HEXES_DIR` pins Studio to one v1 folder (tests and old
-setups); while it is set, the `~/.hx` projects are not used and migration is refused.
+several projects to a file. Studio no longer opens them in place: the welcome screen's **Move an
+older project** takes such a folder and migrates it, splitting the file into one folder per project
+(with `repo_path` set to that repository and its saved diffs copied over), then opens the moved
+project. Migration is all or nothing: it stops before writing if a target folder already exists or
+another project already uses the same id prefix, removes what it wrote if anything fails, and only
+then renames the old file to `<repo>/.hx/data.json.migrated-v1`, which stays as a backup for you to
+delete. Only a person migrates: agents have no tool for it. `HEXES_DIR` pins Studio to one v1 folder
+(tests and old setups); while it is set, the `~/.hx` projects are not used and migration is refused.
+
+## Which project a repository belongs to
+
+A repository names its project in `.hx/project.json`, committed with the code:
+
+```json
+{ "project_id": "hx-hexes-f1a" }
+```
+
+Creating a project with a folder, giving one a repository (forking a seed or picking a folder), and
+Studio's startup (for projects that had a repository before the file existed) all write it; moving a
+project to another folder removes the old folder's file, and a folder that already names another
+project is refused. Agents read it from their working directory, or call `find_project`, and pass
+that id on every call; `hexes-channel` reads it to know which project to report on. Nothing in Hexes
+is "selected": opening a project in Studio never changes what an agent or channel works on, so two
+sessions in two repositories work side by side. Calls that take only a hex id find its project from
+the id's prefix (`hx-<prefix>-…`), which is why no two projects share a prefix.
+
+Commit the file. The rest of `.hx/` stays out of git, and a `.gitignore` line that hid the whole
+folder (`.hx/`) can't let one file back in, so Hexes rewrites it as:
+
+```gitignore
+.hx/*
+!.hx/project.json
+```
 
 ## Repository seeds
 
@@ -123,12 +148,11 @@ always have a repository, their folder.
 
 ## Per-user state
 
-Studio remembers, per user, the selected project (`selectedProjectId`, for one in `~/.hx/projects`),
-the v1 folder it last opened, recent folders and recently opened projects (`recentProjects`: project
-id, title and when, plus the folder for a v1 project; newest first, at most 10). They live in
-`~/.config/hexes/state.json` (under `$XDG_CONFIG_HOME` when set; `HEXES_STATE_FILE` overrides the
-path), never in a project's repository. The projects screen lists every project, so switching to one
-takes a single click.
+Studio remembers, per user, only the recently opened projects (`recentProjects`: project id, title
+and when; newest first, at most 10). Opening a project puts it first; that is all it does. They live
+in `~/.config/hexes/state.json` (under `$XDG_CONFIG_HOME` when set; `HEXES_STATE_FILE` overrides the
+path), never in a project's repository; keys from older versions (`selectedProjectId`, `lastDir`,
+`recent`) are dropped the next time it is written. `/` opens the projects list.
 
 ## Branches and pull requests
 
@@ -193,9 +217,9 @@ first, and the dependency links between them.
 ## MCP server
 
 Studio serves MCP itself over streamable HTTP at `http://localhost:8000/mcp`, sharing one service
-with the UI, and `.mcp.json` points Claude Code at it (start Studio first). It works on the project
-selected in Studio (or, for a v1 project, the folder last opened), or on `HEXES_DIR` if set. The
-stdio entry (`deno task mcp`) still exists for clients that need a spawned process.
+with the UI, and `.mcp.json` points Claude Code at it (start Studio first). Every call names its
+project (see `.hx/project.json` above), or the folder pinned by `HEXES_DIR` if set. The stdio entry
+(`deno task mcp`) still exists for clients that need a spawned process.
 
 ## Waking the agent
 
