@@ -9,7 +9,7 @@ import {
 import { findProjectBinding } from "../src/server/core/binding.ts";
 import type { HexService } from "../src/server/core/service.ts";
 import { ChangeWatcher } from "../src/server/core/watcher.ts";
-import { type Fixture, fixture, legacyProject } from "./helpers.ts";
+import { type Fixture, fixture } from "./helpers.ts";
 
 function design(s: HexService, projectId: string, title: string) {
   return s.createHex({
@@ -28,16 +28,9 @@ function design(s: HexService, projectId: string, title: string) {
  * A started channel over the fixture's workspace that collects what it sends. With `projectId`,
  * it is bound to that project the way `hexes-channel` binds to its repository's.
  */
-async function channel(f: Fixture, projectId?: string | null) {
+async function channel(f: Fixture, projectId: string | null = f.projectId) {
   const sent: ChannelEvent[] = [];
-  const watcher = projectId === undefined
-    ? new ChangeWatcher(f.workspace, 10, 200)
-    : new ChangeWatcher(
-      f.workspace,
-      10,
-      200,
-      () => Promise.resolve(projectId ? [f.workspace.projects.projectDir(projectId)] : []),
-    );
+  const watcher = new ChangeWatcher(f.workspace, 10, 200);
   const ch = new HexesChannel({
     workspace: f.workspace,
     projectId,
@@ -133,29 +126,6 @@ Deno.test("starting does not replay earlier blessings", async () => {
   }
 });
 
-Deno.test("switching workspace re-baselines without sending", async () => {
-  const f = await fixture();
-  const second = { projectId: await legacyProject(f.service, `${f.dir}-b`, "Second") };
-  const old = await design(f.service, second.projectId!, "Blessed before the channel saw it");
-  await f.service.updateHex(old.id, { status: "blessed" });
-  await f.workspace.open(f.dir);
-  const { ch, sent, waitFor } = await channel(f);
-  try {
-    await f.workspace.open(`${f.dir}-b`);
-    await waitFor(1, 400);
-    assertEquals(sent, [], "a switch is not news");
-
-    const fresh = await design(f.service, second.projectId!, "Fresh");
-    await f.service.updateHex(fresh.id, { status: "blessed" });
-    assert(await waitFor(1), "no event in the new workspace");
-    assertEquals(sent.map((s) => s.meta.blessed), [fresh.id]);
-  } finally {
-    ch.stop();
-    await Deno.remove(`${f.dir}-b`, { recursive: true });
-    await f.cleanup();
-  }
-});
-
 Deno.test("stop() unsubscribes", async () => {
   const f = await fixture();
   const d = await design(f.service, f.projectId, "Late");
@@ -174,10 +144,11 @@ Deno.test("a channel's presence file is written, refreshed, records sends and go
   const f = await fixture();
   const d = await design(f.service, f.projectId, "Say you heard");
   let now = 1_000;
-  const presence = new ChannelPresence(f.workspace, 4242, () => now, 30);
+  const presence = new ChannelPresence(f.workspace, 4242, () => now, 30, f.projectId);
   const sent: ChannelEvent[] = [];
   const ch = new HexesChannel({
     workspace: f.workspace,
+    projectId: f.projectId,
     watcher: new ChangeWatcher(f.workspace, 10, 200),
     send: (e) => {
       sent.push(e);

@@ -8,12 +8,16 @@
       "kind": "core.project",
       "createdAtTimeInMs": 1700000001000,
       "lastUpdatedAtTimeInMs": 1700000001000,
-      "status": "done"
+      "status": "done",
+      "meta": {
+        "schema_version": "2",
+        "repo_path": "/home/user/demo"
+      }
     },
     "gates": [],
     "designs": [
       {
-        "id": "hx-contract-6a4",
+        "id": "hx-contract-d35",
         "title": "Board layout",
         "kind": "core.design",
         "status": "done"
@@ -23,13 +27,13 @@
     "decisions": [],
     "questions": [
       {
-        "id": "hx-contract-d9d",
+        "id": "hx-contract-6a3",
         "title": "Wrap edges?",
         "kind": "core.question",
         "status": "blocked"
       },
       {
-        "id": "hx-contract-c60",
+        "id": "hx-contract-0bf",
         "title": "Snap to grid?",
         "kind": "core.question",
         "status": "blocked"
@@ -37,13 +41,13 @@
     ],
     "ideas": [
       {
-        "id": "hx-contract-ea9",
+        "id": "hx-contract-af9",
         "title": "Hex rivers",
         "kind": "core.idea",
         "status": "published"
       },
       {
-        "id": "hx-contract-1be",
+        "id": "hx-contract-9a0",
         "title": "Fog of war",
         "kind": "core.idea",
         "status": "draft"
@@ -53,16 +57,16 @@
     "epics": [
       {
         "hex": {
-          "id": "hx-contract-a76",
+          "id": "hx-contract-c0a",
           "title": "Board",
           "description": "",
           "kind": "core.epic",
-          "createdAtTimeInMs": 1700000006000,
-          "lastUpdatedAtTimeInMs": 1700000006000,
+          "createdAtTimeInMs": 1700000005000,
+          "lastUpdatedAtTimeInMs": 1700000005000,
           "status": "blocked",
           "dependsOn": [
-            "hx-contract-6a4",
-            "hx-contract-ee8"
+            "hx-contract-d35",
+            "hx-contract-122"
           ]
         },
         "gate": null,
@@ -73,15 +77,15 @@
         },
         "stories": [
           {
-            "id": "hx-contract-ee8",
+            "id": "hx-contract-122",
             "title": "Draw the grid",
             "description": "",
             "kind": "core.story",
-            "createdAtTimeInMs": 1700000005000,
-            "lastUpdatedAtTimeInMs": 1700000008000,
+            "createdAtTimeInMs": 1700000004000,
+            "lastUpdatedAtTimeInMs": 1700000007000,
             "status": "ready",
             "dependsOn": [
-              "hx-contract-6a4"
+              "hx-contract-d35"
             ],
             "meta": {
               "git_branch": "feat/grid"

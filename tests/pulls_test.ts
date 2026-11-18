@@ -7,7 +7,7 @@ import { DomainError } from "../src/server/core/errors.ts";
 import { migrateToV2 } from "../src/server/core/migrate_v2.ts";
 import { branchName } from "../src/server/core/service.ts";
 import { parseUnifiedDiff } from "../src/shared/diff.ts";
-import { type Fixture, fixture, git, initRepo } from "./helpers.ts";
+import { type Fixture, fixture, git, initRepo, unpinned } from "./helpers.ts";
 
 const base = { description: "", requiredBy: [], dependsOn: [], meta: {} };
 
@@ -630,9 +630,9 @@ Deno.test("a target checked out in a linked worktree is merged there", async () 
 Deno.test("a v2 project runs git in its repo_path and keeps patches in its own folder", async () => {
   const f = await repoFixture();
   try {
-    const s = f.service;
     // Move the project to ~/.hx/projects; the repo no longer holds any hex data.
-    await migrateToV2(f.dir, f.workspace.projects, f.workspace);
+    const s = unpinned(f);
+    await migrateToV2(f.dir, s.workspace.projects, s.workspace);
     assertEquals((await s.state()).schemaVersion, 2);
     await Deno.remove(`${f.dir}/.gitignore`);
     await git(f.dir, "commit", "-q", "-am", "no .hx ignore needed");
@@ -660,8 +660,8 @@ Deno.test("a v2 project runs git in its repo_path and keeps patches in its own f
 Deno.test("a v2 project without a repo_path refuses git tools", async () => {
   const f = await repoFixture();
   try {
-    const s = f.service;
-    await migrateToV2(f.dir, f.workspace.projects, f.workspace);
+    const s = unpinned(f);
+    await migrateToV2(f.dir, s.workspace.projects, s.workspace);
     await f.workspace.projects.file(f.projectId).mutate((hexes) => {
       const p = hexes.find((h) => h.id === f.projectId)!;
       delete p.meta?.repo_path;

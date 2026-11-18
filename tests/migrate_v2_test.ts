@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { DomainError } from "../src/server/core/errors.ts";
 import { migrateToV2 } from "../src/server/core/migrate_v2.ts";
 import { HexService } from "../src/server/core/service.ts";
@@ -25,7 +25,10 @@ interface Setup {
   service: HexService;
 }
 
-/** A v1 folder with two projects (alpha selected), an orphan hex and two saved diffs. */
+/**
+ * A v1 folder with two projects (alpha last opened), an old selected-project hex, an orphan hex
+ * and two saved diffs.
+ */
 async function setup(): Promise<Setup> {
   const root = await Deno.makeTempDir({ prefix: "hexes-migrate-v2-" });
   const dir = `${root}/repo`;
@@ -44,15 +47,16 @@ async function setup(): Promise<Setup> {
   await Deno.writeTextFile(`${dir}/.hx/diffs/hx-beta-009.patch`, "diff b");
   const workspace = new Workspace({ stateFile: `${root}/state.json`, home: `${root}/hx` });
   const service = new HexService(workspace, () => 5);
-  await service.openWorkspace(dir);
-  await service.selectProject("hx-beta-001");
-  await service.selectProject("hx-alpha-001");
+  // Both were opened in their v1 folder before; alpha most recently.
+  for (const [projectId, openedAt] of [["hx-beta-001", 1], ["hx-alpha-001", 2]] as const) {
+    await workspace.rememberProject({ dir, projectId, title: projectId, openedAt });
+  }
   return { root, dir, workspace, service };
 }
 
 const read = async (path: string): Promise<Hex[]> => JSON.parse(await Deno.readTextFile(path));
 
-Deno.test("migrating splits projects into folders, drops orphans and carries the selection", async () => {
+Deno.test("migrating splits projects into folders, drops orphans and Studio's own hexes", async () => {
   const s = await setup();
   try {
     const store = s.workspace.projects;
@@ -81,18 +85,15 @@ Deno.test("migrating splits projects into folders, drops orphans and carries the
     assertEquals((await Deno.stat(`${s.dir}/.hx/data.json.migrated-v1`)).isFile, true);
     await assertRejects(() => Deno.stat(`${s.dir}/.hx/data.json`), Deno.errors.NotFound);
 
-    const state = await s.service.state();
-    assertEquals([state.selectedProjectId, state.schemaVersion, state.repoPath], [
-      "hx-alpha-001",
-      2,
-      s.dir,
-    ]);
+    assert(
+      ![...alpha, ...beta].some((h) => h.kind.startsWith("studio.")),
+      "the old selected-project hex is not carried over",
+    );
     const recent = await s.workspace.recentProjects();
     assertEquals(recent.map((e) => [e.projectId, e.dir]), [
       ["hx-alpha-001", undefined],
       ["hx-beta-001", undefined],
     ]);
-    assertEquals(await s.workspace.recent(), []);
     assertEquals((await s.service.listProjects()).map((p) => [p.id, p.needsMigration]), [
       ["hx-alpha-001", false],
       ["hx-beta-001", false],

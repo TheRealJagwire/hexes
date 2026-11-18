@@ -34,10 +34,9 @@ export interface HexesChannelOptions {
   workspace: Workspace;
   /**
    * The project this channel reports on: the one the session's repository names in
-   * `.hx/project.json`. Null when no binding was found: the channel then sends nothing. Left out,
-   * it follows the workspace's selected project (the older behaviour).
+   * `.hx/project.json`. Null when no binding was found: the channel then sends nothing.
    */
-  projectId?: string | null | undefined;
+  projectId: string | null;
   watcher: ChangeWatcher;
   send: (event: ChannelEvent) => void | Promise<void>;
   /** Told about each send, so Studio can see what went out. */
@@ -109,20 +108,12 @@ export class HexesChannel {
     }
   }
 
-  /**
-   * The hexes being watched: the bound project's, else the selected workspace's. `[]` with
-   * nothing to watch, null when the file can't be read.
-   */
+  /** The bound project's hexes; `[]` when unbound, null when the file can't be read. */
   private async read(): Promise<Hex[] | null> {
     const { projectId, workspace } = this.opts;
+    if (projectId === null) return [];
     try {
-      if (projectId === null) return [];
-      if (projectId !== undefined) {
-        if (!await workspace.hasProject(projectId)) return [];
-        return await (await workspace.projectFile(projectId)).read();
-      }
-      if (!await workspace.dataDir()) return [];
-      return await (await this.opts.workspace.file()).read();
+      return await (await workspace.fileFor(projectId)).read();
     } catch {
       return null;
     }

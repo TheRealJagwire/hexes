@@ -57,8 +57,7 @@ function RecentProjects() {
                     title={r.dir}
                     onClick={() =>
                       run(r, async () => {
-                        await api.openRecentProject(r.dir, r.projectId);
-                        notify(`Opened ${r.title}`);
+                        await api.projectOpened(r.projectId);
                         navigate(`/p/${r.projectId}`);
                       })}
                     class="flex w-full flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-line bg-panel px-5 py-3.5 text-left text-ink hover:border-line-hover hover:bg-panel2"
@@ -89,7 +88,8 @@ function RecentProjects() {
                       aria-label={`Remove ${r.title} from recent projects`}
                       onClick={() =>
                         run(r, async () => {
-                          await api.forgetRecentProject(r.dir, r.projectId);
+                          // A v2 entry has no folder of its own; only an old v1 entry does.
+                          await api.forgetRecentProject(r.found ? "" : r.dir, r.projectId);
                           notify(`Removed ${r.title} from recent projects`);
                           recent.reload();
                         })}
@@ -179,7 +179,6 @@ export function Projects() {
           <li key={p.id}>
             <Link
               href={`/p/${p.id}`}
-              onClick={() => void api.selectProject(p.id).catch(() => {})}
               class="flex flex-wrap items-center gap-5 rounded-xl border border-line bg-panel px-6 py-5 text-ink no-underline hover:border-line-hover hover:bg-panel2"
             >
               <svg width="40" height="40" viewBox="0 0 28 28" aria-hidden="true" class="flex-none">

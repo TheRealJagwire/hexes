@@ -21,7 +21,7 @@ function req(fields: Partial<Req> & Pick<Req, "projectId" | "kind" | "title">): 
   return { description: "", status: "blocked", requiredBy: [], dependsOn: [], meta: {}, ...fields };
 }
 
-/** Two v2 projects in a temp ~/.hx, with B selected. */
+/** Two v2 projects in a temp ~/.hx, B opened last. */
 async function twoProjects(): Promise<Two> {
   const root = await Deno.makeTempDir({ prefix: "hexes-routing-" });
   const workspace = new Workspace({ stateFile: `${root}/state.json`, home: `${root}/hx` });
@@ -31,14 +31,13 @@ async function twoProjects(): Promise<Two> {
     (await service.createProject({ dir: "", title, description: "", gitInit: false })).projectId;
   const a = await create("Alpha");
   const b = await create("Bravo");
-  await service.selectProject(b);
+  await service.recordOpened(b);
   return { root, workspace, service, a, b };
 }
 
-Deno.test("calls on project A work while project B is selected", async () => {
+Deno.test("calls on project A work while project B was opened last", async () => {
   const t = await twoProjects();
   try {
-    assertEquals(await t.service.selectedProjectId(), t.b);
     const design = await t.service.createHex(req({
       projectId: t.a,
       kind: "core.design",

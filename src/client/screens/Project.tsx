@@ -921,9 +921,9 @@ export function ProjectScreen({ id }: { id: string }) {
   }, [pending, working?.hexId, working?.at, workingSpot?.in === "tab" && workingSpot.tab]);
   useHandoffScroll(id, view ? working : null, view);
 
-  // Opening a project makes it the selected one, so Studio reopens here next time.
+  // Opening a project puts it first in the recent list; it retargets no agent or channel.
   useEffect(() => {
-    void api.selectProject(id).catch(() => {});
+    void api.projectOpened(id).catch(() => {});
   }, [id]);
 
   if (res.status !== "ready") {

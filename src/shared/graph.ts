@@ -7,7 +7,6 @@ import {
   SEED_DESCRIPTION_LIMIT,
   SEED_GIT_URL_KEY,
   SEED_KIND,
-  SELECTED_PROJECT_KIND,
   type Status,
   STATUSES,
   waitsOnDependencies,
@@ -382,7 +381,7 @@ const PARENT_RULES: Record<string, ParentRule> = {
 };
 
 function parentOf(idx: HexIndex, hex: Hex): Hex | undefined {
-  if (hex.kind === "core.project" || hex.kind === SELECTED_PROJECT_KIND) return undefined;
+  if (hex.kind === "core.project" || hex.kind.startsWith("studio.")) return undefined;
   const prefix = prefixOf(hex.id);
   const project = prefix ? findProject(idx, prefix) : undefined;
   const rule = PARENT_RULES[hex.kind];

@@ -78,8 +78,6 @@ Deno.test("a toast's actions are kept, and onClose runs however it goes", () => 
 const state = (over: Partial<WorkspaceState>): WorkspaceState => ({
   dir: "/code/a",
   pinned: false,
-  lastDir: "/code/a",
-  selectedProjectId: "hx-a-001",
   schemaVersion: 1,
   repoPath: "/code/a",
   dataPath: "/code/a/.hx/data.json",
@@ -109,7 +107,7 @@ Deno.test("Not now hides the offer until the folder is opened again", () => {
   assertEquals(texts(s), []);
   offer.update(state({}));
   assertEquals(texts(s), [], "not again while the same folder stays open");
-  offer.update(state({ dir: "/code/b", lastDir: "/code/b" }));
+  offer.update(state({ dir: "/code/b" }));
   offer.update(state({}));
   assertEquals(texts(s), [MIGRATION_TEXT], "back when the folder is opened again");
 });

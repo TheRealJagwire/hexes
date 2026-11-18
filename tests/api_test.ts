@@ -1,6 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { createApp } from "../src/server/app.ts";
-import { fixture } from "./helpers.ts";
+import { fixture, unpinned } from "./helpers.ts";
 
 const H = { host: "localhost:8000" };
 const J = { ...H, "content-type": "application/json" };
@@ -41,7 +41,8 @@ Deno.test("api: state, project, create, status, delete", async () => {
       });
       return { status: res.status, json: await res.json() };
     };
-    assertEquals((await call("GET", "/state")).json.selectedProjectId, f.projectId);
+    const state = (await call("GET", "/state")).json;
+    assertEquals([state.pinned, state.dir, "selectedProjectId" in state], [true, f.dir, false]);
     const created = await call("POST", "/hexes", {
       projectId: f.projectId,
       kind: "core.story",
@@ -99,7 +100,7 @@ Deno.test("bodiless DELETEs pass the guard over a real connection", async () => 
 Deno.test("api: POST /projects/migrate moves a v1 folder; conflicts are 409, nothing left is 404", async () => {
   const f = await fixture();
   try {
-    const app = createApp(f.service);
+    const app = createApp(unpinned(f));
     const migrate = async () => {
       const res = await app.request("/api/projects/migrate", {
         method: "POST",
@@ -119,8 +120,8 @@ Deno.test("api: POST /projects/migrate moves a v1 folder; conflicts are 409, not
 
     const ok = await migrate();
     assertEquals([ok.status, ok.body], [200, { projects: [f.projectId] }]);
-    const state = await (await app.request("/api/state", { headers: H })).json();
-    assertEquals([state.selectedProjectId, state.schemaVersion], [f.projectId, 2]);
+    const projects = await (await app.request("/api/projects", { headers: H })).json();
+    assertEquals(projects.map((p: { id: string }) => p.id), [f.projectId]);
 
     const again = await migrate();
     assertEquals(again.status, 404);

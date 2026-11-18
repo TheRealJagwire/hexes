@@ -3,12 +3,12 @@
   "body": [
     {
       "hex": {
-        "id": "hx-seed-dfa",
+        "id": "hx-seed-0e0",
         "title": "Deno starter",
         "description": "Deno + Hono + Preact; tests and lint set up. Good for small web apps.",
         "kind": "core.seed",
-        "createdAtTimeInMs": 1700000013000,
-        "lastUpdatedAtTimeInMs": 1700000013000,
+        "createdAtTimeInMs": 1700000012000,
+        "lastUpdatedAtTimeInMs": 1700000012000,
         "status": "available",
         "meta": {
           "git_url": "https://example.com/deno-starter.git",

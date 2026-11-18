@@ -8,9 +8,9 @@
       "initial": "CD",
       "epics": 1,
       "stories": 1,
-      "needsMigration": true,
+      "needsMigration": false,
       "repoPath": "/home/user/demo",
-      "dataPath": "/home/user/demo/.hx/data.json"
+      "dataPath": "/home/user/hx/projects/hx-contract-16d/data.json"
     }
   ]
 }

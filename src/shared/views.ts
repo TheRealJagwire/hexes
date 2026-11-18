@@ -20,32 +20,12 @@ export interface WorkspaceState {
   dir: string | null;
   /** True when the directory is fixed by the HEXES_DIR environment variable. */
   pinned: boolean;
-  /** The directory used last time, offered as a default on the welcome screen. */
-  lastDir: string | null;
-  selectedProjectId: string | null;
-  /** 2 when the selected project lives in ~/.hx/projects/<id>; 1 for a folder's `.hx/data.json`. */
+  /** 2 when projects live in ~/.hx/projects/<id>; 1 for a v1 folder pinned by HEXES_DIR. */
   schemaVersion: 1 | 2;
-  /** The git working tree the selected project works on, when known. */
+  /** The pinned v1 folder's git working tree; null otherwise (each project has its own). */
   repoPath: string | null;
-  /** The data file being worked on (`~/.hx/projects/<id>/data.json` or `<dir>/.hx/data.json`). */
+  /** Where the data is: `~/.hx/projects`, or the pinned folder's `.hx/data.json`. */
   dataPath: string | null;
-}
-
-/** A workspace the server has opened before. Clients treat `id` as opaque; `dir` is detail. */
-export interface RecentWorkspace {
-  id: string;
-  label: string;
-  dir: string;
-  /** False when the directory no longer has a readable data file. */
-  found: boolean;
-}
-
-export interface InspectResult {
-  dir: string;
-  found: boolean;
-  hexCount: number;
-  projectCount: number;
-  error?: string | undefined;
 }
 
 /** A repository seed (`core.seed`) with what is wrong with it as written. */

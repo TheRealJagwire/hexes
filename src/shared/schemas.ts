@@ -1,21 +1,7 @@
 import { z } from "zod";
-import {
-  CORE_KINDS,
-  HEX_ID_RE,
-  SELECTED_PROJECT_KIND,
-  SELECTED_PROJECT_PREFIX,
-  type Status,
-  STATUSES,
-} from "./constants.ts";
+import { CORE_KINDS, HEX_ID_RE, type Status, STATUSES, STUDIO_PREFIX } from "./constants.ts";
 
-export {
-  CORE_KINDS,
-  HEX_ID_RE,
-  SELECTED_PROJECT_KIND,
-  SELECTED_PROJECT_PREFIX,
-  type Status,
-  STATUSES,
-};
+export { CORE_KINDS, HEX_ID_RE, type Status, STATUSES, STUDIO_PREFIX };
 
 export const StatusSchema = z.enum(STATUSES);
 

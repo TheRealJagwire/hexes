@@ -6,11 +6,11 @@
       "projectId": "hx-contract-16d",
       "title": "Contract Demo",
       "folder": "proj",
-      "openedAt": 1700000003000,
+      "openedAt": 1700000002000,
       "found": true,
-      "current": true,
+      "current": false,
       "switchable": true,
-      "needsMigration": true
+      "needsMigration": false
     }
   ]
 }

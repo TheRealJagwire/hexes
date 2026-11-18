@@ -179,7 +179,7 @@ export const SEED_BRANCH_KEY = "branch";
 /** Project meta key: the seed (`hx-seed-…`) its repository was forked from. */
 export const REPO_REF_KEY = "repo_ref_hx";
 
-export const SELECTED_PROJECT_KIND = "studio.selected_project";
-export const SELECTED_PROJECT_PREFIX = "studio";
+/** Kept off projects: old v1 files may still hold Studio's own `studio.*` hexes. */
+export const STUDIO_PREFIX = "studio";
 
 export const HEX_ID_RE = /^hx-([a-z0-9]+(?:-[a-z0-9]+)*)-([0-9a-f]{3,})$/;
