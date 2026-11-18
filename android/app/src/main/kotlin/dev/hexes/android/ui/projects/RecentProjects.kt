@@ -48,14 +48,15 @@ class RecentProjectsController(private val container: AppContainer, private val 
         }
     }
 
-    /** Opens the project's folder on the server when needed and selects it, then `onOpened`. */
+    /** Puts the project first in the recent list, then `onOpened`. It selects nothing. */
     fun open(r: RecentProject, onOpened: (String) -> Unit) = run {
-        container.api().openRecentProject(r.dir, r.projectId)
+        container.api().projectOpened(r.projectId)
         onOpened(r.projectId)
     }
 
     fun forget(r: RecentProject) = run {
-        container.api().forgetRecentProject(r.dir, r.projectId)
+        // A project in ~/.hx/projects has no folder of its own in the list; only an old v1 entry does.
+        container.api().forgetRecentProject(if (r.found) "" else r.dir, r.projectId)
         recent.refresh()
     }
 }

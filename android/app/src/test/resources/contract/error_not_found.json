@@ -1,6 +1,6 @@
 {
   "status": 404,
   "body": {
-    "error": "No project owns prefix \"nope\""
+    "error": "No hex with id hx-contract-000"
   }
 }

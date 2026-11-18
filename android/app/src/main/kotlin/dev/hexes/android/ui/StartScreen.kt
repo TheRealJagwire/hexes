@@ -10,30 +10,24 @@ import dev.hexes.android.AppContainer
 import dev.hexes.android.containerViewModel
 import dev.hexes.android.data.Resource
 import dev.hexes.android.data.ResourceLoader
-import dev.hexes.android.data.WorkspaceState
+import dev.hexes.android.data.ProjectSummary
 import dev.hexes.android.ui.components.ErrorState
 import dev.hexes.android.ui.components.LoadingState
 import dev.hexes.android.ui.components.SecondaryButton
 
 class StartViewModel(container: AppContainer) : ViewModel() {
-    val state = ResourceLoader(viewModelScope, kotlinx.coroutines.flow.MutableStateFlow(0)) { container.api().state() }
+    val state = ResourceLoader(viewModelScope, kotlinx.coroutines.flow.MutableStateFlow(0)) { container.api().projects() }
     fun retry() = state.refresh()
 }
 
-/** `/`: no folder open → the workspace picker; a selected project → its screen; else the project list. */
+/** `/`: the project list, or welcome when the server has no projects yet. Nothing is "selected". */
 @Composable
 fun StartScreen(onGo: (String) -> Unit, onSettings: () -> Unit) {
     val vm = containerViewModel { StartViewModel(it) }
     val res by vm.state.state.collectAsStateWithLifecycle()
     LaunchedEffect(res) {
-        (res as? Resource.Ready<WorkspaceState>)?.data?.let { s ->
-            onGo(
-                when {
-                    s.dir == null -> Routes.Welcome
-                    s.selectedProjectId != null -> Routes.project(s.selectedProjectId)
-                    else -> Routes.Projects
-                },
-            )
+        (res as? Resource.Ready<List<ProjectSummary>>)?.data?.let { projects ->
+            onGo(if (projects.isEmpty()) Routes.Welcome else Routes.Projects)
         }
     }
     when (val r = res) {

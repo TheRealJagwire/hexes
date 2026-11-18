@@ -89,12 +89,6 @@ data class StatusTable(
     }
 }
 
-@Serializable
-data class SelectProjectRequest(val id: String)
-
-@Serializable
-data class DirRequest(val dir: String)
-
 /** `PATCH /api/hexes/:id`: only the fields that are set are sent. */
 @Serializable
 data class UpdateHexRequest(
@@ -141,22 +135,13 @@ data class Progress(val done: Int, val total: Int, val pct: Int)
 
 @Serializable
 data class WorkspaceState(
-    val dir: String?,
-    val pinned: Boolean,
-    val lastDir: String?,
-    val selectedProjectId: String?,
-    /** 2: the project lives in ~/.hx/projects/<id>; 1: in a folder's .hx/data.json. Absent from older servers. */
-    val schemaVersion: Int = 1,
+    /** The v1 folder Studio is pinned to by HEXES_DIR; null otherwise. Nothing is "selected". */
+    val dir: String? = null,
+    val pinned: Boolean = false,
+    /** 2: projects live in ~/.hx/projects/<id>; 1: a pinned folder's .hx/data.json. */
+    val schemaVersion: Int = 2,
     val repoPath: String? = null,
     val dataPath: String? = null,
-)
-
-@Serializable
-data class RecentWorkspace(
-    val id: String,
-    val label: String,
-    val dir: String,
-    val found: Boolean,
 )
 
 @Serializable
@@ -325,7 +310,7 @@ data class PullRequestDiff(
     val source: String,
 )
 
-/** `GET /api/projects/recent`: a project opened before, in this folder or another. */
+/** `GET /api/projects/recent`: a project people opened recently, newest first. */
 @Serializable
 data class RecentProject(
     val dir: String,
@@ -340,6 +325,6 @@ data class RecentProject(
     val needsMigration: Boolean = false,
 )
 
-/** `POST /api/projects/open` and `/api/projects/recent/forget`. */
+/** `POST /api/projects/recent/forget`: `dir` is empty for a project in ~/.hx/projects. */
 @Serializable
 data class RecentProjectRequest(val dir: String, val projectId: String)

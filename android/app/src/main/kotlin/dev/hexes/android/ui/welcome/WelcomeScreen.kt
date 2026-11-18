@@ -34,13 +34,6 @@ import androidx.lifecycle.viewModelScope
 import dev.hexes.android.AppContainer
 import dev.hexes.android.containerViewModel
 import dev.hexes.android.data.CreateProjectRequest
-import dev.hexes.android.data.RecentWorkspace
-import dev.hexes.android.data.Resource
-import dev.hexes.android.data.ResourceLoader
-import dev.hexes.android.ui.components.ErrorState
-import dev.hexes.android.ui.components.LoadingState
-import dev.hexes.android.ui.components.Mono
-import dev.hexes.android.ui.components.Panel
 import dev.hexes.android.ui.components.TopBar
 import dev.hexes.android.ui.projects.RecentProjectsController
 import dev.hexes.android.ui.projects.RecentProjectsSection
@@ -51,10 +44,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class WelcomeViewModel(private val container: AppContainer) : ViewModel() {
-    val recent = ResourceLoader(viewModelScope, container.live.version) { container.api().recentWorkspaces() }
     val recentProjects = RecentProjectsController(container, viewModelScope)
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
     private val _opening = MutableStateFlow(false)
     val opening: StateFlow<Boolean> = _opening.asStateFlow()
 
@@ -82,34 +72,18 @@ class WelcomeViewModel(private val container: AppContainer) : ViewModel() {
             _opening.value = false
         }
     }
-
-    /** Opens a folder on the server; calls `onOpened` when it worked. */
-    fun open(dir: String, onOpened: () -> Unit) {
-        if (dir.isBlank()) {
-            _error.value = "Enter the folder that contains .hx/data.json."
-            return
-        }
-        _opening.value = true
-        _error.value = null
-        viewModelScope.launch {
-            runCatching { container.api().openWorkspace(dir.trim()) }
-                .onSuccess { onOpened() }
-                .onFailure { _error.value = it.message ?: "Could not open that folder." }
-            _opening.value = false
-        }
-    }
 }
 
-/** Picks which folder on the computer Studio works on (the phone cannot browse it, so: recent or typed). */
+/**
+ * First run, or starting another project: the projects opened recently, and creating one. Older
+ * folders that keep .hx/data.json are moved from Studio on the computer.
+ */
 @Composable
-fun WelcomeScreen(onBack: (() -> Unit)?, onOpened: () -> Unit, onCreated: (String) -> Unit, onOpenProject: (String) -> Unit) {
+fun WelcomeScreen(onBack: (() -> Unit)?, onCreated: (String) -> Unit, onOpenProject: (String) -> Unit) {
     val vm = containerViewModel { WelcomeViewModel(it) }
-    val recent by vm.recent.state.collectAsStateWithLifecycle()
-    val error by vm.error.collectAsStateWithLifecycle()
     val opening by vm.opening.collectAsStateWithLifecycle()
     val createError by vm.createError.collectAsStateWithLifecycle()
     val warnings by vm.warnings.collectAsStateWithLifecycle()
-    var typed by remember { mutableStateOf("") }
     var newDir by remember { mutableStateOf("") }
     var newTitle by remember { mutableStateOf("") }
     var newStatement by remember { mutableStateOf("") }
@@ -122,35 +96,13 @@ fun WelcomeScreen(onBack: (() -> Unit)?, onOpened: () -> Unit, onCreated: (Strin
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            TopBar("Open a project folder", onBack)
+            TopBar("Projects", onBack)
             Text(
-                "Studio keeps each project in a folder on your computer (.hx/data.json). " +
-                    "Pick one you opened before, or type its path.",
+                "Studio keeps each project's hexes on your computer, in ~/.hx/projects. " +
+                    "Open one you used recently, or create one.",
                 color = c.ink2,
             )
             RecentProjectsSection(vm.recentProjects, onOpenProject)
-            when (val r = recent) {
-                Resource.Loading -> LoadingState(Modifier.padding(vertical = 24.dp))
-                is Resource.Failed -> Text(r.message, color = MaterialTheme.colorScheme.error)
-                is Resource.Ready -> {
-                    if (r.data.isNotEmpty()) Text("Recent folders", style = MaterialTheme.typography.titleMedium)
-                    r.data.forEach { ws -> RecentRow(ws, enabled = !opening) { vm.open(ws.dir, onOpened) } }
-                }
-            }
-            OutlinedTextField(
-                value = typed,
-                onValueChange = { typed = it },
-                label = { Text("Folder path on your computer") },
-                placeholder = { Text("~/code/my-project") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Button(onClick = { vm.open(typed, onOpened) }, enabled = !opening, modifier = Modifier.fillMaxWidth()) {
-                Text(if (opening) "Opening…" else "Open")
-            }
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-
             Text("Create a new project", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
             Text(
                 "Studio sets up the folder (and a git repo) on your computer.",
@@ -196,20 +148,6 @@ fun WelcomeScreen(onBack: (() -> Unit)?, onOpened: () -> Unit, onCreated: (Strin
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(if (opening) "Working…" else "Create project") }
             Column(Modifier.padding(bottom = 24.dp)) {}
-        }
-    }
-}
-
-@Composable
-private fun RecentRow(ws: RecentWorkspace, enabled: Boolean, onClick: () -> Unit) {
-    val c = Hexes.colors
-    Panel(Modifier.fillMaxWidth(), onClick = if (enabled && ws.found) onClick else null) {
-        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(ws.label, style = MaterialTheme.typography.titleMedium)
-                Text(ws.dir, color = c.muted, fontFamily = Mono, style = MaterialTheme.typography.bodySmall)
-            }
-            if (!ws.found) Text("missing", color = c.blocked, fontFamily = Mono, style = MaterialTheme.typography.bodySmall)
         }
     }
 }

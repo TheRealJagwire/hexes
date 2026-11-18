@@ -98,10 +98,9 @@ class ApiClient(
     suspend fun recentProjects(): List<RecentProject> =
         get("/api/projects/recent", ListSerializer(RecentProject.serializer()))
 
-    /** Opens the project's folder when needed and selects it, in one step. */
-    suspend fun openRecentProject(dir: String, projectId: String): WorkspaceState {
-        val body = apiJson.encodeToString(RecentProjectRequest.serializer(), RecentProjectRequest(dir, projectId))
-        return decode(send("POST", "/api/projects/open", body), WorkspaceState.serializer())
+    /** Puts a project first in the recent list. It selects nothing: no agent or other client moves. */
+    suspend fun projectOpened(id: String) {
+        send("POST", "/api/projects/${encode(id)}/opened", "{}")
     }
 
     suspend fun forgetRecentProject(dir: String, projectId: String) {
@@ -109,22 +108,10 @@ class ApiClient(
         send("POST", "/api/projects/recent/forget", body)
     }
 
-    suspend fun recentWorkspaces(): List<RecentWorkspace> =
-        get("/api/workspace/recent", ListSerializer(RecentWorkspace.serializer()))
-
     suspend fun project(id: String): ProjectView =
         get("/api/projects/${encode(id)}", ProjectView.serializer())
 
     suspend fun hex(id: String): HexView = get("/api/hexes/${encode(id)}", HexView.serializer())
-
-    suspend fun selectProject(id: String) {
-        send("POST", "/api/selected-project", apiJson.encodeToString(SelectProjectRequest.serializer(), SelectProjectRequest(id)))
-    }
-
-    suspend fun openWorkspace(dir: String): WorkspaceState {
-        val body = apiJson.encodeToString(DirRequest.serializer(), DirRequest(dir))
-        return decode(send("POST", "/api/workspace/open", body), WorkspaceState.serializer())
-    }
 
     suspend fun updateHex(id: String, patch: UpdateHexRequest): Hex {
         val body = apiJson.encodeToString(UpdateHexRequest.serializer(), patch)
