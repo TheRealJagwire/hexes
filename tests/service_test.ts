@@ -1,5 +1,6 @@
 import { createApp } from "../src/server/app.ts";
 import { blurb } from "../src/server/core/service.ts";
+import { readBinding } from "../src/server/core/binding.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { generateId, hashHex } from "../src/server/core/ids.ts";
 import { DomainError } from "../src/server/core/errors.ts";
@@ -58,7 +59,11 @@ Deno.test("createProject writes a v2 project under ~/.hx and leaves the repo cle
       repo_path: f.dir,
     }]);
     assertEquals((await Deno.stat(f.dir)).isDirectory, true);
-    await assertRejects(() => Deno.stat(`${f.dir}/.hx`), Deno.errors.NotFound);
+    // The repo only gets .hx/project.json naming its project; the hexes live under ~/.hx.
+    const inRepo = [];
+    for await (const e of Deno.readDir(`${f.dir}/.hx`)) inRepo.push(e.name);
+    assertEquals(inRepo, ["project.json"]);
+    assertEquals(await readBinding(f.dir), f.projectId);
 
     const state = await s.state();
     assertEquals([state.selectedProjectId, state.schemaVersion, state.repoPath], [
