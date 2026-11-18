@@ -142,7 +142,7 @@ Deno.test("formatEvent: lines and meta", () => {
     'Now ready: hx-p-0a1 (story) "Title hx-p-0a1"',
   ]);
   assertEquals(meta, {
-    project: "hx-p-001",
+    project_id: "hx-p-001",
     event: "unblocked",
     blessed: "hx-p-0f5",
     answered: "hx-p-0c9",
@@ -166,7 +166,7 @@ Deno.test("a published idea is reported on its own, first, and again after a red
     'Published: idea hx-p-1d1 "Title hx-p-1d1"',
     "Now ready: none yet",
   ]);
-  assertEquals(meta, { project: "hx-p-001", event: "unblocked", published: "hx-p-1d1" });
+  assertEquals(meta, { project_id: "hx-p-001", event: "unblocked", published: "hx-p-1d1" });
 
   // Editing a published idea says nothing; publishing it again after a redraft does.
   const edited = published.map((h) => h.id === "hx-p-1d1" ? { ...h, title: "Better" } : h);
@@ -199,7 +199,11 @@ Deno.test("formatEvent: empty lists and a long, multi-line answer", () => {
     'Blessed: design hx-p-0d1 "Title hx-p-0d1"',
     "Now ready: none yet",
   ]);
-  assertEquals(blessedOnly.meta, { project: "hx-p-001", event: "unblocked", blessed: "hx-p-0d1" });
+  assertEquals(blessedOnly.meta, {
+    project_id: "hx-p-001",
+    event: "unblocked",
+    blessed: "hx-p-0d1",
+  });
 
   const long = `${"word ".repeat(40)}\nsecond line`;
   const answered = formatEvent({

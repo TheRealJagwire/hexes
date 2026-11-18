@@ -6,6 +6,7 @@ import {
   readChannels,
   STALE_MS,
 } from "../src/server/core/channels.ts";
+import { findProjectBinding } from "../src/server/core/binding.ts";
 import type { HexService } from "../src/server/core/service.ts";
 import { ChangeWatcher } from "../src/server/core/watcher.ts";
 import { type Fixture, fixture, legacyProject } from "./helpers.ts";
@@ -23,12 +24,23 @@ function design(s: HexService, projectId: string, title: string) {
   });
 }
 
-/** A started channel over the fixture's workspace that collects what it sends. */
-async function channel(f: Fixture) {
+/**
+ * A started channel over the fixture's workspace that collects what it sends. With `projectId`,
+ * it is bound to that project the way `hexes-channel` binds to its repository's.
+ */
+async function channel(f: Fixture, projectId?: string | null) {
   const sent: ChannelEvent[] = [];
-  const watcher = new ChangeWatcher(f.workspace, 10, 200);
+  const watcher = projectId === undefined
+    ? new ChangeWatcher(f.workspace, 10, 200)
+    : new ChangeWatcher(
+      f.workspace,
+      10,
+      200,
+      () => Promise.resolve(projectId ? [f.workspace.projects.projectDir(projectId)] : []),
+    );
   const ch = new HexesChannel({
     workspace: f.workspace,
+    projectId,
     watcher,
     send: (e) => {
       sent.push(e);
@@ -55,7 +67,7 @@ Deno.test("blessing a design sends one event", async () => {
     await f.service.updateHex(d.id, { status: "blessed" });
     assert(await waitFor(1), "no event");
     assertEquals(sent.length, 1);
-    assertEquals(sent[0]!.meta.project, f.projectId);
+    assertEquals(sent[0]!.meta.project_id, f.projectId);
     assertEquals(sent[0]!.meta.blessed, d.id);
     assert(sent[0]!.content.startsWith(`Blessed: design ${d.id} "Wake the agent"`));
   } finally {
@@ -213,10 +225,74 @@ Deno.test("a channel's presence file is written, refreshed, records sends and go
 
 Deno.test("sendsOf names each published, blessed and answered hex", () => {
   assertEquals(
-    sendsOf({ content: "", meta: { project: "p", blessed: "a,b", answered: "q", ready: "x" } }),
+    sendsOf({ content: "", meta: { project_id: "p", blessed: "a,b", answered: "q", ready: "x" } }),
     [{ hexId: "a", event: "blessed" }, { hexId: "b", event: "blessed" }, {
       hexId: "q",
       event: "answered",
     }],
   );
+});
+
+Deno.test("channels bound to two repositories each report only their own project", async () => {
+  const f = await fixture("Alpha", { v2: true });
+  const root = f.dir.replace(/\/proj$/, "");
+  const { projectId: other } = await f.service.createProject({
+    dir: `${root}/bravo`,
+    title: "Bravo",
+    description: "",
+    gitInit: false,
+  });
+  // Bravo was selected last; the bindings, not the selection, decide.
+  const alphaBinding = await findProjectBinding(`${f.dir}`);
+  const bravoBinding = await findProjectBinding(`${root}/bravo`);
+  assertEquals([alphaBinding?.projectId, bravoBinding?.projectId], [f.projectId, other]);
+  const a = await channel(f, alphaBinding!.projectId);
+  const b = await channel(f, bravoBinding!.projectId);
+  try {
+    const d = await design(f.service, f.projectId, "Alpha's design");
+    await f.service.updateHex(d.id, { status: "blessed" });
+    assert(await a.waitFor(1), "Alpha's channel sent nothing");
+    assertEquals([a.sent[0]!.meta.project_id, a.sent[0]!.meta.blessed], [f.projectId, d.id]);
+    assertEquals(b.sent.length, 0, "Bravo's channel reported Alpha's blessing");
+
+    const e = await design(f.service, other, "Bravo's design");
+    await f.service.updateHex(e.id, { status: "blessed" });
+    assert(await b.waitFor(1), "Bravo's channel sent nothing");
+    assertEquals(b.sent[0]!.meta.project_id, other);
+    assertEquals(a.sent.length, 1, "Alpha's channel reported Bravo's blessing");
+  } finally {
+    a.ch.stop();
+    b.ch.stop();
+    await f.cleanup();
+  }
+});
+
+Deno.test("a channel with no binding sends nothing", async () => {
+  const f = await fixture("Alpha", { v2: true });
+  const { ch, sent, waitFor } = await channel(f, null);
+  try {
+    const d = await design(f.service, f.projectId, "Unheard");
+    await f.service.updateHex(d.id, { status: "blessed" });
+    assert(!await waitFor(1, 600), "an unbound channel sent an event");
+    assertEquals(sent.length, 0);
+  } finally {
+    ch.stop();
+    await f.cleanup();
+  }
+});
+
+Deno.test("a bound channel's presence file goes in its project's folder", async () => {
+  const f = await fixture("Alpha", { v2: true });
+  const presence = new ChannelPresence(f.workspace, 5150, Date.now, 60_000, f.projectId);
+  const none = new ChannelPresence(f.workspace, 5151, Date.now, 60_000, null);
+  try {
+    await presence.start();
+    await none.start();
+    const dir = f.workspace.projects.projectDir(f.projectId);
+    assertEquals((await readChannels(dir)).map((c) => c.pid), [5150]);
+  } finally {
+    await presence.stop();
+    await none.stop();
+    await f.cleanup();
+  }
 });
