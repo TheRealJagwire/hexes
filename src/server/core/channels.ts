@@ -47,6 +47,11 @@ export class ChannelPresence {
     private readonly pid = Deno.pid,
     private readonly now: () => number = Date.now,
     private readonly heartbeatMs = HEARTBEAT_MS,
+    /**
+     * The project the channel is bound to: its file goes in that project's folder. Null for an
+     * unbound channel (no file); left out, the selected workspace's folder.
+     */
+    private readonly projectId?: string | null,
   ) {
     this.startedAt = now();
   }
@@ -72,7 +77,7 @@ export class ChannelPresence {
 
   private write(): Promise<void> {
     this.writing = this.writing.then(async () => {
-      const dir = await this.workspace.dataDir().catch(() => null);
+      const dir = await this.folder().catch(() => null);
       if (this.writtenIn && this.writtenIn !== dir) await this.remove(this.writtenIn);
       this.writtenIn = null;
       if (!dir) return;
@@ -90,6 +95,17 @@ export class ChannelPresence {
       this.writtenIn = dir;
     }).catch((e) => console.error("hexes-channel: presence:", e));
     return this.writing;
+  }
+
+  /** Where the presence file belongs right now, or null for nowhere. */
+  private async folder(): Promise<string | null> {
+    if (this.projectId === null) return null;
+    if (this.projectId !== undefined) {
+      return await this.workspace.hasProject(this.projectId)
+        ? this.workspace.projects.projectDir(this.projectId)
+        : null;
+    }
+    return await this.workspace.dataDir();
   }
 
   private async remove(dir: string): Promise<void> {

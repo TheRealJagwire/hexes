@@ -5,11 +5,13 @@ import type { Hex } from "../shared/schemas.ts";
 import { diffUnblocked, formatEvent } from "../shared/unblocked.ts";
 import { type ChangeEvent, ChangeWatcher } from "../server/core/watcher.ts";
 import { ChannelPresence } from "../server/core/channels.ts";
+import { findProjectBinding } from "../server/core/binding.ts";
 import { Workspace } from "../server/core/workspace.ts";
 
 export const CHANNEL_INSTRUCTIONS =
   "Events from hexes-channel mean a person just unblocked work in Hexes. Act only on the " +
-  "project from get_selected_project. If you are mid-task, finish the current step first. For a " +
+  "project named in this repository's .hx/project.json (each event carries its project_id). " +
+  "If you are mid-task, finish the current step first. For a " +
   "published idea, run hexes-plan-work to write one core.design that depends on the project and " +
   "on the idea (emerged_from the idea), ask the user to bless it, and stop. For a " +
   "blessed design, run hexes-plan-work to break it down. For a blessed spec or an answered " +
@@ -30,6 +32,12 @@ export interface ChannelEvent {
 
 export interface HexesChannelOptions {
   workspace: Workspace;
+  /**
+   * The project this channel reports on: the one the session's repository names in
+   * `.hx/project.json`. Null when no binding was found: the channel then sends nothing. Left out,
+   * it follows the workspace's selected project (the older behaviour).
+   */
+  projectId?: string | null | undefined;
   watcher: ChangeWatcher;
   send: (event: ChannelEvent) => void | Promise<void>;
   /** Told about each send, so Studio can see what went out. */
@@ -101,10 +109,19 @@ export class HexesChannel {
     }
   }
 
-  /** The active workspace's hexes; `[]` with no workspace, null when the file can't be read. */
+  /**
+   * The hexes being watched: the bound project's, else the selected workspace's. `[]` with
+   * nothing to watch, null when the file can't be read.
+   */
   private async read(): Promise<Hex[] | null> {
+    const { projectId, workspace } = this.opts;
     try {
-      if (!await this.opts.workspace.dataDir()) return [];
+      if (projectId === null) return [];
+      if (projectId !== undefined) {
+        if (!await workspace.hasProject(projectId)) return [];
+        return await (await workspace.projectFile(projectId)).read();
+      }
+      if (!await workspace.dataDir()) return [];
       return await (await this.opts.workspace.file()).read();
     } catch {
       return null;
@@ -123,14 +140,24 @@ if (import.meta.main) {
   );
   await server.connect(new StdioServerTransport());
   const workspace = Workspace.fromEnv();
-  const presence = new ChannelPresence(workspace);
+  // The session's repository names its project; the channel reports on that one only.
+  const binding = await findProjectBinding(process.cwd());
+  const projectId = binding?.projectId ?? null;
+  if (!binding) {
+    console.error(
+      `hexes-channel: no .hx/project.json at or above ${process.cwd()}; sending nothing`,
+    );
+  }
+  const presence = new ChannelPresence(workspace, undefined, undefined, undefined, projectId);
   const channel = new HexesChannel({
     workspace,
-    // Follows the selected project until the channel reads the repository's .hx/project.json.
-    watcher: new ChangeWatcher(workspace, undefined, undefined, async () => {
-      const dir = await workspace.dataDir();
-      return dir ? [dir] : [];
-    }),
+    projectId,
+    watcher: new ChangeWatcher(
+      workspace,
+      undefined,
+      undefined,
+      () => Promise.resolve(projectId ? [workspace.projects.projectDir(projectId)] : []),
+    ),
     send: (params) => server.notification({ method: "notifications/claude/channel", params }),
     presence,
   });

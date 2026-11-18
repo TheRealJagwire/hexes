@@ -108,7 +108,7 @@ export function formatEvent(u: Unblocked): { content: string; meta: Record<strin
   }
   lines.push(`Now ready: ${u.ready.length ? u.ready.map(named).join(", ") : "none yet"}`);
 
-  const meta: Record<string, string> = { project: u.projectId, event: "unblocked" };
+  const meta: Record<string, string> = { project_id: u.projectId, event: "unblocked" };
   const ids = {
     published: u.published.map((h) => h.id),
     blessed: u.blessed.map((h) => h.id),
