@@ -48,10 +48,10 @@ export class ChannelPresence {
     private readonly now: () => number = Date.now,
     private readonly heartbeatMs = HEARTBEAT_MS,
     /**
-     * The project the channel is bound to: its file goes in that project's folder. Null for an
-     * unbound channel (no file); left out, the selected workspace's folder.
+     * The project the channel is bound to: its file goes in that project's folder. Null (or left
+     * out) for an unbound channel, which writes no file.
      */
-    private readonly projectId?: string | null,
+    private readonly projectId: string | null = null,
   ) {
     this.startedAt = now();
   }
@@ -99,13 +99,7 @@ export class ChannelPresence {
 
   /** Where the presence file belongs right now, or null for nowhere. */
   private async folder(): Promise<string | null> {
-    if (this.projectId === null) return null;
-    if (this.projectId !== undefined) {
-      return await this.workspace.hasProject(this.projectId)
-        ? this.workspace.projects.projectDir(this.projectId)
-        : null;
-    }
-    return await this.workspace.dataDir();
+    return this.projectId === null ? null : await this.workspace.dataDirFor(this.projectId);
   }
 
   private async remove(dir: string): Promise<void> {

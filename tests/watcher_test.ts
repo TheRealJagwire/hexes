@@ -3,7 +3,7 @@ import { createApp } from "../src/server/app.ts";
 import { ChannelPresence, readChannels } from "../src/server/core/channels.ts";
 import { HexFile } from "../src/server/core/store.ts";
 import { type ChangeEvent, ChangeWatcher } from "../src/server/core/watcher.ts";
-import { type Fixture, fixture, legacyProject } from "./helpers.ts";
+import { type Fixture, fixture } from "./helpers.ts";
 
 function collect(w: ChangeWatcher) {
   const events: ChangeEvent[] = [];
@@ -33,24 +33,6 @@ Deno.test("watcher reports every write, including repeated rename-over-replace",
     assertEquals(events.map((e) => e.scope), ["data", "data", "data"]);
     assertEquals(events.map((e) => e.rev), [1, 2, 3]);
     assertEquals(events[0]?.dir, `${f.dir}/.hx`);
-  } finally {
-    stop();
-    await f.cleanup();
-  }
-});
-
-Deno.test("watcher notices the active directory switching", async () => {
-  const f = await fixture();
-  const w = new ChangeWatcher(f.workspace, 20, 200);
-  const { events, stop, waitFor } = collect(w);
-  try {
-    await w.snapshot();
-    const second = { projectId: await legacyProject(f.service, `${f.dir}-b`, "Second") };
-    assert(second.projectId);
-    assert(await waitFor(1), "no event for the switch");
-    assertEquals(events[0]?.scope, "workspace");
-    assertEquals(events[0]?.dir, `${f.dir}-b/.hx`);
-    await Deno.remove(`${f.dir}-b`, { recursive: true });
   } finally {
     stop();
     await f.cleanup();
@@ -104,7 +86,7 @@ Deno.test("a channel heartbeat is a channels change, streamed as a channel event
     }
     return seen.includes(needle);
   };
-  const presence = new ChannelPresence(f.workspace, 777);
+  const presence = new ChannelPresence(f.workspace, 777, Date.now, 60_000, f.projectId);
   try {
     assert(await read("event: hello"), seen);
     await watcher.snapshot();
@@ -140,33 +122,29 @@ async function seedV2(f: Fixture, id: string): Promise<void> {
   }, { create: true });
 }
 
-Deno.test("the watcher follows every v2 project, whatever is selected", async () => {
-  const f = await fixture();
+Deno.test("the watcher follows every v2 project", async () => {
+  const f = await fixture("Hexes Studio", { v2: true });
   await seedV2(f, "hx-vtwo-0a1");
   const w = new ChangeWatcher(f.workspace, 20, 200);
   const { events, stop, waitFor } = collect(w);
-  const presence = new ChannelPresence(f.workspace, 991);
+  const presence = new ChannelPresence(f.workspace, 991, Date.now, 60_000, "hx-vtwo-0a1");
   const v2Dir = f.workspace.projects.projectDir("hx-vtwo-0a1");
   try {
     await w.snapshot();
 
-    // A write from another process, straight to the v2 file, with the v1 project selected.
+    // A write from another process, straight to a project's file.
     await f.workspace.projects.file("hx-vtwo-0a1").mutate((hexes) => {
       hexes[0]!.title = "renamed";
     });
     assert(await waitFor(1), "no event for the v2 write");
     assertEquals([events[0]?.scope, events[0]?.dir], ["data", v2Dir]);
 
-    // Selecting a project changes nothing that is watched.
-    await f.service.selectProject("hx-vtwo-0a1");
-    assert(!await waitFor(2, 400), "selecting a project sent an event");
-
-    // A channel registers in the selected v2 project's folder.
+    // A channel bound to that project registers in its folder.
     await presence.start();
     assert(await waitFor(2), "no channels event");
     assertEquals([events[1]?.scope, events[1]?.dir], ["channels", v2Dir]);
     assertEquals((await readChannels(v2Dir)).map((c) => c.pid), [991]);
-    assertEquals(await readChannels(`${f.dir}/.hx`), []);
+    assertEquals(await readChannels(f.workspace.projects.projectDir(f.projectId)), []);
 
     // A new project's folder joins the watched set.
     await seedV2(f, "hx-other-0b2");

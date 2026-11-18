@@ -13,22 +13,27 @@ export interface Fixture {
 
 /**
  * A fresh project in a temp directory, with a deterministic, strictly increasing clock. By
- * default it is a schema-v1 project in `<dir>/.hx/data.json` (most tests exercise that layout);
- * `{ v2: true }` creates it through `createProject`, in the temp `~/.hx` stand-in.
+ * default it is a schema-v1 project in `<dir>/.hx/data.json`, its folder pinned the way HEXES_DIR
+ * pins one (most tests exercise that layout); `{ v2: true }` creates it through `createProject`,
+ * in the temp `~/.hx` stand-in.
  */
 export async function fixture(
   title = "Hexes Studio",
   opts: { v2?: boolean } = {},
 ): Promise<Fixture> {
   const root = await Deno.makeTempDir({ prefix: "hexes-test-" });
-  const workspace = new Workspace({ stateFile: `${root}/state.json`, home: `${root}/hx` });
+  const dir = `${root}/proj`;
+  const workspace = new Workspace({
+    stateFile: `${root}/state.json`,
+    home: `${root}/hx`,
+    ...(opts.v2 ? {} : { pinnedDir: dir }),
+  });
   let clock = 1_700_000_000_000;
   const service = new HexService(workspace, () => clock += 1000);
-  const dir = `${root}/proj`;
   const projectId = opts.v2
     ? (await service.createProject({ dir, title, description: "A vision.", gitInit: false }))
       .projectId
-    : await legacyProject(service, dir, title, clock += 1000);
+    : await legacyProject(dir, title, clock += 1000);
   return {
     dir,
     service,
@@ -38,9 +43,20 @@ export async function fixture(
   };
 }
 
-/** Writes a schema-v1 project into `<dir>/.hx/data.json`, then opens and selects it. */
+/**
+ * A service over the same ~/.hx and state file as `f`, without HEXES_DIR's pin: what Studio is
+ * when it migrates a v1 folder (pinning refuses migration).
+ */
+export function unpinned(f: Fixture, now?: () => number): HexService {
+  const workspace = new Workspace({
+    stateFile: f.workspace.stateFile,
+    home: f.workspace.projects.home,
+  });
+  return new HexService(workspace, now);
+}
+
+/** Writes a schema-v1 project into `<dir>/.hx/data.json`. */
 export async function legacyProject(
-  service: HexService,
   dir: string,
   title: string,
   createdAt = Date.now(),
@@ -65,8 +81,6 @@ export async function legacyProject(
       lastUpdatedAtTimeInMs: createdAt,
     });
   }, { create: true });
-  await service.openWorkspace(dir);
-  await service.selectProject(projectId);
   return projectId;
 }
 

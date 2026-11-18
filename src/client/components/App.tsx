@@ -16,15 +16,12 @@ import { Projects } from "../screens/Projects.tsx";
 import { Seeds } from "../screens/Seeds.tsx";
 import { Welcome } from "../screens/Welcome.tsx";
 
-/** `/`: first run → welcome; a selected project → its screen; otherwise the project list. */
+/** `/`: the project list, or welcome when there are no projects yet. Nothing is "selected". */
 function Start() {
-  const res = useResource(() => api.state(), []);
+  const res = useResource(() => api.projects(), []);
   useEffect(() => {
     if (res.status !== "ready") return;
-    const { dir, selectedProjectId } = res.data;
-    navigate(selectedProjectId ? `/p/${selectedProjectId}` : dir ? "/projects" : "/welcome", {
-      replace: true,
-    });
+    navigate(res.data.length ? "/projects" : "/welcome", { replace: true });
   }, [res.status]);
   if (res.status === "error") return <ErrorState message={res.error} />;
   return <LoadingState />;
@@ -59,7 +56,7 @@ function LiveDot() {
 function MigrationPrompt() {
   useEffect(() => {
     const offer = new MigrationOffer(toasts, api.migrateProject, () => {
-      // Every screen's data moved: start over from `/`, which opens the selected project.
+      // Every screen's data moved: start over from `/`.
       globalThis.location.assign("/");
     });
     const check = () => void api.state().then((s) => offer.update(s), () => {});

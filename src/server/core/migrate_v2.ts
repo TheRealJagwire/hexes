@@ -1,4 +1,4 @@
-import { SCHEMA_VERSION, SELECTED_PROJECT_KIND } from "../../shared/constants.ts";
+import { SCHEMA_VERSION } from "../../shared/constants.ts";
 import { buildIndex, prefixOf, projects } from "../../shared/graph.ts";
 import type { Hex } from "../../shared/schemas.ts";
 import { DomainError } from "./errors.ts";
@@ -62,7 +62,6 @@ export async function migrateToV2(
     }
   }
 
-  const sel = hexes.find((h) => h.kind === SELECTED_PROJECT_KIND)?.description;
   const created: string[] = [];
   try {
     for (const p of owned) {
@@ -89,7 +88,7 @@ export async function migrateToV2(
 
   await Deno.rename(v1.path, v1.path + MIGRATED_V1_SUFFIX);
   const ids = owned.map((p) => p.id);
-  await workspace.adoptMigrated(dir, ids, sel && ids.includes(sel) ? sel : null);
+  await workspace.adoptMigrated(dir, ids);
   return { projects: ids };
 }
 

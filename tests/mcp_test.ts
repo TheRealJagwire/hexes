@@ -119,7 +119,7 @@ Deno.test("mcp is served over HTTP from the Studio app", async () => {
   assertEquals(init.status, 200);
   const list = await post({ jsonrpc: "2.0", id: 2, method: "tools/list" });
   const json = await list.json();
-  assert(json.result.tools.some((t: { name: string }) => t.name === "get_workspace"));
+  assert(json.result.tools.some((t: { name: string }) => t.name === "find_project"));
 });
 
 Deno.test("mcp answers questions with a response and leaves blessing to people", async () => {

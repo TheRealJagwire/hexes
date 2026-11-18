@@ -1,5 +1,5 @@
-// Writes a sample project (modelled on the design comps) to ./examples/sample, then points
-// Studio at it. Run with: deno task seed
+// Writes a sample project (modelled on the design comps) bound to ./examples/sample, plus two
+// small siblings. Run with: deno task seed
 import type { Hex, Status } from "../src/shared/schemas.ts";
 import { HexService } from "../src/server/core/service.ts";
 import { Workspace } from "../src/server/core/workspace.ts";
@@ -19,8 +19,6 @@ async function project(title: string, statement: string) {
   return projectId;
 }
 
-// The sample lives in one data.json, so the first project is created through the service and
-// the others are appended with the same file API.
 const studio = await project(
   "Hexes Studio",
   "A project state tracking system built from hexes — atomic tracked things that index any piece of " +
@@ -145,31 +143,14 @@ await hex("core.bug", "Meta table overflows on narrow screens", "ready", {
   emergedFrom: create.id,
 });
 
-// Two small sibling projects so the project list has something to pick from.
+// Two small sibling projects (each its own, with no repository) so the list has something to pick.
 for (
   const [title, statement] of [
     ["Docs site", "Public documentation for the hex data model and conventions."],
     ["Markdown importer", "Convert existing PRDs and issue lists into hexes."],
   ] as const
 ) {
-  const file = await service.workspace.file();
-  await file.mutate(async (hexes) => {
-    const t = Date.now() + hexes.length;
-    const { generateId, derivePrefix } = await import("../src/server/core/ids.ts");
-    const prefixes = new Set(hexes.map((h) => h.id.split("-").slice(1, -1).join("-")));
-    const prefix = derivePrefix(title, prefixes);
-    const id = await generateId(prefix, title, "core.project", t, new Set(hexes.map((h) => h.id)));
-    hexes.push({
-      id,
-      title,
-      description: statement,
-      kind: "core.project",
-      createdAtTimeInMs: t,
-      lastUpdatedAtTimeInMs: t,
-      status: "done",
-    });
-  });
+  await service.createProject({ dir: "", title, description: statement, gitInit: false });
 }
-await service.selectProject(studio);
 
-console.log(`Seeded ${seq} hexes in ${dir}/.hx/data.json (selected: ${studio})`);
+console.log(`Seeded ${seq} hexes for ${studio}, bound to ${dir}`);

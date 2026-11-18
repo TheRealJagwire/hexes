@@ -15,7 +15,6 @@ import type {
   FactsResult,
   HexSummary,
   HexView,
-  InspectResult,
   ProjectGraph,
   ProjectSummary,
   ProjectView,
@@ -63,8 +62,6 @@ export const api = {
   /** What agents have been doing in a project over MCP. */
   agent: (projectId: string) =>
     request<AgentActivity>("GET", `/agent?project=${encodeURIComponent(projectId)}`),
-  inspect: (dir: string) => request<InspectResult>("POST", "/workspace/inspect", { dir }),
-  openWorkspace: (dir: string) => request<WorkspaceState>("POST", "/workspace/open", { dir }),
   createProject: (req: CreateProjectRequest) =>
     request<CreateProjectResult>("POST", "/workspace/create", req),
   pickDirectory: () => request<{ dir: string | null }>("POST", "/workspace/pick", {}),
@@ -99,11 +96,10 @@ export const api = {
     request<SeedView>("PATCH", `/seeds/${id}`, patch),
   retireSeed: (id: string) => request<SeedView>("POST", `/seeds/${id}/retire`, {}),
   restoreSeed: (id: string) => request<SeedView>("POST", `/seeds/${id}/restore`, {}),
-  selectProject: (id: string) => request<{ ok: true }>("POST", "/selected-project", { id }),
   recentProjects: () => request<RecentProject[]>("GET", "/projects/recent"),
   /** Opens the project's folder when needed and selects it, in one step. */
-  openRecentProject: (dir: string, projectId: string) =>
-    request<WorkspaceState>("POST", "/projects/open", { dir, projectId }),
+  /** Puts a project at the front of the recent list; it selects nothing. */
+  projectOpened: (id: string) => request<{ ok: true }>("POST", `/projects/${id}/opened`, {}),
   forgetRecentProject: (dir: string, projectId: string) =>
     request<{ ok: true }>("POST", "/projects/recent/forget", { dir, projectId }),
   hex: (id: string) => request<HexView>("GET", `/hexes/${id}`),

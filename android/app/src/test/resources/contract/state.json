@@ -2,11 +2,9 @@
   "status": 200,
   "body": {
     "pinned": false,
-    "lastDir": "/home/user/demo",
-    "dir": "/home/user/demo",
-    "selectedProjectId": "hx-contract-16d",
-    "schemaVersion": 1,
-    "repoPath": "/home/user/demo",
-    "dataPath": "/home/user/demo/.hx/data.json"
+    "dir": null,
+    "schemaVersion": 2,
+    "repoPath": null,
+    "dataPath": "/home/user/hx/projects"
   }
 }

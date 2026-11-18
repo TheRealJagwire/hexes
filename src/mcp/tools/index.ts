@@ -58,27 +58,12 @@ export function buildTools(s: HexService) {
   return [
     // ── workspace & projects ──────────────────────────────────────────────
     defineTool({
-      name: "get_workspace",
-      description:
-        "Show which project is selected, where its data lives (schemaVersion 2: ~/.hx/projects/<id>; " +
-        "1: a folder's .hx/data.json) and its repo path.",
-      kind: "read",
-      input: z.object({}),
-      run: () => s.state(),
-    }),
-    defineTool({
-      name: "open_workspace",
-      description: "Open an existing directory that contains .hx/data.json.",
-      kind: "write",
-      input: z.object({ dir: z.string().min(1).describe("Directory path; ~ is expanded") }),
-      run: ({ dir }) => s.openWorkspace(dir),
-    }),
-    defineTool({
       name: "create_project",
       description:
         "Create a new project for a repository directory: writes ~/.hx/projects/<id>/data.json " +
         "with a core.project hex (description = the statement, meta.repo_path = dir, " +
-        "meta.schema_version = 2), selects it, and optionally runs git init in dir.",
+        "meta.schema_version = 2), writes dir/.hx/project.json naming it, and optionally runs " +
+        "git init in dir.",
       kind: "write",
       input: z.object({
         dir: z.string().default("").describe(
@@ -94,8 +79,8 @@ export function buildTools(s: HexService) {
     defineTool({
       name: "list_projects",
       description:
-        "List every project with epic and story counts: those in ~/.hx/projects, then those still in " +
-        "v1 folders (needsMigration: true).",
+        "List every project with epic and story counts, from ~/.hx/projects. Use it to ask the " +
+        "user which project a folder belongs to when it has no .hx/project.json.",
       kind: "read",
       input: z.object({}),
       run: () => s.listProjects(),
@@ -103,21 +88,11 @@ export function buildTools(s: HexService) {
     defineTool({
       name: "list_recent_projects",
       description:
-        "Projects opened recently, newest first: dir (a v1 folder or a v2 repo path), project_id, title, " +
-        "whether each is still found, the current one, and whether it can be switched to.",
+        "Projects people opened recently in Studio, newest first: repo path, project_id, title " +
+        "and whether each is still found.",
       kind: "read",
       input: z.object({}),
       run: () => s.recentProjects(),
-    }),
-    defineTool({
-      name: "open_recent_project",
-      description:
-        "Switch to a recent project in one step: a v2 project is selected by id; for a v1 one, its " +
-        "folder is opened (if it is not the open one) and it is selected. Take dir and project_id " +
-        "from list_recent_projects.",
-      kind: "write",
-      input: z.object({ dir: z.string().default(""), project_id: id }),
-      run: ({ dir, project_id }) => s.openRecentProject(dir, project_id),
     }),
     defineTool({
       name: "find_project",
@@ -132,28 +107,6 @@ export function buildTools(s: HexService) {
         return found
           ? { project_id: found.projectId, dir: found.dir, project: found.project }
           : null;
-      },
-    }),
-    defineTool({
-      name: "get_selected_project",
-      description: "Get the selected project hex, or null.",
-      kind: "read",
-      input: z.object({}),
-      run: async () => {
-        const projectId = await s.selectedProjectId();
-        return projectId ? await s.getHex(projectId) : null;
-      },
-    }),
-    defineTool({
-      name: "select_project",
-      description:
-        "Make a project the selected project: a v2 project by id; a v1 one in the open folder or a " +
-        "recent one, which is opened.",
-      kind: "write",
-      input: z.object({ project_id: id }),
-      run: async ({ project_id }) => {
-        await s.selectProject(project_id);
-        return { selected: project_id };
       },
     }),
     defineTool({

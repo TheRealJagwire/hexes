@@ -54,7 +54,7 @@ export class ActivityLog {
   }
 
   /**
-   * For one project: the latest call that was about it or about no hex at all (`get_workspace`),
+   * For one project: the latest call that was about it or about no hex at all (`list_projects`),
    * and the hex most recently changed in it within ten minutes. Reads never set that hex.
    */
   forProject(projectId: string): AgentActivity {

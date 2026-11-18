@@ -2,7 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { api } from "../lib/api.ts";
 import { notify, notifyError } from "../lib/toasts.ts";
 import { navigate } from "../lib/router.tsx";
-import type { InspectResult, ProjectSummary } from "../../shared/views.ts";
+import type { ProjectSummary } from "../../shared/views.ts";
 import { Folder, HexPlus } from "../components/Icons.tsx";
 import { Brand, Header, ThemeToggle } from "../components/Layout.tsx";
 
@@ -43,7 +43,6 @@ function DirField(
 
 export function Welcome() {
   const [openDir, setOpenDir] = useState("");
-  const [inspect, setInspect] = useState<InspectResult | null>(null);
   const [newDir, setNewDir] = useState("");
   const [title, setTitle] = useState("");
   const [statement, setStatement] = useState("");
@@ -58,33 +57,8 @@ export function Welcome() {
     api.projects().then((list) => setSaved(list.filter((p) => !p.needsMigration)), () => {});
   }, []);
 
-  const openSaved = async (p: ProjectSummary) => {
-    try {
-      await api.selectProject(p.id);
-      navigate(`/p/${p.id}`);
-    } catch (e) {
-      notifyError(e);
-    }
-  };
-
-  useEffect(() => {
-    api.state().then((s) => s.lastDir && setOpenDir((cur) => cur || s.lastDir || "")).catch(
-      () => {},
-    );
-  }, []);
-
-  // Check the typed directory for .hx/data.json shortly after the user stops typing.
-  useEffect(() => {
-    if (!openDir.trim()) return setInspect(null);
-    let live = true;
-    const t = setTimeout(() => {
-      api.inspect(openDir).then((r) => live && setInspect(r), () => live && setInspect(null));
-    }, 300);
-    return () => {
-      live = false;
-      clearTimeout(t);
-    };
-  }, [openDir]);
+  // The project screen records the visit itself.
+  const openSaved = (p: ProjectSummary) => navigate(`/p/${p.id}`);
 
   const browse = async (set: (dir: string) => void, where: "open" | "create") => {
     try {
@@ -95,13 +69,14 @@ export function Welcome() {
     }
   };
 
+  // A v1 folder is not opened in place: its projects move to ~/.hx/projects, then open there.
   const open = async () => {
     setBusy("open");
     setError(null);
     try {
-      await api.openWorkspace(openDir);
-      notify(`Opened ${openDir}`);
-      navigate("/");
+      const { projects } = await api.migrateProject(openDir);
+      notify(`Moved ${projects.length === 1 ? "1 project" : `${projects.length} projects`}`);
+      navigate(projects[0] ? `/p/${projects[0]}` : "/projects");
     } catch (e) {
       setError({ where: "open", message: notifyError(e) });
     } finally {
@@ -156,7 +131,7 @@ export function Welcome() {
                 <li key={p.id}>
                   <button
                     type="button"
-                    onClick={() => void openSaved(p)}
+                    onClick={() => openSaved(p)}
                     class="card flex w-full flex-wrap items-center gap-4 px-6 py-4 text-left hover:border-line-hover"
                   >
                     <span class="text-lg font-semibold text-ink">{p.title}</span>
@@ -178,12 +153,12 @@ export function Welcome() {
           >
             <div class="flex items-center gap-3">
               <Folder size={22} />
-              <h2 id="open-h" class="m-0 text-xl font-semibold">Open an older project</h2>
+              <h2 id="open-h" class="m-0 text-xl font-semibold">Move an older project</h2>
             </div>
             <p class="m-0 text-[15px] leading-normal text-muted">
               Pick a repository that still keeps its hexes in{" "}
-              <code class="font-mono text-ink">.hx/data.json</code>. Once it is open, Studio offers
-              to move them to <code class="font-mono text-ink">~/.hx/projects</code>.
+              <code class="font-mono text-ink">.hx/data.json</code>. Studio moves them to{" "}
+              <code class="font-mono text-ink">~/.hx/projects</code> and opens the project.
             </p>
             <div class="flex flex-col gap-2">
               <DirField
@@ -194,29 +169,17 @@ export function Welcome() {
                 placeholder="~/code/my-project"
                 onBrowse={() => browse(setOpenDir, "open")}
               />
-              {inspect && (
-                <span
-                  role="status"
-                  class={`font-mono text-xs ${inspect.found ? "text-success" : "text-blocked"}`}
-                >
-                  {inspect.found
-                    ? `✓ found .hx/data.json · ${inspect.hexCount} hexes · ${inspect.projectCount} ${
-                      inspect.projectCount === 1 ? "project" : "projects"
-                    } · will offer migration`
-                    : `✗ ${inspect.error ?? "not found"}`}
-                </span>
-              )}
               {error?.where === "open" && (
                 <span role="alert" class="text-[13px] text-blocked">{error.message}</span>
               )}
             </div>
             <button
               type="button"
-              disabled={!inspect?.found || busy !== null}
+              disabled={!openDir.trim() || busy !== null}
               onClick={open}
               class="btn-primary mt-auto h-12"
             >
-              {busy === "open" ? "Opening…" : "Open project folder"}
+              {busy === "open" ? "Moving…" : "Move and open"}
             </button>
           </section>
 

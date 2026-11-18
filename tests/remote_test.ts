@@ -1,7 +1,7 @@
-import { assert, assertEquals } from "@std/assert";
+import { assertEquals } from "@std/assert";
 import { createApp } from "../src/server/app.ts";
 import { ChangeWatcher } from "../src/server/core/watcher.ts";
-import { fixture, legacyProject } from "./helpers.ts";
+import { fixture } from "./helpers.ts";
 
 const TOKEN = "correct-horse-battery-staple";
 const phone = { remoteAddr: { hostname: "100.64.0.7" } };
@@ -68,23 +68,6 @@ Deno.test("remote writes still have to be JSON", async () => {
       body: JSON.stringify({ id: f.projectId }),
     }, phone);
     assertEquals(res.status, 415);
-  } finally {
-    await f.cleanup();
-  }
-});
-
-Deno.test("recent workspaces are listed, most recent first, and flag missing ones", async () => {
-  const f = await fixture();
-  try {
-    const second = `${f.dir}-b`;
-    await legacyProject(f.service, second, "B");
-    let recent = await f.service.recentWorkspaces();
-    assertEquals(recent.map((r) => r.dir), [second, f.dir]);
-    assertEquals(recent[0]?.label, "proj-b");
-    assert(recent.every((r) => r.found));
-    await Deno.remove(second, { recursive: true });
-    recent = await f.service.recentWorkspaces();
-    assertEquals(recent[0]?.found, false);
   } finally {
     await f.cleanup();
   }

@@ -12,7 +12,7 @@ const CONTRACT_DIR = new URL("../android/app/src/test/resources/contract/", impo
 const H = { host: "localhost:8000", "content-type": "application/json" };
 
 Deno.test("api responses match the contract fixtures", async () => {
-  const f = await fixture("Contract Demo");
+  const f = await fixture("Contract Demo", { v2: true });
   const app = createApp(f.service, new ChangeWatcher(f.workspace), {});
   const update = Deno.env.get("UPDATE_CONTRACT") === "1";
   try {
@@ -78,7 +78,6 @@ Deno.test("api responses match the contract fixtures", async () => {
       project_view: await call("GET", `/projects/${f.projectId}`),
       hex_view: await call("GET", `/hexes/${story.id}`),
       hex_search: await call("GET", `/hexes?project=${f.projectId}&limit=50`),
-      recent_workspaces: await call("GET", "/workspace/recent"),
       update_hex: await call("PATCH", `/hexes/${epic.id}`, { title: "Board (v1)" }),
       answer_question: await call("PATCH", `/hexes/${question.id}`, {
         status: "answered",

@@ -24,15 +24,11 @@ Deno.test("a colliding id grows the new hex's hash and leaves createdAt alone", 
   assert(HEX_ID_RE.test(third));
 });
 
-Deno.test("a v1 fixture project is selected in its folder", async () => {
+Deno.test("a v1 fixture project lives in its pinned folder", async () => {
   const f = await fixture();
   try {
     const state = await f.service.state();
-    assertEquals([state.dir, state.selectedProjectId, state.schemaVersion], [
-      f.dir,
-      f.projectId,
-      1,
-    ]);
+    assertEquals([state.dir, state.pinned, state.schemaVersion], [f.dir, true, 1]);
     assert(HEX_ID_RE.test(f.projectId));
     assert(f.projectId.startsWith("hx-hexes-"));
     const projects = await f.service.listProjects();
@@ -40,7 +36,7 @@ Deno.test("a v1 fixture project is selected in its folder", async () => {
     await assertRejects(
       () => f.service.createProject({ dir: f.dir, title: "x", description: "", gitInit: false }),
       DomainError,
-      "already has",
+      "pinned",
     );
   } finally {
     await f.cleanup();
@@ -66,11 +62,7 @@ Deno.test("createProject writes a v2 project under ~/.hx and leaves the repo cle
     assertEquals(await readBinding(f.dir), f.projectId);
 
     const state = await s.state();
-    assertEquals([state.selectedProjectId, state.schemaVersion, state.repoPath], [
-      f.projectId,
-      2,
-      f.dir,
-    ]);
+    assertEquals([state.pinned, state.schemaVersion, state.repoPath], [false, 2, null]);
     const [recent] = await f.workspace.recentProjects();
     assertEquals([recent?.projectId, recent?.dir], [f.projectId, undefined]);
 
@@ -90,7 +82,7 @@ Deno.test("createProject writes a v2 project under ~/.hx and leaves the repo cle
       gitInit: false,
     });
     assert(other.startsWith("hx-hexes2-"), other);
-    assertEquals(await s.selectedProjectId(), other);
+    assertEquals((await f.workspace.recentProjects())[0]?.projectId, other);
   } finally {
     await f.cleanup();
   }
@@ -857,25 +849,11 @@ async function seedV2(f: Fixture, id: string, title: string, repo: string): Prom
   }, { create: true });
 }
 
-Deno.test("a v2 project is selected by id in state.json, never by a selected-project hex", async () => {
-  const f = await fixture("Alpha");
+Deno.test("a v2 project's hexes go to its own file, and opening it selects nothing", async () => {
+  const f = await fixture("Alpha", { v2: true });
   try {
     const s = f.service;
     await seedV2(f, "hx-beta-0b1", "Beta", "/code/beta");
-    await s.selectProject("hx-beta-0b1");
-
-    const state = await s.state();
-    assertEquals(
-      [state.selectedProjectId, state.schemaVersion, state.repoPath, state.dir],
-      ["hx-beta-0b1", 2, "/code/beta", "/code/beta"],
-    );
-    assertEquals(await s.selectedProjectId(), "hx-beta-0b1");
-    const saved = JSON.parse(await Deno.readTextFile(f.workspace.stateFile));
-    assertEquals(saved.selectedProjectId, "hx-beta-0b1");
-    const v2 = await f.workspace.projects.file("hx-beta-0b1").read();
-    assertEquals(v2.filter((h) => h.kind.startsWith("studio.")), []);
-
-    // Reads and writes now go to the v2 file.
     const created = await s.createHex({
       projectId: "hx-beta-0b1",
       kind: "core.design",
@@ -886,41 +864,42 @@ Deno.test("a v2 project is selected by id in state.json, never by a selected-pro
       dependsOn: ["hx-beta-0b1"],
       meta: {},
     });
-    assertEquals(
-      (await f.workspace.projects.file("hx-beta-0b1").read()).some((h) => h.id === created.id),
-      true,
-    );
+    const beta = await f.workspace.projects.file("hx-beta-0b1").read();
+    assert(beta.some((h) => h.id === created.id));
+    assertEquals(beta.filter((h) => h.kind.startsWith("studio.")), []);
 
-    // The recent entry for a v2 project has no folder.
+    // Opening it puts it first in the recent list, with no folder of its own, and nothing else.
+    await s.recordOpened("hx-beta-0b1");
     const [recent] = await s.recentProjects();
     assertEquals(
       [recent?.projectId, recent?.dir, recent?.current, recent?.needsMigration],
-      ["hx-beta-0b1", "/code/beta", true, false],
+      ["hx-beta-0b1", "/code/beta", false, false],
     );
-
-    // Selecting the v1 project goes back to its folder.
-    await s.selectProject(f.projectId);
-    const back = await s.state();
-    assertEquals([back.selectedProjectId, back.schemaVersion, back.dir], [
-      f.projectId,
-      1,
-      f.dir,
-    ]);
+    const saved = JSON.parse(await Deno.readTextFile(f.workspace.stateFile));
+    assertEquals(Object.keys(saved), ["recentProjects"]);
   } finally {
     await f.cleanup();
   }
 });
 
-Deno.test("listProjects shows v2 projects, then v1 ones marked as needing migration", async () => {
-  const f = await fixture("Alpha");
+Deno.test("listProjects shows the v2 projects, or only the pinned v1 one", async () => {
+  const v2 = await fixture("Alpha", { v2: true });
   try {
-    await seedV2(f, "hx-beta-0b1", "Beta", "/code/beta");
-    const list = await f.service.listProjects();
-    assertEquals(list.map((p) => [p.title, p.needsMigration]), [["Beta", false], [
-      "Alpha",
-      true,
+    await seedV2(v2, "hx-beta-0b1", "Beta", "/code/beta");
+    const list = await v2.service.listProjects();
+    assertEquals(list.map((p) => [p.title, p.needsMigration]), [["Alpha", false], [
+      "Beta",
+      false,
     ]]);
   } finally {
-    await f.cleanup();
+    await v2.cleanup();
+  }
+  const pinned = await fixture("Gamma");
+  try {
+    await seedV2(pinned, "hx-delta-0d1", "Delta", "/code/delta");
+    const list = await pinned.service.listProjects();
+    assertEquals(list.map((p) => [p.title, p.needsMigration]), [["Gamma", true]]);
+  } finally {
+    await pinned.cleanup();
   }
 });

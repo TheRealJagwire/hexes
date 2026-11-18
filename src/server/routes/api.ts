@@ -25,7 +25,7 @@ import { readChannels } from "../core/channels.ts";
 import { DomainError } from "../core/errors.ts";
 import type { HexService } from "../core/service.ts";
 import { pickDirectory } from "../core/picker.ts";
-import type { ChangeWatcher } from "../core/watcher.ts";
+import { allDataDirs, type ChangeWatcher } from "../core/watcher.ts";
 
 export const API_VERSION = 1;
 
@@ -34,10 +34,13 @@ const OpenPullRequestSchema = z.object({
   title: z.string().optional(),
   description: z.string().optional(),
 });
-const SelectSchema = z.object({ id: HexIdSchema });
 const AutoMergeSchema = z.object({ enabled: z.boolean() });
 const ArchivedSchema = z.object({ archived: z.boolean() });
-const RecentProjectSchema = z.object({ dir: z.string().trim().min(1), projectId: HexIdSchema });
+/** A recent entry: `dir` is empty for a v2 project (all of them now), a folder for an old v1 entry. */
+const RecentProjectSchema = z.object({
+  dir: z.string().trim().default(""),
+  projectId: HexIdSchema,
+});
 
 /** JSON API consumed by the Preact client. Every handler delegates to HexService. */
 export function apiRoutes(
@@ -46,9 +49,14 @@ export function apiRoutes(
   activity?: ActivityLog,
 ): Hono {
   const api = new Hono();
-  const channelsState = async (): Promise<ChannelsState> => {
-    const dir = await service.workspace.dataDir().catch(() => null);
-    return { channels: dir ? await readChannels(dir) : [] };
+  /** The channels listening on one project (`projectId`), or on every project. */
+  const channelsState = async (projectId?: string): Promise<ChannelsState> => {
+    const dirs = projectId
+      ? [await service.workspace.dataDirFor(projectId).catch(() => null)]
+      : await allDataDirs(service.workspace)().catch(() => []);
+    const channels = [];
+    for (const dir of dirs) if (dir) channels.push(...await readChannels(dir));
+    return { channels };
   };
 
   api.onError((err, c) => {
@@ -103,8 +111,8 @@ export function apiRoutes(
     });
   });
   api.get("/state", async (c) => c.json(await service.state()));
-  /** The `hexes-channel` processes listening on the open workspace, with what they sent. */
-  api.get("/channels", async (c) => c.json(await channelsState()));
+  /** The `hexes-channel` processes listening, with what they sent: `?project=` narrows to one. */
+  api.get("/channels", async (c) => c.json(await channelsState(c.req.query("project"))));
   /** What agents have been doing in a project over MCP: the latest call and the hex being worked. */
   api.get("/agent", (c) => {
     const project = c.req.query("project");
@@ -122,15 +130,6 @@ export function apiRoutes(
       } satisfies StatusTable,
     ));
 
-  api.get("/workspace/recent", async (c) => c.json(await service.recentWorkspaces()));
-  api.post("/workspace/inspect", async (c) => {
-    const { dir } = DirRequestSchema.parse(await c.req.json());
-    return c.json(await service.inspect(dir));
-  });
-  api.post("/workspace/open", async (c) => {
-    const { dir } = DirRequestSchema.parse(await c.req.json());
-    return c.json(await service.openWorkspace(dir));
-  });
   api.post("/workspace/create", async (c) => {
     const req = CreateProjectRequestSchema.parse(await c.req.json());
     return c.json(await service.createProject(req), 201);
@@ -138,11 +137,12 @@ export function apiRoutes(
   api.post("/workspace/pick", async (c) => c.json({ dir: await pickDirectory() }));
 
   api.get("/projects", async (c) => c.json(await service.listProjects()));
-  // Before /projects/:id, so "recent" and "open" are not taken for ids.
+  // Before /projects/:id, so "recent" is not taken for an id.
   api.get("/projects/recent", async (c) => c.json(await service.recentProjects()));
-  api.post("/projects/open", async (c) => {
-    const { dir, projectId } = RecentProjectSchema.parse(await c.req.json());
-    return c.json(await service.openRecentProject(dir, projectId));
+  /** A person opened a project in a client: it goes to the front of the recent list. */
+  api.post("/projects/:id/opened", async (c) => {
+    await service.recordOpened(c.req.param("id"));
+    return c.json({ ok: true });
   });
   // A person's action from Studio: there is deliberately no MCP tool for it.
   api.post("/projects/migrate", async (c) => {
@@ -198,11 +198,6 @@ export function apiRoutes(
     "/seeds/:id/restore",
     async (c) => c.json(await service.retireSeed(c.req.param("id"), true)),
   );
-  api.post("/selected-project", async (c) => {
-    const { id } = SelectSchema.parse(await c.req.json());
-    await service.selectProject(id);
-    return c.json({ ok: true });
-  });
 
   api.get("/hexes", async (c) => {
     const status = c.req.query("status");

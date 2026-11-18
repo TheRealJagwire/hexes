@@ -17,8 +17,8 @@ Deno.test("tool calls are recorded with the hex they were about", async () => {
   const call = (name: string, args: Record<string, unknown>) =>
     client.callTool({ name, arguments: args });
   try {
-    await call("get_workspace", {});
-    assertEquals(activity.forProject(f.projectId).lastCall?.tool, "get_workspace");
+    await call("list_projects", {});
+    assertEquals(activity.forProject(f.projectId).lastCall?.tool, "list_projects");
     assertEquals(activity.forProject(f.projectId).working, null);
 
     await call("get_project", { project_id: f.projectId });
