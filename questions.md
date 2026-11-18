@@ -33,9 +33,8 @@ change if I guessed wrong. Roughly ordered by how much it affects the rest of th
    is never changed. Every id is therefore a prefix of the sha-256 of the stored title, kind and
    createdAt. The id format is now `hx-<prefix>-<3 or more hex chars>`. Note a longer id always
    _starts with_ the colliding shorter one.
-7. **Status of the project hex and `studio.selected_project`.** SPEC defaults status to `blocked`,
-   but designs depend on the project, so a `blocked` project would keep every design blocked. I
-   create both as `done`.
+7. **Status of the project hex.** SPEC defaults status to `blocked`, but designs depend on the
+   project, so a `blocked` project would keep every design blocked. I create it as `done`.
 
 ## Behaviour
 
@@ -54,11 +53,12 @@ change if I guessed wrong. Roughly ordered by how much it affects the rest of th
     the confirmation step. Deleting any other hex scrubs it from other hexes' `dependsOn` /
     `emergedFrom` instead of deleting them. The alternative (refuse to delete a project that still
     has hexes) felt worse.
-12. **Selected project.** Stored in a singleton hex of kind `studio.selected_project` whose
-    description is the project's id (prefix `studio`). Opening any project screen re-selects it, so
-    Studio reopens there. `/` goes: no folder → Welcome, selected project → its screen, else the
-    list. The design's "Open project folder" button went straight to the project list; mine goes
-    through `/` so a previously selected project wins, as SPEC's "Existing Sessions UX" asks.
+12. **No selected project** (superseded the earlier "selected project", hx-hexes-054). Studio once
+    kept one selected project, shared by every agent and Studio tab, so switching projects in Studio
+    retargeted agents. Now nothing is selected: a repository names its project in a committed
+    `.hx/project.json`, agents pass that `project_id` on every call, and opening a project in Studio
+    only puts it first in the recent list. `/` goes to the project list (Welcome when there are
+    none). Old `studio.*` hexes in v1 files are dropped when a folder migrates.
 13. **Create Hex cannot create `core.project`.** The design lists that chip, but a second project
     hex in the same prefix would break rule 3. I left the chip out. Projects come from the Welcome
     screen. A custom kind still works for anything else.
@@ -89,7 +89,7 @@ change if I guessed wrong. Roughly ordered by how much it affects the rest of th
     `get_ready_hexes`, `get_ready_hexes_for_project`, `get_hexes_that_depend_on_hex_with_id`,
     `get_hexes_that_this_hex_depends_on`, `add_meta_state_to_hex_with_id`,
     `update_meta_state_to_hex_with_id`). I added the rest of the Studio actions (`create_project`,
-    `list_projects`, `select_project`, `get_project`, `get_hex_view`, `create_hex`, `update_hex`,
+    `list_projects`, `find_project`, `get_project`, `get_hex_view`, `create_hex`, `update_hex`,
     `update_hex_status`, `delete_hex`, `add_dependency`, …). `add_meta…` fails if the key exists and
     `update_meta…` fails if it doesn't. I added `remove_meta_state_from_hex_with_id`.
 20. **`delete_hex` needs `confirm: true`**, mirroring Studio's double confirmation.

@@ -34,7 +34,7 @@ with `claude
 events are dropped. Use one such session per working tree. An event arrives as:
 
 ```text
-<channel source="hexes-channel" project="hx-hexes-f1a" event="unblocked" blessed="hx-hexes-775" ready="hx-hexes-1a4">
+<channel source="hexes-channel" project_id="hx-hexes-f1a" event="unblocked" blessed="hx-hexes-775" ready="hx-hexes-1a4">
 Blessed: spec hx-hexes-775 "Spec the hexes-channel events and server"
 Now ready: hx-hexes-1a4 (story) "Detect unblocking transitions between two snapshots"
 </channel>
@@ -43,15 +43,29 @@ Now ready: hx-hexes-1a4 (story) "Detect unblocking transitions between two snaps
 or, for an idea:
 
 ```text
-<channel source="hexes-channel" project="hx-hexes-f1a" event="unblocked" published="hx-hexes-3c2">
+<channel source="hexes-channel" project_id="hx-hexes-f1a" event="unblocked" published="hx-hexes-3c2">
 Published: idea hx-hexes-3c2 "Let people write ideas"
 Now ready: none yet
 </channel>
 ```
 
-Act on it only for the selected project. Finish the step you are on, then run `hexes-plan-work` for
-a published idea (one design built on it, then stop for a blessing) or a blessed design, or
+The channel reports only on the project named in the session's `.hx/project.json` (see below); with
+no such file it sends nothing. Finish the step you are on, then run `hexes-plan-work` for a
+published idea (one design built on it, then stop for a blessing) or a blessed design, or
 `hexes-next-task` for a blessed spec or an answered question. Ignore an answer you gave yourself.
+
+**Which project.** A repository names its project in `.hx/project.json`, committed with the code:
+
+```json
+{ "project_id": "hx-hexes-f1a" }
+```
+
+Read it from your working directory (or the nearest parent), or call `find_project` with the
+directory's absolute path, and pass that `project_id` on every call that takes one. Nothing in Hexes
+is "selected": what a person opens in Studio never changes which project an agent works on, and two
+sessions in two repositories work side by side. Calls that take only a hex `id` find its project
+from the id's prefix (`hx-<prefix>-…`). With no `.hx/project.json`, ask the user which project the
+folder belongs to (`list_projects`), then bind it with `set_project_repo`, which writes the file.
 
 In Claude Code the tools appear as `mcp__hexes__<tool_name>`. Every tool returns JSON text; domain
 failures (cycle, unknown id, `ready` with unfinished dependencies, a status the kind doesn't use, …)
@@ -67,19 +81,20 @@ retrying blindly.
   never assume a fixed length; ids are opaque.
 - **Kinds** are `<category>.<qualifier>`. Core kinds: `core.idea`, `core.project`, `core.design`,
   `core.spec`, `core.decision`, `core.gate`, `core.epic`, `core.story`, `core.substory`, `core.bug`,
-  `core.question`, `core.fact`. Custom kinds are allowed. `studio.selected_project` is internal (v1
-  files only; a v2 project's selection lives in Studio's per-user state).
+  `core.question`, `core.fact`. Custom kinds are allowed. `studio.*` kinds are Studio's own (old v1
+  files only) and are never carried into `~/.hx/projects`.
 - **Where hexes live**: each project in `~/.hx/projects/<id>/data.json` (`HEXES_HOME` moves the
   root), with `meta.repo_path` naming the repository its branches and pull requests run in and
-  `meta.schema_version = "2"`. Older (v1) projects still in a repo's `.hx/data.json` keep working
-  and show `needsMigration: true`; moving them is a person's choice from Studio's prompt (the old
-  file is kept as `.hx/data.json.migrated-v1`). There is no migrate tool. Never edit the data files
+  `meta.schema_version = "2"`. The repository itself holds only `.hx/project.json`, naming its
+  project. Older (v1) projects in a repo's `.hx/data.json` are not opened in place: a person moves
+  them from Studio's welcome screen (the old file is kept as `.hx/data.json.migrated-v1`), unless
+  `HEXES_DIR` pins Studio to one such folder. There is no migrate tool. Never edit the data files
   directly; use the tools.
 - **Repositories**: a v2 project created without a folder has no `meta.repo_path`; until it gets one
-  (`set_project_repo`), its stories and bugs are not ready and branch work is refused, but it can be
-  designed. To give it one, `list_seeds`, recommend a seed with a sentence on why it fits, and fork
-  it only once the person agrees: forking creates a folder on their disk. Seeds are shared across
-  projects (`~/.hx/seeds/data.json`).
+  (`set_project_repo`, which also writes the folder's `.hx/project.json`), its stories and bugs are
+  not ready and branch work is refused, but it can be designed. To give it one, `list_seeds`,
+  recommend a seed with a sentence on why it fits, and fork it only once the person agrees: forking
+  creates a folder on their disk. Seeds are shared across projects (`~/.hx/seeds/data.json`).
 - **Statuses** depend on the kind. Projects, epics, gates and decisions go `blocked` → `ready` →
   `in_progress` → `verified` → `done`. These kinds differ:
   - **Work** (story, substory, bug, custom kinds): `blocked` → `ready` → `in_progress` → `in_review`
@@ -161,22 +176,18 @@ Annotations: **R** = read-only (safe to auto-approve), **W** = write, **D** = de
 
 ### Workspace & projects
 
-| Tool                   | Kind | Input                                                      | Purpose                                                                                                                                                                                                                                         |
-| ---------------------- | ---- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `get_workspace`        | R    | –                                                          | The selected project, its `schemaVersion` (2: `~/.hx/projects/<id>`; 1: a repo's `.hx/data.json`), `repoPath` and `dataPath`. Start here.                                                                                                       |
-| `open_workspace`       | W    | `dir`                                                      | Open a v1 directory containing `.hx/data.json` (`~` expanded). Projects in `~/.hx/projects` are opened with `select_project`.                                                                                                                   |
-| `create_project`       | W    | `dir`, `title`, `statement=""`, `git_init=true`            | Write `~/.hx/projects/<id>/data.json` with a `core.project` hex (`meta.repo_path = dir`, `meta.schema_version = "2"`) and select it; `statement` becomes its description.                                                                       |
-| `list_projects`        | R    | –                                                          | Every project with epic/story counts: those in `~/.hx/projects`, then v1 ones with `needsMigration: true`.                                                                                                                                      |
-| `get_selected_project` | R    | –                                                          | The selected project hex, or `null`.                                                                                                                                                                                                            |
-| `select_project`       | W    | `project_id`                                               | Make a project the selected one.                                                                                                                                                                                                                |
-| `list_recent_projects` | R    | –                                                          | Projects opened recently in any folder, newest first, with whether each is still found and can be switched to.                                                                                                                                  |
-| `open_recent_project`  | W    | `dir=""`, `project_id`                                     | Switch to a recent project in one step: a v2 one by id; a v1 one opens its folder if needed and selects it.                                                                                                                                     |
-| `set_project_repo`     | W    | `project_id`, `dir`, `seed_id?`                            | Give a project its repository: fork `seed_id` into `dir` (missing or empty; `origin` renamed `seed`, `meta.repo_ref_hx` set), or use `dir`, an existing git repo. Sets `meta.repo_path`. Recommend a seed and fork only on the person's say-so. |
-| `list_seeds`           | R    | `include_retired?`                                         | Repository seeds shared by every project, with their short fit descriptions.                                                                                                                                                                    |
-| `create_seed`          | W    | `title`, `description`, `git_url`, `branch?`               | Add a seed; keep the description to about 5 lines (stack, what works, good and poor fits).                                                                                                                                                      |
-| `update_seed`          | W    | `seed_id`, `title?`, `description?`, `git_url?`, `branch?` | Change a seed.                                                                                                                                                                                                                                  |
-| `retire_seed`          | W    | `seed_id`, `restore?`                                      | Stop offering a seed (or offer it again).                                                                                                                                                                                                       |
-| `get_project`          | R    | `project_id`                                               | Project screen as data: gates (milestone order), designs, decisions, epics (each with gate, `progress {done,total,pct}`, stories sorted in_review → in_progress → ready → blocked → merged/done).                                               |
+| Tool                   | Kind | Input                                                      | Purpose                                                                                                                                                                                                                                                                           |
+| ---------------------- | ---- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `find_project`         | R    | `dir`                                                      | The project a folder belongs to: the nearest `.hx/project.json` at or above `dir`, as `{ project_id, dir, project }`, or `null`. Start here.                                                                                                                                      |
+| `create_project`       | W    | `dir`, `title`, `statement=""`, `git_init=true`            | Write `~/.hx/projects/<id>/data.json` with a `core.project` hex (`meta.repo_path = dir`, `meta.schema_version = "2"`) and `dir/.hx/project.json` naming it; `statement` becomes its description.                                                                                  |
+| `list_projects`        | R    | –                                                          | Every project in `~/.hx/projects` with epic/story counts. Use it to ask which project a folder with no `.hx/project.json` belongs to.                                                                                                                                             |
+| `list_recent_projects` | R    | –                                                          | Projects people opened recently in Studio, newest first, with whether each is still found.                                                                                                                                                                                        |
+| `set_project_repo`     | W    | `project_id`, `dir`, `seed_id?`                            | Give a project its repository: fork `seed_id` into `dir` (missing or empty; `origin` renamed `seed`, `meta.repo_ref_hx` set), or use `dir`, an existing git repo. Sets `meta.repo_path` and writes `dir/.hx/project.json`. Recommend a seed and fork only on the person's say-so. |
+| `list_seeds`           | R    | `include_retired?`                                         | Repository seeds shared by every project, with their short fit descriptions.                                                                                                                                                                                                      |
+| `create_seed`          | W    | `title`, `description`, `git_url`, `branch?`               | Add a seed; keep the description to about 5 lines (stack, what works, good and poor fits).                                                                                                                                                                                        |
+| `update_seed`          | W    | `seed_id`, `title?`, `description?`, `git_url?`, `branch?` | Change a seed.                                                                                                                                                                                                                                                                    |
+| `retire_seed`          | W    | `seed_id`, `restore?`                                      | Stop offering a seed (or offer it again).                                                                                                                                                                                                                                         |
+| `get_project`          | R    | `project_id`                                               | Project screen as data: gates (milestone order), designs, decisions, epics (each with gate, `progress {done,total,pct}`, stories sorted in_review → in_progress → ready → blocked → merged/done).                                                                                 |
 
 ### Hexes
 
@@ -251,9 +262,9 @@ Auto-allow the read tools; leave writes prompting, and `delete_hex` always promp
 {
   "permissions": {
     "allow": [
-      "mcp__hexes__get_workspace",
+      "mcp__hexes__find_project",
       "mcp__hexes__list_projects",
-      "mcp__hexes__get_selected_project",
+      "mcp__hexes__list_recent_projects",
       "mcp__hexes__get_project",
       "mcp__hexes__get_hex_by_id",
       "mcp__hexes__get_hex_view",
@@ -283,13 +294,16 @@ included for that purpose).
 ```markdown
 ---
 name: hexes-orient
-description: Get oriented in a Hexes workspace — find the open project, its state, and what to work on next. Use at the start of a session or when asked "where are we / what's next".
+description: Get oriented in a Hexes project — find this repository's project from .hx/project.json, its state, and what to work on next. Use at the start of a session or when asked "where are we / what's next".
 ---
 
-1. `get_workspace`. If no workspace is open, ask the user for the directory and `open_workspace`.
-2. `get_selected_project`. If null, `list_projects`; if there is exactly one, `select_project` it,
-   otherwise ask the user which. If the project they mean is in another folder,
-   `list_recent_projects` and `open_recent_project` switch to it in one step.
+1. Find this session's project: read `.hx/project.json` in the working directory (or the nearest
+   parent), or call `find_project` with the directory's absolute path. Its `project_id` is the
+   project; pass it on every call that takes one. Nothing in Hexes is "selected", so never look for
+   a current project anywhere else.
+2. No `.hx/project.json`: `list_projects` and ask the user which project this folder belongs to (or
+   whether to start one with `create_project`). Then offer `set_project_repo` with this folder,
+   which writes `.hx/project.json`; suggest committing it.
 3. `get_project` for the overview: gates (milestones, in order), designs, decisions, epic progress.
 4. `get_ready_hexes_for_project` for the actionable queue.
 5. Summarize: project statement, the milestones (which are done and which is current: the first gate
@@ -297,8 +311,12 @@ description: Get oriented in a Hexes workspace — find the open project, its st
    ideas waiting for a design. If the project has no gates yet, say so: they are set up (with
    `hexes-plan-work`) before any epic is created. The user can watch changes land in Studio as you
    make them.
+6. If `get_project` reports `needsRepository` (a project created without a folder), say so: its
+   stories and bugs stay out of the ready list until it has one. Point to `hexes-plan-work`, which
+   recommends a repository seed to fork, or the "No repository yet" panel in Studio.
 
-Read-only except for selecting a project. Never create or change hexes while orienting.
+Read-only, except binding the folder in step 2 once the user agrees. Never create or change hexes
+while orienting.
 ```
 
 ---
@@ -311,14 +329,15 @@ name: hexes-next-task
 description: Pick up and execute the next ready hex, then close it out and report what it unblocked.
 ---
 
-1. Pick a hex: `get_ready_hexes_for_project`. Prefer `core.bug` first, then
-   `core.story`/`core.substory`, then others; within a kind, take the one that unblocks the most
-   (`get_hexes_that_depend_on_hex_with_id`). A published `core.idea` in the list wants a design: use
-   `hexes-plan-work` to write one, then stop until it is blessed. A blessed `core.design` in the
-   list is ready to be broken down: use `hexes-plan-work` for it. A blessed `core.spec` is approved:
-   build the work that depends on it, and mark the spec `done` once that work is. A ready
-   `core.question` needs the user: ask it, then answer it with their words (`update_hex_status` →
-   `answered` with `response`), and report the decision it created.
+1. Pick a hex: `get_ready_hexes_for_project` with the `project_id` from `.hx/project.json` (see
+   `hexes-orient`). Prefer `core.bug` first, then `core.story`/`core.substory`, then others; within
+   a kind, take the one that unblocks the most (`get_hexes_that_depend_on_hex_with_id`). A published
+   `core.idea` in the list wants a design: use `hexes-plan-work` to write one, then stop until it is
+   blessed. A blessed `core.design` in the list is ready to be broken down: use `hexes-plan-work`
+   for it. A blessed `core.spec` is approved: build the work that depends on it, and mark the spec
+   `done` once that work is. A ready `core.question` needs the user: ask it, then answer it with
+   their words (`update_hex_status` → `answered` with `response`), and report the decision it
+   created.
 2. Load context: `get_hex_view` (description, breadcrumbs, dependencies), and `get_facts` with
    `near` set to the hex for what is already known around it. Read the linked design/spec/decision
    hexes with `get_hex_by_id` when the description is not self-sufficient.
@@ -372,7 +391,14 @@ description: Break a goal into hexes (gates → design → spec/decision → epi
    `description` of what reaching it means. The first is `ready` (nothing to wait on); the rest stay
    `blocked`. If gates exist, use them; add or change one only when the user asks. Gates come first
    even when you only write a design now: the design's epics will need them.
-3. Create top-down, capturing each returned id:
+3. If `get_project` reports `needsRepository`, the project has nowhere to build its stories yet.
+   `list_seeds`, pick the seed whose short description best fits the project, and recommend it to
+   the user in a sentence (why it fits, and the folder you would fork it into); offer "use an
+   existing folder" as the alternative. Call `set_project_repo` (with `seed_id` to fork) only once
+   they agree: forking creates a folder on their disk, and it writes `.hx/project.json` there.
+   Planning (gates, designs, specs) can go ahead meanwhile; the stories just won't be ready until
+   there is a repository.
+4. Create top-down, capturing each returned id:
    - `core.design` (depends_on: [project_id]), left `blocked` (or `in_progress` while you draft it).
      Ask the user to bless it in Studio; you cannot. Break down only designs that are `blessed`. For
      a published `core.idea`, write exactly one design that depends on the project **and** the idea,
@@ -387,16 +413,17 @@ description: Break a goal into hexes (gates → design → spec/decision → epi
      from step 2 it counts toward: the earliest unfinished gate it is needed for, or the one the
      user names). Never create an epic without a gate; if none fits, ask the user rather than
      inventing one.
-4. Always pass `project_id`. Use `depends_on` for prerequisites and `required_by` to hook a new hex
-   into an existing one (e.g. a new story required by an existing epic).
-5. Statuses: leave `blocked` when there are unfinished dependencies; use `ready` only when every
+5. Always pass `project_id`, the one `.hx/project.json` names. Use `depends_on` for prerequisites
+   and `required_by` to hook a new hex into an existing one (e.g. a new story required by an
+   existing epic).
+6. Statuses: leave `blocked` when there are unfinished dependencies; use `ready` only when every
    dependency is satisfied (`done`, `merged`, `answered` or `blessed`; otherwise the call is
    refused). Hexes with no dependencies can be `ready`. Designs and specs are never `ready`;
    questions are never `done`; work is never created `in_review` or `merged` (its pull requests set
    those).
-6. Put acceptance criteria in `description`; put tooling facts (`desired_language`, `git_branch`) in
+7. Put acceptance criteria in `description`; put tooling facts (`desired_language`, `git_branch`) in
    `meta`.
-7. When a hex will touch the codebase (stories, substories, bugs, and specs that pin down code), end
+8. When a hex will touch the codebase (stories, substories, bugs, and specs that pin down code), end
    its `description` with a `## Files` section listing every file the work is expected to create,
    modify, delete, copy, move or rename, one per line, paths relative to the repository root:
 
@@ -414,7 +441,7 @@ description: Break a goal into hexes (gates → design → spec/decision → epi
    Look in the codebase first so the paths you modify, delete, copy, move or rename really exist;
    mark a path you are unsure of with "(likely)". Leave the section out of designs, decisions, epics
    and gates, and out of any hex that changes no files.
-8. Finish with `get_project` and show the user the resulting tree, gates first with the epics under
+9. Finish with `get_project` and show the user the resulting tree, gates first with the epics under
    each, and `get_ready_hexes_for_project`.
 
 Never create `core.pull_request` hexes: they come from `open_pull_request` when work is done.
@@ -437,7 +464,8 @@ name: hexes-capture-discovery
 description: Record a bug, question, decision, fact or follow-up discovered while working on another hex.
 ---
 
-1. Identify the hex you were working on (`current_id`) and its project.
+1. Identify the hex you were working on (`current_id`) and its project (the one `.hx/project.json`
+   names).
 2. `search_hexes` (query on key words, same project) to avoid duplicates; for a fact, also
    `get_facts` with `query`.
 3. `create_hex` with:
@@ -473,8 +501,8 @@ name: hexes-triage
 description: Audit the graph for stale, mis-wired or stuck hexes and propose fixes.
 ---
 
-1. `get_project`, then `search_hexes` by status (`in_progress`, `in_review`, `blocked`, `verified`)
-   to list each bucket.
+1. `get_project` for the project `.hx/project.json` names, then `search_hexes` (with its
+   `project_id`) by status (`in_progress`, `in_review`, `blocked`, `verified`) to list each bucket.
 2. For each `blocked` hex, `get_hexes_that_this_hex_depends_on`: flag ones whose dependencies are
    all `done` (should be ready) and ones waiting on dependencies that are themselves stuck.
 3. Flag `in_progress` hexes with no `git_branch`/owner meta, and `verified` epics, gates or
