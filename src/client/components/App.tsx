@@ -1,8 +1,6 @@
 import { useEffect } from "preact/hooks";
 import { api } from "../lib/api.ts";
-import { liveStatus, liveVersion } from "../lib/live.ts";
-import { MigrationOffer } from "../lib/migration.ts";
-import { toasts } from "../lib/toasts.ts";
+import { liveStatus } from "../lib/live.ts";
 import { Link, location, matchPath, navigate } from "../lib/router.tsx";
 import { useResource } from "../lib/use-resource.ts";
 import { ErrorState, LoadingState } from "./Layout.tsx";
@@ -52,23 +50,9 @@ function LiveDot() {
   );
 }
 
-/** Offers to move an open v1 folder's data to ~/.hx/projects; re-checked on every live change. */
-function MigrationPrompt() {
-  useEffect(() => {
-    const offer = new MigrationOffer(toasts, api.migrateProject, () => {
-      // Every screen's data moved: start over from `/`.
-      globalThis.location.assign("/");
-    });
-    const check = () => void api.state().then((s) => offer.update(s), () => {});
-    return liveVersion.subscribe(check);
-  }, []);
-  return null;
-}
-
 export function App() {
   return (
     <>
-      <MigrationPrompt />
       <Routes />
       <Toasts />
       <LiveDot />

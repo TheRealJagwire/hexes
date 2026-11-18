@@ -227,7 +227,7 @@ export function CreateHex(
                   id="custom-kind"
                   type="text"
                   value={customKind}
-                  placeholder="studio.selected_project"
+                  placeholder="team.retro"
                   onInput={(e) => setCustomKind(e.currentTarget.value)}
                   class="field field-mono h-9 flex-1 px-3 text-[13px]"
                 />
