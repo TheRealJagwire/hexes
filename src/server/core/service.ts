@@ -1,4 +1,12 @@
 import {
+  BINDING_PATH,
+  bindingFile,
+  findProjectBinding,
+  readBinding,
+  removeBinding,
+  writeBinding,
+} from "./binding.ts";
+import {
   ARCHIVED_KEY,
   AUTO_MERGE_KEY,
   autoMergeOn,
@@ -284,6 +292,7 @@ export class HexService {
     }
     if (dir) {
       await this.assertRepoFree(dir, null);
+      await this.assertBindingFree(dir, null);
       try {
         await Deno.mkdir(dir, { recursive: true });
       } catch (e) {
@@ -310,6 +319,7 @@ export class HexService {
       const warning = await gitInit(dir);
       if (warning) warnings.push(warning);
     }
+    if (dir) await writeBinding(dir, project.id);
     await this.workspace.selectV2(project.id);
     await this.recordRecent(undefined, project);
     return { projectId: project.id, warnings };
@@ -407,6 +417,7 @@ export class HexService {
     }
     const dir = resolveDir(req.dir);
     await this.assertRepoFree(dir, projectId);
+    await this.assertBindingFree(dir, projectId);
     let seedId: string | null = null;
     if (req.seedId) {
       const seed = (await this.listSeeds({ includeRetired: true })).find((s) =>
@@ -424,9 +435,11 @@ export class HexService {
             .stdout === "true";
       if (!tree) throw new DomainError(`${dir} is not a git working tree`, 422);
     }
-    return await this.workspace.projects.file(projectId).mutate((hexes) => {
+    let previous: string | null = null;
+    const updated = await this.workspace.projects.file(projectId).mutate((hexes) => {
       const project = hexes.find((h) => h.id === projectId && h.kind === "core.project");
       if (!project) throw new DomainError(`No project with id ${projectId}`, 404);
+      previous = repoPathOf(project) ?? null;
       const meta: Record<string, string> = { ...project.meta, [REPO_PATH_KEY]: dir };
       if (seedId) meta[REPO_REF_KEY] = seedId;
       else delete meta[REPO_REF_KEY];
@@ -434,6 +447,60 @@ export class HexService {
       project.lastUpdatedAtTimeInMs = this.now();
       return project;
     });
+    // The old folder no longer belongs to the project; the new one names it.
+    if (previous && previous !== dir) await removeBinding(previous, projectId);
+    await writeBinding(dir, projectId);
+    return updated;
+  }
+
+  /**
+   * Refuses a folder whose `.hx/project.json` names another project (`except` is the project the
+   * folder may already name).
+   */
+  private async assertBindingFree(dir: string, except: string | null): Promise<void> {
+    const bound = await readBinding(dir);
+    if (!bound || bound === except) return;
+    const other = (await this.workspace.projects.file(bound).read().catch(() => []))
+      .find((h) => h.id === bound);
+    throw new DomainError(
+      `${dir} already belongs to project ${bound}${other ? ` (${other.title})` : ""}: its ` +
+        `${BINDING_PATH} names it`,
+      409,
+    );
+  }
+
+  /**
+   * The project a folder belongs to: the nearest `.hx/project.json` at or above `dir`, with the
+   * project hex when it is in ~/.hx/projects. Null when no folder above names one.
+   */
+  async findProject(
+    dir: string,
+  ): Promise<{ projectId: string; dir: string; project: Hex | null } | null> {
+    const binding = await findProjectBinding(resolveDir(dir));
+    if (!binding) return null;
+    const project = (await this.workspace.projects.file(binding.projectId).read().catch(() => []))
+      .find((h) => h.id === binding.projectId && h.kind === "core.project") ?? null;
+    return { projectId: binding.projectId, dir: binding.dir, project };
+  }
+
+  /**
+   * Writes `.hx/project.json` into the repository of every v2 project that has one and lacks
+   * the file, so repositories bound before bindings existed find their project. Never
+   * overwrites a file that is there. Returns the folders written.
+   */
+  async backfillBindings(): Promise<string[]> {
+    if (this.workspace.pinnedDir) return [];
+    const store = this.workspace.projects;
+    const written: string[] = [];
+    for (const id of await store.list()) {
+      const project = (await store.file(id).read().catch(() => [])).find((h) => h.id === id);
+      const dir = repoPathOf(project);
+      if (!dir || !await Deno.stat(dir).then((s) => s.isDirectory, () => false)) continue;
+      if (await Deno.stat(bindingFile(dir)).then(() => true, () => false)) continue;
+      await writeBinding(dir, id);
+      written.push(dir);
+    }
+    return written;
   }
 
   /** Clones a seed into `dir` and renames `origin` to `seed`; on failure leaves nothing behind. */

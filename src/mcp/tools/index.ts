@@ -120,6 +120,21 @@ export function buildTools(s: HexService) {
       run: ({ dir, project_id }) => s.openRecentProject(dir, project_id),
     }),
     defineTool({
+      name: "find_project",
+      description:
+        "The project a folder belongs to: reads the nearest .hx/project.json at or above dir " +
+        "(the repository names its project there). Returns { project_id, dir, project } or " +
+        "null when no folder above names one. Pass the absolute path of your working directory.",
+      kind: "read",
+      input: z.object({ dir: z.string().min(1).describe("Absolute folder path; ~ is expanded") }),
+      run: async ({ dir }) => {
+        const found = await s.findProject(dir);
+        return found
+          ? { project_id: found.projectId, dir: found.dir, project: found.project }
+          : null;
+      },
+    }),
+    defineTool({
       name: "get_selected_project",
       description: "Get the selected project hex, or null.",
       kind: "read",

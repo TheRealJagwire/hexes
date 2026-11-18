@@ -1,5 +1,7 @@
 import qrcode from "qrcode-terminal";
 import { createApp } from "./app.ts";
+import { HexService } from "./core/service.ts";
+import { Workspace } from "./core/workspace.ts";
 import { guardOptionsFromEnv, isLoopbackHost } from "./guard.ts";
 
 const port = Number(Deno.env.get("PORT") ?? 8000);
@@ -13,7 +15,14 @@ if (!isLoopbackHost(hostname) && !security.token) {
   Deno.exit(1);
 }
 
-Deno.serve({ hostname, port }, createApp(undefined, undefined, security).fetch);
+const service = new HexService(Workspace.fromEnv());
+Deno.serve({ hostname, port }, createApp(service, undefined, security).fetch);
+
+// Repositories bound before .hx/project.json existed get theirs, so agents find their project.
+service.backfillBindings().then(
+  (dirs) => dirs.forEach((dir) => console.log(`hexes: wrote .hx/project.json in ${dir}`)),
+  (e) => console.error(`hexes: could not write .hx/project.json files: ${e}`),
+);
 
 if (security.token && !isLoopbackHost(hostname)) {
   const url = Deno.env.get("HEXES_PUBLIC_URL") ??

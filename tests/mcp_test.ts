@@ -32,6 +32,7 @@ Deno.test("mcp exposes the spec'd tools and they work end to end", async () => {
         "get_hexes_that_this_hex_depends_on",
         "add_meta_state_to_hex_with_id",
         "update_meta_state_to_hex_with_id",
+        "find_project",
       ]
     ) assert(names.includes(n), `missing ${n}`);
 
@@ -322,6 +323,23 @@ Deno.test("mcp get_facts finds the facts near a hex", async () => {
     assert(bad.isError);
   } finally {
     await client.close();
+    await f.cleanup();
+  }
+});
+
+Deno.test("find_project names the project a folder belongs to", async () => {
+  const f = await fixture("Alpha", { v2: true });
+  const { call } = await connect(f);
+  try {
+    await Deno.mkdir(`${f.dir}/src`, { recursive: true });
+    const found = (await call("find_project", { dir: `${f.dir}/src` })).json;
+    assertEquals([found.project_id, found.dir, found.project.id], [
+      f.projectId,
+      f.dir,
+      f.projectId,
+    ]);
+    assertEquals((await call("find_project", { dir: "/" })).json, null);
+  } finally {
     await f.cleanup();
   }
 });
