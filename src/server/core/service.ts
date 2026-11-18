@@ -477,12 +477,36 @@ export class HexService {
 
   // ── projects ─────────────────────────────────────────────────────────────
 
-  private async index(): Promise<HexIndex> {
-    return buildIndex(await (await this.workspace.file()).read());
+  /** The hexes of the data file holding `scope`, a hex or project id (found by its prefix). */
+  private async index(scope: string): Promise<HexIndex> {
+    return buildIndex(await (await this.workspace.fileFor(scope)).read());
   }
 
-  private async mutate<T>(fn: (hexes: Hex[]) => T | Promise<T>): Promise<T> {
-    return (await this.workspace.file()).mutate(fn);
+  /** Changes the data file holding `scope`, a hex or project id (found by its prefix). */
+  private async mutate<T>(scope: string, fn: (hexes: Hex[]) => T | Promise<T>): Promise<T> {
+    return (await this.workspace.fileFor(scope)).mutate(fn);
+  }
+
+  /**
+   * One index per data file worth searching when no project is named: every v2 project, then
+   * the open v1 folder (if any).
+   */
+  private async indexes(): Promise<HexIndex[]> {
+    const out: HexIndex[] = [];
+    if (!this.workspace.pinnedDir) {
+      for (const id of await this.workspace.projects.list()) {
+        const file = await this.workspace.projectFile(id);
+        await ensureMigrated(file);
+        out.push(buildIndex(await file.read()));
+      }
+    }
+    const dir = await this.workspace.current();
+    if (dir) {
+      const file = new HexFile(dir);
+      await ensureMigrated(file);
+      out.push(buildIndex(await file.read()));
+    }
+    return out;
   }
 
   /**
@@ -589,7 +613,7 @@ export class HexService {
   }
 
   async projectView(id: string): Promise<ProjectView> {
-    const idx = await this.index();
+    const idx = await this.index(id);
     const project = idx.byId.get(id);
     if (!project || project.kind !== "core.project") {
       throw new DomainError(`No project with id ${id}`, 404);
@@ -626,7 +650,7 @@ export class HexService {
 
   /** Turns a project's auto-merge on or off (`meta.auto_merge`). A person's setting. */
   setAutoMerge(projectId: string, enabled: boolean): Promise<Hex> {
-    return this.mutate((hexes) => {
+    return this.mutate(projectId, (hexes) => {
       const project = buildIndex(hexes).byId.get(projectId);
       if (!project || project.kind !== "core.project") {
         throw new DomainError(`No project with id ${projectId}`, 404);
@@ -642,7 +666,7 @@ export class HexService {
    * unarchives it. Unarchiving is always allowed.
    */
   setArchived(id: string, archived: boolean): Promise<Hex> {
-    return this.mutate((hexes) => {
+    return this.mutate(id, (hexes) => {
       const idx = buildIndex(hexes);
       const epic = idx.byId.get(id);
       if (!epic) throw new DomainError(`No hex with id ${id}`, 404);
@@ -664,7 +688,7 @@ export class HexService {
 
   /** Every hex in a project and the links between them, for the hex map. */
   async projectGraph(id: string): Promise<ProjectGraph> {
-    const idx = await this.index();
+    const idx = await this.index(id);
     const project = idx.byId.get(id);
     if (!project) throw new DomainError(`No project with id ${id}`, 404);
     if (project.kind !== "core.project") throw new DomainError(`${id} is not a project`, 422);
@@ -687,7 +711,7 @@ export class HexService {
    * file (`meta.files`), matching a title search, and known unless retired ones are asked for.
    */
   async facts(projectId: string, q: FactsQuery = {}): Promise<FactsResult> {
-    const idx = await this.index();
+    const idx = await this.index(projectId);
     const project = idx.byId.get(projectId);
     if (!project || project.kind !== "core.project") {
       throw new DomainError(`No project with id ${projectId}`, 404);
@@ -745,11 +769,11 @@ export class HexService {
   }
 
   async getHex(id: string): Promise<Hex> {
-    return this.require(await this.index(), id);
+    return this.require(await this.index(id), id);
   }
 
   async hexView(id: string): Promise<HexView> {
-    const idx = await this.index();
+    const idx = await this.index(id);
     const hex = this.require(idx, id);
     const prefix = prefixOf(id);
     const emergedHere = idx.hexes.filter((h) => h.emergedFrom === id).sort(byCreated);
@@ -792,15 +816,16 @@ export class HexService {
   }
 
   async breadcrumbsOf(id: string): Promise<HexSummary[]> {
-    const idx = await this.index();
+    const idx = await this.index(id);
     return breadcrumbs(idx, this.require(idx, id)).map(summarize);
   }
 
+  /** Hexes matching a query: in one project when `projectId` is given, else in every project. */
   async search(q: SearchQuery = {}): Promise<HexSummary[]> {
-    const idx = await this.index();
+    const indexes = q.projectId ? [await this.index(q.projectId)] : await this.indexes();
     const prefix = q.projectId ? prefixOf(q.projectId) : null;
     const needle = q.query?.trim().toLowerCase();
-    return idx.hexes
+    return uniqueById(indexes.flatMap((idx) => idx.hexes))
       .filter((h) => !h.kind.startsWith("studio."))
       .filter((h) => !prefix || prefixOf(h.id) === prefix)
       .filter((h) => !q.kind || h.kind === q.kind)
@@ -811,25 +836,27 @@ export class HexService {
       .map(summarize);
   }
 
+  /** Hexes that can be picked up: in one project when `projectId` is given, else in all of them. */
   async ready(projectId?: string): Promise<Hex[]> {
-    const idx = await this.index();
     if (projectId) {
+      const idx = await this.index(projectId);
       const project = this.require(idx, projectId);
       if (project.kind !== "core.project") {
         throw new DomainError(`${projectId} is not a project`, 400);
       }
+      return readyHexes(idx, prefixOf(projectId) ?? undefined);
     }
-    return readyHexes(idx, projectId ? prefixOf(projectId) ?? undefined : undefined);
+    return uniqueById((await this.indexes()).flatMap((idx) => readyHexes(idx)));
   }
 
   async dependents(id: string): Promise<Hex[]> {
-    const idx = await this.index();
+    const idx = await this.index(id);
     this.require(idx, id);
     return dependentsOf(idx, id);
   }
 
   async dependencies(id: string): Promise<Hex[]> {
-    const idx = await this.index();
+    const idx = await this.index(id);
     return dependenciesOf(idx, this.require(idx, id));
   }
 
@@ -844,7 +871,7 @@ export class HexService {
     if (req.kind === "core.pull_request") {
       throw new DomainError("Pull requests are created by opening one on a work hex", 422);
     }
-    return await this.mutate(async (hexes) => {
+    return await this.mutate(req.projectId, async (hexes) => {
       const idx = buildIndex(hexes);
       if (!findProject(idx, prefix) && prefix !== SELECTED_PROJECT_PREFIX) {
         throw new DomainError(`No project with id prefix "${prefix}"`, 404);
@@ -902,7 +929,7 @@ export class HexService {
   }
 
   updateHex(id: string, patch: UpdateHexRequest): Promise<Hex> {
-    return this.mutate(async (hexes) => {
+    return this.mutate(id, async (hexes) => {
       const hex = this.require(buildIndex(hexes), id);
       if (
         patch.expectedUpdatedAtTimeInMs !== undefined &&
@@ -965,7 +992,7 @@ export class HexService {
 
   /** Deleting a project deletes every hex under its prefix. Returns the deleted ids. */
   deleteHex(id: string): Promise<string[]> {
-    return this.mutate((hexes) => {
+    return this.mutate(id, (hexes) => {
       const idx = buildIndex(hexes);
       const hex = this.require(idx, id);
       const prefix = prefixOf(id);
@@ -1002,7 +1029,7 @@ export class HexService {
   setMeta(id: string, key: string, value: string, mode: MetaMode = "set"): Promise<Hex> {
     const k = key.trim();
     if (!k) throw new DomainError("meta key is required", 400);
-    return this.mutate((hexes) => {
+    return this.mutate(id, (hexes) => {
       const hex = this.require(buildIndex(hexes), id);
       const exists = hex.meta !== undefined && k in hex.meta;
       if (mode === "add" && exists) {
@@ -1018,7 +1045,7 @@ export class HexService {
   }
 
   removeMeta(id: string, key: string): Promise<Hex> {
-    return this.mutate((hexes) => {
+    return this.mutate(id, (hexes) => {
       const hex = this.require(buildIndex(hexes), id);
       if (!hex.meta || !(key in hex.meta)) {
         throw new DomainError(`Meta key "${key}" does not exist on ${id}`, 404);
@@ -1031,8 +1058,15 @@ export class HexService {
     });
   }
 
-  addDependency(id: string, dependsOnId: string): Promise<Hex> {
-    return this.mutate((hexes) => {
+  async addDependency(id: string, dependsOnId: string): Promise<Hex> {
+    const [a, b] = await Promise.all([
+      this.workspace.projectFor(id),
+      this.workspace.projectFor(dependsOnId),
+    ]);
+    if (a !== b) {
+      throw new DomainError(`${id} and ${dependsOnId} belong to different projects`, 422);
+    }
+    return await this.mutate(id, (hexes) => {
       const idx = buildIndex(hexes);
       const hex = this.require(idx, id);
       this.require(idx, dependsOnId);
@@ -1046,7 +1080,7 @@ export class HexService {
   }
 
   removeDependency(id: string, dependsOnId: string): Promise<Hex> {
-    return this.mutate((hexes) => {
+    return this.mutate(id, (hexes) => {
       const hex = this.require(buildIndex(hexes), id);
       if (!hex.dependsOn?.includes(dependsOnId)) {
         throw new DomainError(`${id} does not depend on ${dependsOnId}`, 404);
@@ -1068,8 +1102,8 @@ export class HexService {
    * repo_path and `~/.hx/projects/<id>/diffs`; for v1, the folder holding `.hx/` and its
    * `.hx/diffs`.
    */
-  private async repo(): Promise<{ dir: string; diffs: string; v2: boolean }> {
-    const file = await this.workspace.file();
+  private async repo(scope: string): Promise<{ dir: string; diffs: string; v2: boolean }> {
+    const file = await this.workspace.fileFor(scope);
     if (file instanceof ProjectFile) {
       const project = (await file.read()).find((h) => h.id === file.projectId);
       const dir = repoPathOf(project);
@@ -1085,8 +1119,8 @@ export class HexService {
   }
 
   /** Git for the open project, after the checks every branch operation needs. */
-  private async git(): Promise<Git> {
-    const repo = await this.repo();
+  private async git(scope: string): Promise<Git> {
+    const repo = await this.repo(scope);
     const git = new Git(repo.dir);
     await git.assertRepo();
     // v2 data lives outside the repo, so branch switches cannot touch it.
@@ -1105,7 +1139,7 @@ export class HexService {
    * again switches back to that branch, recreating it if it was deleted.
    */
   async startWork(id: string): Promise<Hex> {
-    const idx = await this.index();
+    const idx = await this.index(id);
     const hex = this.require(idx, id);
     if (!isWorkKind(hex.kind)) {
       throw new DomainError(`A ${hex.kind} is not worked on a branch`, 422);
@@ -1113,7 +1147,7 @@ export class HexService {
     if (roleOf(hex.status) === "terminal") {
       throw new DomainError(`${id} is already ${hex.status}`, 409);
     }
-    const git = await this.git();
+    const git = await this.git(id);
     return await git.serial(async () => {
       const main = await this.mainBranchFor(git, hex, idx);
       const branch = hex.meta?.git_branch ?? branchName(hex);
@@ -1129,7 +1163,7 @@ export class HexService {
         base = await git.revParse(main);
         await git.run("switch", "-q", "-c", branch, main);
       }
-      return await this.mutate((hexes) => {
+      return await this.mutate(id, (hexes) => {
         const h = this.require(buildIndex(hexes), id);
         h.meta = { ...h.meta, git_branch: branch, base_sha: base! };
         if (roleOf(h.status) !== "active") h.status = "in_progress";
@@ -1150,7 +1184,7 @@ export class HexService {
     opts: { title?: string | undefined; description?: string | undefined } = {},
   ): Promise<Hex> {
     const pr = await this.createPullRequest(workId, opts);
-    const project = findProject(await this.index(), prefixOf(workId) ?? "");
+    const project = findProject(await this.index(workId), prefixOf(workId) ?? "");
     return autoMergeOn(project) ? await this.autoMerge(pr.id) : pr;
   }
 
@@ -1158,7 +1192,7 @@ export class HexService {
     workId: string,
     opts: { title?: string | undefined; description?: string | undefined },
   ): Promise<Hex> {
-    const idx = await this.index();
+    const idx = await this.index(workId);
     const work = this.require(idx, workId);
     if (!isWorkKind(work.kind)) {
       throw new DomainError(`A ${work.kind} does not get pull requests`, 422);
@@ -1168,7 +1202,7 @@ export class HexService {
     }
     const branch = work.meta?.git_branch;
     if (!branch) throw new DomainError("Start work on a branch first", 409);
-    const git = await this.git();
+    const git = await this.git(workId);
     return await git.serial(async () => {
       const main = await this.mainBranchFor(git, work, idx);
       if (!await git.branchExists(branch)) {
@@ -1180,7 +1214,7 @@ export class HexService {
       const base = await git.mergeBase(main, branch);
       const head = await git.revParse(branch);
       const { conflicts } = await git.mergeTree(main, branch);
-      return await this.mutate(async (hexes) => {
+      return await this.mutate(workId, async (hexes) => {
         const idx = buildIndex(hexes);
         const w = this.require(idx, workId);
         const open = pullRequestsOf(idx, workId).find((p) =>
@@ -1223,12 +1257,12 @@ export class HexService {
    * `.hx/diffs/<id>.patch` for when the commits are gone.
    */
   async mergePullRequest(id: string): Promise<Hex> {
-    const idx = await this.index();
+    const idx = await this.index(id);
     const pr = this.requirePullRequest(idx, id);
     const work = pr.meta?.work_hex ? idx.byId.get(pr.meta.work_hex) : undefined;
     const branch = pr.meta?.source_branch ?? "";
     const target = pr.meta?.target_branch ?? "";
-    const git = await this.git();
+    const git = await this.git(id);
     return await git.serial(async () => {
       await this.requireBranches(git, branch, target);
       if (await git.aheadOf(target, branch) === 0) {
@@ -1238,7 +1272,7 @@ export class HexService {
       const head = await git.revParse(branch);
       const merge = await git.merge(target, branch, `Merge ${branch}: ${label}`);
       if (merge.sha === null) {
-        await this.recordConflicts(new Map([[id, merge.conflicts]]));
+        await this.recordConflicts(id, new Map([[id, merge.conflicts]]));
         throw new DomainError(
           `Merging ${branch} into ${target} conflicts in ${merge.conflicts.join(", ")}. ` +
             `Update the branch from ${target}, or merge ${target} into ${branch}, resolve and ` +
@@ -1255,11 +1289,11 @@ export class HexService {
         `${mergeSha}^1`,
         mergeSha,
       );
-      const { diffs } = await this.repo();
+      const { diffs } = await this.repo(id);
       await Deno.mkdir(diffs, { recursive: true });
       await Deno.writeTextFile(`${diffs}/${id}.patch`, patch + "\n");
       const others = await this.conflictsOfOpenPullRequests(git, target, id);
-      return await this.mutate((hexes) => {
+      return await this.mutate(id, (hexes) => {
         const idx = buildIndex(hexes);
         const p = this.require(idx, id);
         const t = this.now();
@@ -1305,7 +1339,7 @@ export class HexService {
       if (!(e instanceof DomainError)) throw e;
       note = `not merged: ${e.message}`;
     }
-    return await this.mutate((hexes) => {
+    return await this.mutate(id, (hexes) => {
       const pr = this.require(buildIndex(hexes), id);
       pr.meta = { ...pr.meta, auto_merge_result: note };
       return pr;
@@ -1321,9 +1355,9 @@ export class HexService {
    */
   private async updateOutstandingBranches(merged: Hex): Promise<string[]> {
     const target = merged.meta?.target_branch ?? "";
-    const git = await this.git();
+    const git = await this.git(merged.id);
     return await git.serial(async () => {
-      const idx = await this.index();
+      const idx = await this.index(merged.id);
       const branches = new Map<string, { id: string; pullRequest: boolean }>();
       for (const h of projectHexes(idx, prefixOf(merged.id) ?? "")) {
         if (
@@ -1370,7 +1404,7 @@ export class HexService {
             : { conflicts },
         );
       }
-      await this.mutate((hexes) => {
+      await this.mutate(merged.id, (hexes) => {
         const idx = buildIndex(hexes);
         const t = this.now();
         for (const [id, { conflicts, head, base }] of outcomes) {
@@ -1398,11 +1432,11 @@ export class HexService {
    * the branch. Already up to date is fine and clears any recorded conflict.
    */
   async updatePullRequestBranch(id: string): Promise<Hex> {
-    const idx = await this.index();
+    const idx = await this.index(id);
     const pr = this.requirePullRequest(idx, id);
     const branch = pr.meta?.source_branch ?? "";
     const target = pr.meta?.target_branch ?? "";
-    const git = await this.git();
+    const git = await this.git(id);
     return await git.serial(async () => {
       await this.requireBranches(git, branch, target);
       const conflicts = await git.aheadOf(branch, target) === 0
@@ -1410,7 +1444,7 @@ export class HexService {
         : (await git.merge(branch, target, `Merge ${target} into ${branch}`)).conflicts;
       const head = await git.revParse(branch);
       const base = await git.mergeBase(target, branch);
-      const updated = await this.mutate((hexes) => {
+      const updated = await this.mutate(id, (hexes) => {
         const p = this.require(buildIndex(hexes), id);
         const t = this.now();
         markConflicts(p, conflicts, t);
@@ -1446,7 +1480,7 @@ export class HexService {
     except: string,
   ): Promise<Map<string, string[]>> {
     const out = new Map<string, string[]>();
-    for (const p of (await this.index()).byId.values()) {
+    for (const p of (await this.index(except)).byId.values()) {
       const branch = p.meta?.source_branch;
       if (
         p.kind !== PULL_REQUEST_KIND || p.status !== "pull_requested" || p.id === except ||
@@ -1457,8 +1491,8 @@ export class HexService {
     return out;
   }
 
-  private recordConflicts(byId: Map<string, string[]>): Promise<void> {
-    return this.mutate((hexes) => {
+  private recordConflicts(scope: string, byId: Map<string, string[]>): Promise<void> {
+    return this.mutate(scope, (hexes) => {
       const idx = buildIndex(hexes);
       const t = this.now();
       for (const [id, files] of byId) {
@@ -1473,7 +1507,7 @@ export class HexService {
    * Everything else, including the hex statuses that follow, is `mergePullRequest`.
    */
   async mergeWork(workId: string): Promise<Hex> {
-    const idx = await this.index();
+    const idx = await this.index(workId);
     const work = this.require(idx, workId);
     if (!isWorkKind(work.kind)) {
       throw new DomainError(`A ${work.kind} does not get pull requests`, 422);
@@ -1492,7 +1526,7 @@ export class HexService {
 
   /** Abandons a pull request: it is kept as a record, and its work hex no longer waits on it. */
   closePullRequest(id: string): Promise<Hex> {
-    return this.mutate((hexes) => {
+    return this.mutate(id, (hexes) => {
       const idx = buildIndex(hexes);
       const pr = this.requirePullRequest(idx, id);
       const t = this.now();
@@ -1522,11 +1556,11 @@ export class HexService {
    * the branch since it left main. From the saved patch when the commits are gone.
    */
   async pullRequestDiff(id: string): Promise<PullRequestDiff> {
-    const idx = await this.index();
+    const idx = await this.index(id);
     const pr = this.require(idx, id);
     if (pr.kind !== PULL_REQUEST_KIND) throw new DomainError(`${id} is not a pull request`, 422);
     const m = pr.meta ?? {};
-    const repo = await this.repo();
+    const repo = await this.repo(id);
     const git = new Git(repo.dir);
     let text: string | null = null;
     let source: PullRequestDiff["source"] = "git";
@@ -1708,6 +1742,12 @@ function markConflicts(pr: Hex, files: readonly string[], t: number): void {
 /** The files a pull request's branch was last found to conflict in with its target. */
 export function conflictsOf(pr: Hex): string[] {
   return pr.meta?.merge_conflicts?.split("\n").filter(Boolean) ?? [];
+}
+
+/** Hexes with duplicate ids dropped, keeping the first (a project may sit in two files). */
+function uniqueById(hexes: readonly Hex[]): Hex[] {
+  const seen = new Set<string>();
+  return hexes.filter((h) => !seen.has(h.id) && seen.add(h.id));
 }
 
 function unique<T>(items: readonly T[]): T[] {

@@ -47,9 +47,18 @@ export async function migrateToV2(
   const owned = projects(idx);
   if (!owned.length) throw new DomainError(`No projects to migrate in ${dir}`, 404);
 
+  // Calls find a hex's project by its id prefix, so no two projects may share one.
+  const existing = await store.list();
   for (const p of owned) {
     if (await exists(store.projectDir(p.id))) {
       throw new DomainError(`${store.projectDir(p.id)} already exists; not merging into it`, 409);
+    }
+    const clash = existing.find((id) => prefixOf(id) === prefixOf(p.id));
+    if (clash) {
+      throw new DomainError(
+        `${p.id} shares the prefix "${prefixOf(p.id)}" with ${clash} in ${store.projectsDir}`,
+        409,
+      );
     }
   }
 

@@ -126,7 +126,11 @@ if (import.meta.main) {
   const presence = new ChannelPresence(workspace);
   const channel = new HexesChannel({
     workspace,
-    watcher: new ChangeWatcher(workspace),
+    // Follows the selected project until the channel reads the repository's .hx/project.json.
+    watcher: new ChangeWatcher(workspace, undefined, undefined, async () => {
+      const dir = await workspace.dataDir();
+      return dir ? [dir] : [];
+    }),
     send: (params) => server.notification({ method: "notifications/claude/channel", params }),
     presence,
   });
