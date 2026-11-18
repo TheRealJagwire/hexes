@@ -2,7 +2,7 @@ import { DataFileSchema } from "../../shared/schemas.ts";
 import type { InspectResult } from "../../shared/views.ts";
 import { DomainError } from "./errors.ts";
 import { ensureMigrated } from "./migrate.ts";
-import { repoPathOf } from "../../shared/graph.ts";
+import { prefixOf, repoPathOf } from "../../shared/graph.ts";
 import { DataFile, HexFile, ProjectFile, ProjectStore } from "./store.ts";
 
 export interface WorkspaceOptions {
@@ -127,6 +127,46 @@ export class Workspace {
   /** Selects a v2 project; the v1 directory is kept only as a fallback. */
   async selectV2(id: string): Promise<void> {
     await this.writeState({ selectedProjectId: id });
+  }
+
+  /**
+   * The v2 project that owns a hex or project id, found by the id's prefix among the folders of
+   * `~/.hx/projects` (each named for its project's id). Null while pinned by HEXES_DIR, or when no
+   * project there owns the prefix.
+   */
+  async projectFor(id: string): Promise<string | null> {
+    if (this.pinnedDir) return null;
+    const prefix = prefixOf(id);
+    if (!prefix) return null;
+    return (await this.projects.list()).find((p) => prefixOf(p) === prefix) ?? null;
+  }
+
+  /**
+   * The data file holding a hex or project id: the v2 project that owns its prefix, else the open
+   * v1 folder's. Unlike `file()`, it never depends on which project is selected.
+   */
+  async fileFor(id: string): Promise<HexFile | ProjectFile> {
+    const projectId = await this.projectFor(id);
+    if (projectId) {
+      const file = await this.projectFile(projectId);
+      await ensureMigrated(file);
+      return file;
+    }
+    const dir = await this.current();
+    if (!dir) {
+      throw new DomainError(`No project owns prefix "${prefixOf(id) ?? id}"`, 404);
+    }
+    const file = new HexFile(dir);
+    await ensureMigrated(file);
+    return file;
+  }
+
+  /** The folder holding the data file for a hex or project id and its `channels/`. */
+  async dataDirFor(id: string): Promise<string | null> {
+    const projectId = await this.projectFor(id);
+    if (projectId) return this.projects.projectDir(projectId);
+    const dir = await this.current();
+    return dir ? `${dir}/.hx` : null;
   }
 
   /** The selected v2 project's file, its `dir` being the project's repo_path when it has one. */

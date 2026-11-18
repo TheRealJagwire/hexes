@@ -140,7 +140,7 @@ async function seedV2(f: Fixture, id: string): Promise<void> {
   }, { create: true });
 }
 
-Deno.test("for a v2 project, the watcher follows the selection, its data file and channels", async () => {
+Deno.test("the watcher follows every v2 project, whatever is selected", async () => {
   const f = await fixture();
   await seedV2(f, "hx-vtwo-0a1");
   const w = new ChangeWatcher(f.workspace, 20, 200);
@@ -149,23 +149,32 @@ Deno.test("for a v2 project, the watcher follows the selection, its data file an
   const v2Dir = f.workspace.projects.projectDir("hx-vtwo-0a1");
   try {
     await w.snapshot();
-    await f.service.selectProject("hx-vtwo-0a1");
-    assert(await waitFor(1), "no event for selecting the v2 project");
-    assertEquals([events[0]?.scope, events[0]?.dir], ["workspace", v2Dir]);
 
-    // A write from another process, straight to the v2 file.
+    // A write from another process, straight to the v2 file, with the v1 project selected.
     await f.workspace.projects.file("hx-vtwo-0a1").mutate((hexes) => {
       hexes[0]!.title = "renamed";
     });
-    assert(await waitFor(2), "no event for the v2 write");
-    assertEquals([events[1]?.scope, events[1]?.dir], ["data", v2Dir]);
+    assert(await waitFor(1), "no event for the v2 write");
+    assertEquals([events[0]?.scope, events[0]?.dir], ["data", v2Dir]);
 
-    // A channel registers in the v2 project's folder.
+    // Selecting a project changes nothing that is watched.
+    await f.service.selectProject("hx-vtwo-0a1");
+    assert(!await waitFor(2, 400), "selecting a project sent an event");
+
+    // A channel registers in the selected v2 project's folder.
     await presence.start();
-    assert(await waitFor(3), "no channels event");
-    assertEquals(events[2]?.scope, "channels");
+    assert(await waitFor(2), "no channels event");
+    assertEquals([events[1]?.scope, events[1]?.dir], ["channels", v2Dir]);
     assertEquals((await readChannels(v2Dir)).map((c) => c.pid), [991]);
     assertEquals(await readChannels(`${f.dir}/.hx`), []);
+
+    // A new project's folder joins the watched set.
+    await seedV2(f, "hx-other-0b2");
+    assert(await waitFor(3), "no event for a new project");
+    assertEquals(
+      [events[2]?.scope, events[2]?.dir],
+      ["workspace", f.workspace.projects.projectDir("hx-other-0b2")],
+    );
   } finally {
     await presence.stop();
     stop();
