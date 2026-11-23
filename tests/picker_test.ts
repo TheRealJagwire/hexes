@@ -81,3 +81,14 @@ Deno.test("cleanPickedPath: trims, drops one trailing separator, keeps roots", (
   assertEquals(cleanPickedPath("/Users/me/app/\n", "mac"), "/Users/me/app");
   assertEquals(cleanPickedPath("/", "mac"), "/");
 });
+
+Deno.test("pickerCommand: WSL runs the same Windows dialog through interop", () => {
+  assertEquals(pickerCommand("wsl"), pickerCommand("windows"));
+});
+
+Deno.test("cleanPickedPath: wslpath output", () => {
+  assertEquals(cleanPickedPath("/mnt/c/code/app\n", "wsl"), "/mnt/c/code/app");
+  assertEquals(cleanPickedPath("/home/me/app/\n", "wsl"), "/home/me/app");
+  assertEquals(cleanPickedPath("/\n", "wsl"), "/");
+  assertEquals(cleanPickedPath("\n", "wsl"), null);
+});
