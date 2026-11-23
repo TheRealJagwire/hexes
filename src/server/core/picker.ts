@@ -107,37 +107,55 @@ async function readOsRelease(): Promise<string> {
   }
 }
 
-/** Native folder chooser on macOS and Windows; elsewhere the user types the path. Null = cancelled. */
+/** Runs a command; a missing or unstartable one is a broken picker. */
+async function run(
+  platform: PickerPlatform,
+  cmd: string,
+  args: string[],
+): Promise<Deno.CommandOutput> {
+  try {
+    return await new Deno.Command(cmd, { args, stdout: "piped", stderr: "piped" }).output();
+  } catch (e) {
+    throw broken(platform, e instanceof Deno.errors.NotFound ? `${cmd} not found` : String(e));
+  }
+}
+
+function failure(platform: PickerPlatform, out: Deno.CommandOutput): DomainError {
+  const err = new TextDecoder().decode(out.stderr).trim().split("\n")[0];
+  return broken(platform, err || `exit code ${out.code}`);
+}
+
+/**
+ * Native folder chooser on macOS, Windows and WSL (the Windows dialog through interop, its path
+ * converted with wslpath); elsewhere the user types the path. Null = cancelled.
+ */
 export async function pickDirectory(): Promise<string | null> {
   const platform = detectPickerPlatform({
     os: Deno.build.os,
     env: { WSL_DISTRO_NAME: Deno.env.get("WSL_DISTRO_NAME") },
     osrelease: Deno.build.os === "linux" ? await readOsRelease() : "",
   });
-  const command = platform === "wsl" ? null : pickerCommand(platform);
+  const command = pickerCommand(platform);
   if (!command) {
     throw new DomainError(
-      "The folder picker is only available on macOS and Windows. Type the path instead.",
+      "The folder picker is only available on macOS, Windows and WSL. Type the path instead.",
       501,
     );
   }
-  let out: Deno.CommandOutput;
-  try {
-    out = await new Deno.Command(command.cmd, {
-      args: command.args,
-      stdout: "piped",
-      stderr: "piped",
-    }).output();
-  } catch (e) {
-    throw broken(
-      platform,
-      e instanceof Deno.errors.NotFound ? `${command.cmd} not found` : String(e),
-    );
-  }
+  const out = await run(platform, command.cmd, command.args);
   if (!out.success) {
     if (platform === "mac") return null; // osascript exits non-zero when the user cancels
-    const err = new TextDecoder().decode(out.stderr).trim().split("\n")[0];
-    throw broken(platform, err || `exit code ${out.code}`);
+    throw failure(platform, out);
   }
-  return cleanPickedPath(new TextDecoder().decode(out.stdout), platform);
+  // The dialog speaks Windows paths; cleaning them as Windows keeps a drive root intact.
+  const picked = cleanPickedPath(
+    new TextDecoder().decode(out.stdout),
+    platform === "wsl" ? "windows" : platform,
+  );
+  if (platform !== "wsl" || picked === null) return picked;
+  const converted = await run(platform, "wslpath", ["-u", picked]);
+  if (!converted.success) throw failure(platform, converted);
+  const path = cleanPickedPath(new TextDecoder().decode(converted.stdout), platform);
+  if (!path) throw broken(platform, `wslpath gave no path for ${picked}`);
+  return path;
 }

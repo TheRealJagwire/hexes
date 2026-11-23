@@ -85,6 +85,11 @@ merges run in) and `schema_version` (`"2"`). Creating a project writes this fold
 `repo_path` to the folder you chose; the only thing written into the repository is
 `.hx/project.json` (below).
 
+**Browse…** next to a folder field opens a native folder dialog on the machine the server runs on:
+on macOS, on Windows, and inside WSL (the Windows dialog, its path converted with `wslpath`, so
+`C:\code\app` is stored as `/mnt/c/code/app`). Elsewhere, type the path. The same folder can end up
+stored under a Windows and a WSL spelling; each server keeps the one it can open.
+
 Older projects (schema version 1) kept their hexes in the repository, in `<repo>/.hx/data.json`,
 several projects to a file. Studio no longer opens them in place: the welcome screen's **Move an
 older project** takes such a folder and migrates it, splitting the file into one folder per project
